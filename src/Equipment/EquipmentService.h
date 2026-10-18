@@ -47,6 +47,9 @@ namespace OSF::Equipment
 		// Game thread.
 		void Restore(RE::Actor* a_actor, const Snapshot& a_snapshot);
 
+		// Game thread. Reapply an existing hide record without capturing unrelated worn items.
+		void Rehide(RE::Actor* a_actor, const Snapshot& a_snapshot);
+
 		// Game thread. Pass the result to UnequipItem to reverse exactly what was done.
 		EquippedItem EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object);
 

@@ -310,6 +310,13 @@ try {
     $releaseEntry = Join-Path $PSScriptRoot '../tools/test-release.ps1'
     $plan = & pwsh -NoProfile -File $releaseEntry -Plan | ConvertFrom-Json
     Check ($LASTEXITCODE -eq 0 -and $plan.runGame -is [bool] -and $plan.runGame) 'Release entrypoint omitted in-game testing by default.'
+    Check (-not $plan.interactive) 'Release entrypoint inferred interactive permission.'
+    $plan = & pwsh -NoProfile -File $releaseEntry -Interactive -Plan | ConvertFrom-Json
+    Check ($LASTEXITCODE -eq 0 -and $plan.runGame -and $plan.interactive) 'Explicit interactive permission was not forwarded.'
+    $unapprovedOutput = Join-Path $scratch 'unapproved-run'
+    $rejectedRun = & pwsh -NoProfile -File $releaseEntry -OutputDirectory $unapprovedOutput 2>&1 | Out-String
+    Check ($LASTEXITCODE -ne 0 -and $rejectedRun.Contains('requires explicit -Interactive') -and
+        -not (Test-Path -LiteralPath $unapprovedOutput)) 'A game run without interactive permission reached build or staging.'
     $plan = & pwsh -NoProfile -File $releaseEntry -Offline -Plan -Hosts Deployed | ConvertFrom-Json
     Check ($LASTEXITCODE -eq 0 -and -not $plan.runGame -and $plan.hosts -eq 'Deployed') 'Offline scope/host selection was not forwarded.'
     Write-Host "Smoke bench contracts: $checks checks passed."

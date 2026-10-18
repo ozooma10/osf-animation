@@ -15,6 +15,12 @@ int Function StartScene(Actor[] akActors, string asSceneId, OSFTypes:SceneOption
 ; Boolean-query StartSceneByTags: asAllOf (all must match), asAnyOf (at least one; empty = ignored), asNoneOf (none may match).
 int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, OSFTypes:SceneOptions akOpts = None) Global Native
 
+; Like StartSceneByTagsQuery, plus role constraints: asRoles[i] restricts akActors[i] to the role of that name
+; (case-insensitive; "" = any role). Pass new string[0] for no constraints. abRequireAnchor = only anchor-bound scenes
+; that akOpts.Anchor (Start) / akAnchor (Find) accepts. Find returns the matched scene id without starting it, or "".
+int Function StartSceneByQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, string[] asRoles, OSFTypes:SceneOptions akOpts = None, bool abRequireAnchor = false) Global Native
+string Function FindSceneByQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, string[] asRoles, ObjectReference akAnchor = None, bool abRequireAnchor = false) Global Native
+
 ; Starts an anchor-bound scene built for akFurniture (matched by anchor keyword/base); free scenes are never picked.
 ; asTags narrows the pool (empty = any). akOpts.Anchor is ignored. Returns the handle (0 = nothing fits / start failed).
 int Function StartSceneAtAnchor(Actor[] akActors, ObjectReference akFurniture, string[] asTags, OSFTypes:SceneOptions akOpts = None) Global Native
@@ -96,6 +102,8 @@ bool Function ReplaceScene(int aiScene, string asSceneId, OSFTypes:SceneOptions 
 ; asRoleNames[i] is the target role for participant i in the current GetSceneParticipants order.
 bool Function ReplaceSceneRoles(int aiScene, string asSceneId, string[] asRoleNames) Global Native
 bool Function ReplaceSceneByTagsQuery(int aiScene, string[] allOf, string[] anyOf, string[] noneOf) Global Native
+; asRoles[i] constrains participant i in GetSceneParticipants order; akAnchor replaces the retained anchor.
+bool Function ReplaceSceneByQuery(int aiScene, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, string[] asRoles, ObjectReference akAnchor = None, bool abRequireAnchor = false) Global Native
 string Function GetSceneId(int aiScene) Global Native
 
 ; Pins akActor's solo graph to a WORLD point + heading (DEGREES) and moves the capsule there.

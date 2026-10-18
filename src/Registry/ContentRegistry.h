@@ -96,6 +96,7 @@ namespace OSF::Registry
 		float        frame = -1.0f;     // authored `atFrame`; < 0 = authored as a fraction
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  id;
+		std::string  role;               // optional: the event carries this role and its bound actor
 	};
 
 	enum class ActionKind : std::uint8_t
@@ -210,8 +211,10 @@ namespace OSF::Registry
 		std::vector<std::string> tags;
 		float                    timer = 0.0f;  // seconds; 0 = none
 		std::int32_t             loops = 0;     // 0 = none
+		std::string              loopGlobal;    // optional form ref; loops is the authored fallback
 		// JSON `hold`: freeze at a normalized clip position (`true` = 1.0); < 0 = not frozen. Never loops.
 		float                    hold = -1.0f;
+		bool                     allowManualHold = false; // linear stage -> synthetic node
 		std::vector<StageClip>   clips;         // one per role, role order
 		// DesugarLinear forwards these onto the stage's synthetic node.
 		std::vector<CueEntry>    cues;
@@ -228,7 +231,9 @@ namespace OSF::Registry
 		std::vector<StageDef>    stages;
 		LoopMode                 loopMode = LoopMode::kOnce;  // JSON `loops`: omit=once, 0=hold, N=count
 		std::int32_t             loopCount = 0;              // when loopMode == kCount
+		std::string              loopGlobal;                 // optional form ref; loopCount is the fallback
 		float                    timerSec = 0.0f;            // JSON `timer` (seconds)
+		bool                    allowManualHold = false; // explicit activity opt-in; entry/ending nodes keep completing
 		std::vector<SceneEdge>   edges;
 		std::vector<CueEntry>    cues;
 		std::vector<ActionEntry> actions;
@@ -462,6 +467,11 @@ namespace OSF::Registry
 
 		// Case-insensitive. The ref pins the snapshot, so it stays valid across ReloadPacks.
 		SceneRef Find(std::string_view a_id) const;
+
+		using GlobalReader = std::function<std::optional<float>(const std::string&)>;
+		// Game-thread start/handoff: pins a private resolved definition and its direct `use` targets.
+		// Reads each global once; no globals means the original ref is returned. Empty reader uses TESGlobal.
+		SceneRef ResolveLoopGlobals(const SceneRef& a_def, const GlobalReader& a_readGlobal = {}) const;
 
 		// Resolves inline `stages` or a `use` target; a_actorCount must equal the resolved role count.
 		std::optional<Animation::PlaybackPlan> BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const;

@@ -88,11 +88,6 @@ namespace OSF::Camera
 			return std::abs(std::remainder(a_a - a_b, 2.0f * kPi));
 		}
 
-		bool KeyDown(int a_vk)
-		{
-			return (GetAsyncKeyState(a_vk) & 0x8000) != 0;
-		}
-
 		bool InvertLookY()
 		{
 			// Cache the object, not the value: the Controls menu updates it in place.
@@ -535,9 +530,9 @@ namespace OSF::Camera
 
 	void CameraService::NativeFreeCamExit()
 	{
-		// ToggleFreeCameraMode's exit doesn't know OSF's third-person hold; resolve the handback now, apply it after the flag clear.
-		const bool handBackToHold = holdArmed.load(std::memory_order_relaxed);
-		QueueTask([this, handBackToHold]() {
+		// Scene cleanup can release the hold before this task drains. Resolve the handback
+		// then, or a stale hold queues a zoom seed after the first-person baseline was restored.
+		QueueTask([this]() {
 			if (!nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
 				return;
 			}
@@ -548,7 +543,7 @@ namespace OSF::Camera
 
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!suppressBounce.load(std::memory_order_relaxed) && camera) {
-				if (handBackToHold) {
+				if (holdArmed.load(std::memory_order_relaxed)) {
 					if (!camera->IsInThirdPerson()) {
 						camera->ForceThirdPerson();
 						REX::DEBUG("[Camera] handed back to third-person hold after native free cam exit");
@@ -648,10 +643,17 @@ namespace OSF::Camera
 		const float padZoom = (pad.rightShoulder ? 1.0f : 0.0f) - (pad.leftShoulder ? 1.0f : 0.0f);
 		const bool padSteering = pad.rightX != 0.0f || pad.rightY != 0.0f || pad.leftX != 0.0f ||
 			pad.leftY != 0.0f || padLift != 0.0f || padZoom != 0.0f;
-		const bool keyW = KeyDown('W');
-		const bool keyS = KeyDown('S');
-		const bool keyD = KeyDown('D');
-		const bool keyA = KeyDown('A');
+		// GetAsyncKeyState is desktop-wide. Background simulation must not pan while
+		// the player types in another application; the engine owns mouse/pad delivery.
+		DWORD foregroundPid = 0;
+		GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
+		const auto keyDown = [focused = foregroundPid == GetCurrentProcessId()](int key) {
+			return focused && (GetAsyncKeyState(key) & 0x8000) != 0;
+		};
+		const bool keyW = keyDown('W');
+		const bool keyS = keyDown('S');
+		const bool keyD = keyDown('D');
+		const bool keyA = keyDown('A');
 		// Stick up = camera lowers, matching a mouse drag up (-mdy).
 		orbitTargetAzimuth -= mdx * kOrbitMouseSens + pad.rightX * kOrbitStickLookSpeed * dt;
 		const float lookY = mdy * kOrbitMouseSens - pad.rightY * kOrbitStickLookSpeed * dt;
@@ -930,7 +932,7 @@ namespace OSF::Camera
 
 	void CameraService::OnPostLoad()
 	{
-		QueueTask([]() {
+		QueueTask([this]() {
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!camera) {
 				return;
@@ -946,8 +948,14 @@ namespace OSF::Camera
 				camera->SetCameraState(RE::CameraState::kFirstPerson);  // Force* strands a seated pilot
 				REX::INFO("[Camera] recovered a leaked scene-camera state after load (restored cockpit)");
 			} else {
-				camera->ForceThirdPerson();
-				REX::INFO("[Camera] recovered a leaked scene-camera state after load (forced third person)");
+				// A saved free-camera pose survives a direct third-person handback. Re-enter
+				// first person for one game update to reset the native camera, then pull back.
+				camera->ForceFirstPerson();
+				QueueTask([this]() {
+					RE::PlayerCamera::GetSingleton()->ForceThirdPerson();
+					SeedThirdPersonZoom(0.0f, /*snapCurrent*/ true);
+					REX::INFO("[Camera] recovered a leaked scene-camera state after load (reset third person)");
+				});
 			}
 		});
 	}

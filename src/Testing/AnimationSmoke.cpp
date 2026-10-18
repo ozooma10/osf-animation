@@ -625,6 +625,44 @@ namespace OSF::Testing::AnimationSmoke
 			REX::DEBUG("[API] development smoke mailbox ready");
 		}
 
+		// Focused background pause tests use the same game-thread mailbox, with
+		// real menu messages and playback observations instead of desktop input.
+		std::string g_probeMenu;
+		Json MenuPauseProbe(const std::string& a_command, const Json& a_args)
+		{
+			if (g.running) throw std::runtime_error("Focused pause probe cannot overlap the full smoke run");
+			auto* ui = RE::UI::GetSingleton();
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!ui || !player || !player->parentCell || ui->IsMenuOpen(RE::BSFixedString("LoadingMenu")))
+				throw std::runtime_error("Pause probe requires loaded gameplay");
+			if (a_command == "probe-menu") {
+				const auto name = a_args.at("name").get<std::string>();
+				const bool open = a_args.at("open").get<bool>();
+				// Inventory needs the engine's normal entry context; its bare kShow
+				// message is not a valid substitute for the player's Inventory input.
+				if (name != "PauseMenu" && name != "DataMenu")
+					throw std::runtime_error("Menu is outside the pause probe allowlist");
+				if (open ? (!g_probeMenu.empty() || ui->IsMenuOpen(RE::BSFixedString(name))) : g_probeMenu != name)
+					throw std::runtime_error("Probe does not own this menu transition");
+				auto* queue = RE::UIMessageQueue::GetSingleton();
+				if (!queue) throw std::runtime_error("No menu queue");
+				queue->AddMessage(RE::BSFixedString(name), open ? RE::UI_MESSAGE_TYPE::kShow : RE::UI_MESSAGE_TYPE::kHide);
+				g_probeMenu = open ? name : "";
+			}
+			auto& runtime = Scene::SceneRuntime::GetSingleton();
+			const auto handle = runtime.GetSceneForActor(player);
+			Json result{ { "handle", handle }, { "sceneId", runtime.GetSceneId(handle) },
+				{ "gameMenuPaused", RE::Main::GetSingleton() && RE::Main::GetSingleton()->isGameMenuPaused },
+				{ "pauseRequestCount", ui->pauseRequestCount }, { "menus", Json::array() } };
+			for (const char* name : { "PauseMenu", "InventoryMenu", "DataMenu" })
+				if (ui->IsMenuOpen(RE::BSFixedString(name))) result["menus"].push_back(name);
+			if (const auto playback = Animation::GraphManager::GetSingleton().GetScenePlayback(player)) {
+				result["playback"] = { { "id", playback->playbackId }, { "time", playback->time },
+					{ "duration", playback->duration }, { "speed", playback->speed }, { "stage", playback->stage } };
+			} else result["playback"] = nullptr;
+			return result;
+		}
+
 		void PollMailbox()
 		{
 			if (Clock::now() < g.nextPoll) return;
@@ -646,10 +684,12 @@ namespace OSF::Testing::AnimationSmoke
 				g.seenRequests.insert(id);
 				const auto command = request.at("command").get<std::string>();
 				if (command == "start") Start(request.at("args").at("runId").get<std::string>());
+				else if (command == "probe-menu" || command == "probe-playback")
+					response["data"] = MenuPauseProbe(command, request.value("args", Json::object()));
 				else if (command != "status") throw std::runtime_error("Unknown smoke command");
 				response["ok"] = true;
 			} catch (const std::exception& e) { response["error"] = e.what(); }
-			response["data"] = g.snapshot;
+			if (!response.contains("data")) response["data"] = g.snapshot;
 			WriteJson(g.directory / "responses" / (id + ".json"), response);
 		}
 	}

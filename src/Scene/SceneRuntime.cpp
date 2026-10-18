@@ -351,6 +351,41 @@ namespace OSF::Scene
 		return SetSpeed(a_scene, next);
 	}
 
+	bool SceneRuntime::SetAutoAdvance(std::int32_t a_scene, bool a_enabled)
+	{
+		{
+			std::lock_guard l{ _lock };
+			const auto* s = Resolve(a_scene);
+			if (!s || s->transitioning) return false;
+		}
+		SlotView view;
+		if (!SnapshotSlot(a_scene, view) || view.participants.empty()) return false;
+		const auto* node = view.definition ? view.definition->FindNode(view.node) : nullptr;
+		if (!node) return false;
+		if (node->allowManualHold && !Animation::GraphManager::GetSingleton().SetSceneAutoAdvance(
+			view.participants.front(), a_enabled, view.playbackId)) return false;
+		std::lock_guard l{ _lock };
+		auto* s = Resolve(a_scene);
+		if (!s || s->transitioning || s->playbackId != view.playbackId) return false;
+		s->autoAdvance = a_enabled;
+		return true;
+	}
+
+	bool SceneRuntime::GetAutoAdvance(std::int32_t a_scene)
+	{
+		std::lock_guard l{ _lock };
+		const auto* s = Resolve(a_scene);
+		return !s || s->autoAdvance;
+	}
+
+	bool SceneRuntime::AllowsManualHold(std::int32_t a_scene)
+	{
+		SlotView view;
+		if (!SnapshotSlot(a_scene, view)) return false;
+		const auto* node = view.definition ? view.definition->FindNode(view.node) : nullptr;
+		return node && node->allowManualHold;
+	}
+
 	void SceneRuntime::SetSingleStage(std::int32_t a_scene)
 	{
 		std::lock_guard l{ _lock };

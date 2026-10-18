@@ -5,6 +5,7 @@
 #include "Papyrus/OSFScript.h"
 #include "Player/PlayerInputLockService.h"
 #include "Scene/SceneEventRelay.h"
+#include "Scene/SceneRuntime.h"
 #include "Serialization/PersistenceHost.h"
 
 namespace OSF::Serialization::SaveSafety
@@ -56,17 +57,21 @@ namespace OSF::Serialization::SaveSafety
 					// Must run first so exit saves write the scrubbed state too.
 					if (IsSaveOp(a_event.opType)) {
 						Animation::GraphManager::GetSingleton().OnSaveBegin();
+						Scene::SceneRuntime::GetSingleton().OnSaveBegin();
+						Player::PlayerInputLockService::GetSingleton().OnSaveBegin();
 					}
 					// Cached Papyrus receivers dangle after VM teardown; kBegin is the last safe point to drop them.
 					if (IsVMEndingOp(a_event.opType)) {
 						Scene::SceneEventRelay::GetSingleton().Clear();
 					}
-					// Loads only: StopAll releases the player lock, which must not change mid-save on a quit op.
+					// Loads only: saving must retain live scene ownership, including exit saves.
 					if (IsWorldReplacingLoadOp(a_event.opType)) {
 						PersistenceHost::BeginLoad("SaveLoadEvent begin");
 					}
 				} else {
 					// Any terminal status closes the save window; no-op when none is open.
+					Scene::SceneRuntime::GetSingleton().OnSaveEnd();
+					Player::PlayerInputLockService::GetSingleton().OnSaveEnd();
 					Animation::GraphManager::GetSingleton().OnSaveEnd();
 					if (IsWorldReplacingLoadOp(a_event.opType)) {
 						PersistenceHost::AbortLoad();

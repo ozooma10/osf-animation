@@ -1,4 +1,5 @@
 #include "Check.h"
+#include "API/SceneQuery.h"
 #include "Scene/SceneLauncher.h"
 #include "Scene/AnchorResolve.h"
 #include "Animation/GraphManager.h"
@@ -35,6 +36,7 @@ namespace
 		std::optional<OSF::Matchmaking::Candidate> pick;
 		OSF::Matchmaking::AnchorMode matchMode{};
 		OSF::Matchmaking::TagQuery query;
+		OSF::Matchmaking::RoleConstraints constraints;
 	} calls;
 
 	void Reset(bool a_linear = true, bool a_furniture = false)
@@ -121,9 +123,10 @@ namespace OSF::Animation
 namespace OSF::Matchmaking
 {
 	std::optional<Candidate> Pick(const std::vector<RE::Actor*>&, const TagQuery& a_query,
-		RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
+		RE::TESObjectREFR* a_anchor, AnchorMode a_mode, const RoleConstraints& a_roles)
 	{
 		calls.order.emplace_back("match"); calls.anchorRef = a_anchor; calls.matchMode = a_mode; calls.query = a_query;
+		calls.constraints = a_roles;
 		return calls.pick;
 	}
 }
@@ -239,5 +242,61 @@ int main()
 	Check(calls.matchMode == OSF::Matchmaking::AnchorMode::kRequire && calls.anchorRef == furniture &&
 		calls.query.allOf == query.allOf && calls.query.anyOf == query.anyOf && calls.query.noneOf == query.noneOf,
 		"matchmade starts preserve furniture and tag filters");
+	Check(calls.constraints.empty(), "Papyrus tag starts stay unconstrained");
+
+	Reset();
+	calls.pick = OSF::Matchmaking::Candidate{ "demo", 0, 1, { 1, 0 } };
+	DefLaunchOptions native;
+	native.emitHud = false;
+	native.stage = 1;
+	native.anchorRef = furniture;
+	const OSF::Matchmaking::RoleConstraints constraints{ "", "top" };
+	Check(LaunchMatched(cast, query, constraints, native, tag) == 42 && calls.constraints == constraints &&
+		calls.anchorRef == furniture && calls.matchMode == OSF::Matchmaking::AnchorMode::kAllow &&
+		calls.actors == std::vector<RE::Actor*>{ actorB, actorA } && calls.entry.empty() && !calls.anchorHud,
+		"query starts forward role constraints and the anchor, keep the authored entry and follow the HUD policy");
+	Reset();
+	Check(LaunchMatched(cast, query, constraints, native, tag) == 0 && calls.hud.empty(),
+		"a native query start without a match stays silent");
+	Reset();
+	Check(LaunchMatched(cast, query, { "top" }, native, tag) == 0 && calls.order.empty(),
+		"constraints that do not cover the cast are refused before matchmaking");
+
+	{
+		using namespace OSF::API;
+		std::string error;
+		const char* all[] = { "adult", "", nullptr, "mf" };
+		const char* none[] = { "noncon" };
+		const char* roles[] = { nullptr, "top" };
+		OSFSceneQuery q;
+		q.allOf = all; q.allOfCount = 4; q.noneOf = none; q.noneOfCount = 1; q.roles = roles; q.roleCount = 2;
+		auto in = ReadSceneQuery(q, 2, error);
+		Check(in && in->tags.allOf == std::vector<std::string>{ "adult", "mf" } && in->tags.anyOf.empty() &&
+			in->tags.noneOf == std::vector<std::string>{ "noncon" } && in->roles == std::vector<std::string>{ "", "top" } &&
+			in->mode == OSF::Matchmaking::AnchorMode::kAllow && !in->anchor,
+			"native queries skip empty tags but keep empty role slots aligned with the cast");
+		Check(!ReadSceneQuery(q, 3, error), "role constraints must cover the cast");
+		auto bad = q; bad.anyOfCount = 1;
+		Check(!ReadSceneQuery(bad, 2, error), "a count without an array is malformed");
+		bad = q; bad.size = 8;
+		Check(!ReadSceneQuery(bad, 2, error), "undersized queries are rejected");
+		bad = q; bad.requireAnchor = 1;
+		Check(!ReadSceneQuery(bad, 2, error), "requiring an anchor needs one");
+		bad.anchor = furniture;
+		in = ReadSceneQuery(bad, 2, error);
+		Check(in && in->anchor == furniture && in->mode == OSF::Matchmaking::AnchorMode::kRequire, "requireAnchor selects the require mode");
+
+		OSFSceneMatch out;
+		out.roleIndex[5] = 9;
+		Check(WriteSceneMatch({ "pack.scene", 0, 1, { 1, 0 } }, { "bottom", "top" }, out, error) &&
+			out.size == sizeof(OSFSceneMatch) && out.actorCount == 2 && std::string(out.sceneId) == "pack.scene" &&
+			out.roleIndex[0] == 1 && out.roleIndex[1] == 0 && std::string(out.roles[0]) == "top" &&
+			std::string(out.roles[1]) == "bottom" && out.roleIndex[5] == 0,
+			"matches report each caller actor's role index and name, clearing stale slots");
+		Check(!WriteSceneMatch({ std::string(256, 'x'), 0, 1, { 0 } }, { "a" }, out, error) &&
+			!WriteSceneMatch({ "s", 0, 1, { 0, 0 } }, { "a", "b" }, out, error) &&
+			!WriteSceneMatch({ "s", 0, 1, { 0 } }, { std::string(64, 'r') }, out, error),
+			"unrepresentable ids, bindings or role names fail instead of truncating");
+	}
 	return OSF::Test::Finish("scene launcher");
 }

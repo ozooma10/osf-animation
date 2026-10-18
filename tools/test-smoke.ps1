@@ -3,7 +3,7 @@
 .SYNOPSIS
 Build and exercise OSF Animation; retain JSON, Markdown, JUnit, logs and archives.
 .DESCRIPTION
-Offline by default. -RunGame adds the sibling harness's owned, disposable game
+Offline by default. -RunGame -Interactive adds the sibling harness's owned, disposable game
 scenario. Neither mode deploys to the ordinary development mod. Exit codes:
 0 requested checks passed, 1 assertion/build failure, 2 infrastructure blocked.
 See docs/SMOKE_TESTING.md for coverage and the remaining acceptance boundaries.
@@ -11,6 +11,7 @@ See docs/SMOKE_TESTING.md for coverage and the remaining acceptance boundaries.
 [CmdletBinding()]
 param(
     [switch]$RunGame,
+    [switch]$Interactive,
     [ValidateSet('Released','Deployed')][string]$Hosts = 'Released',
     [switch]$Plan,
     [string]$Harness = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'OSF Test Harness'),
@@ -19,6 +20,9 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($RunGame -and -not $Interactive -and -not $Plan) {
+    throw '[blocked] The game suite requires explicit -Interactive for keyboard, mouse and focus control.'
+}
 $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'SmokeBench.ps1')
 . (Join-Path $repo 'packaging/ReleaseValidation.ps1')
@@ -30,7 +34,7 @@ $names = @('coverage','bench-contracts','sdk','production-build','native','fixtu
 $unverified = @($coverage | ForEach-Object { "$($_.feature): $($_.gap)" })
 if (-not $RunGame) { $unverified = @('In-game assertions skipped. Use -RunGame with the local OSF Test Harness.') + $unverified }
 if ($Plan) {
-    [ordered]@{ stages=$names; runGame=[bool]$RunGame; hosts=$Hosts; runtimeCases=$runtimeCases; coverage=$coverage;
+    [ordered]@{ stages=$names; runGame=[bool]$RunGame; interactive=[bool]$Interactive; hosts=$Hosts; runtimeCases=$runtimeCases; coverage=$coverage;
         unverified=$unverified; runtimeRunner=$suite } | ConvertTo-Json -Depth 12
     exit 0
 }
@@ -215,7 +219,7 @@ try {
             $report.runtime = Join-Path $directory 'runtime-result.json'
             $started = [DateTimeOffset]::UtcNow
             try {
-                Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$suite,'-AnimationProject',$repo,
+                Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$suite,'-Interactive','-AnimationProject',$repo,
                     '-StagedModRoot',$runtimeMod,'-SourceHash',$identity.sha256,'-ResultPath',$report.runtime,'-Hosts',$Hosts) -Runtime
             } finally {
                 if (Test-Path -LiteralPath $report.runtime) {

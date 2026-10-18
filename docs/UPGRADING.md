@@ -8,12 +8,29 @@ Registered Papyrus scene starts now honor `SceneOptions.Speed`, including matchm
 previously that field was ignored for registered scenes. Leave it at 1 for authored playback.
 Speed changes and pause now persist through Advance, stage changes, and automatic node transitions.
 
-Framework foundation additions use scene ABI 1.4 (event identity/cause) and engine services 3.3
-(alignment and handoff). The engine serves the released Browser's 3.0 prefix request for
+Framework foundation additions use scene ABI 1.5 (event identity/cause, query matchmaking) and engine
+services 3.4 (alignment, handoff, matchmade handoff). The engine serves the released Browser's 3.0 prefix request for
 compatibility; newer consumers negotiate same-major/minimum-minor plus table size. New scene
 keys are configurable in the engine settings schema. Saved alignment is user-wide in
 `SFSE/OSF/alignment-overrides.json`, independent of savegames. See [API.md](API.md) for handoff
 options, event order and the accepted positional snap. No saved game migration is required.
+
+## Loop counts controlled in game
+
+Content authors can now bind a stage or node's repeat count to a game GlobalVariable:
+
+```json
+"loops": { "global": "MyMod.esm|0x1234", "default": 3 }
+```
+
+A mod's settings menu or Papyrus script can update that global, so users do not need
+to edit the scene JSON. OSF captures the value when the scene starts or is replaced;
+changing it during playback affects the next start, not the active scene.
+Missing plugins/forms, non-global forms, and invalid values use `default`.
+Values must be nonnegative whole numbers; zero holds indefinitely. Existing numeric
+`loops` declarations continue to work, and `SceneOptions.LoopScale` multiplies the
+resolved count. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full authoring
+contract.
 
 ## Choose the packages
 

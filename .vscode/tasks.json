@@ -5,7 +5,7 @@
       "label": "Release: Full automated suite",
       "type": "process",
       "command": "pwsh",
-      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/test-release.ps1"],
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/test-release.ps1", "-Interactive"],
       "options": { "cwd": "${workspaceFolder}" },
       "group": "test",
       "problemMatcher": []
@@ -32,7 +32,7 @@
       "label": "Smoke: Offline + Game",
       "type": "process",
       "command": "pwsh",
-      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/test-smoke.ps1", "-RunGame"],
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/test-smoke.ps1", "-RunGame", "-Interactive"],
       "options": { "cwd": "${workspaceFolder}" },
       "group": "test",
       "problemMatcher": []
@@ -41,7 +41,7 @@
       "label": "Smoke: Game with deployed UI + Settings",
       "type": "process",
       "command": "pwsh",
-      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/test-smoke.ps1", "-RunGame", "-Hosts", "Deployed"],
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/test-smoke.ps1", "-RunGame", "-Interactive", "-Hosts", "Deployed"],
       "options": { "cwd": "${workspaceFolder}" },
       "group": "test",
       "problemMatcher": []

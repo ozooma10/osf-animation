@@ -223,7 +223,12 @@ segments are an implementation detail and are not addressed by these indexes.
 
 - **`clip`** (an animation clip spec string) is sugar for a single one-clip linear stage with one inferred role:
   `clip: "X.glb"` ≡ `roles: [{}], stages: [{ clips: ["X.glb"] }]`. A bare `clip` plays once, then completes.
-- **`stages[]`**: one or more linear stages, each `{ timer?, loops?, hold?, clips[] }`.
+- **`stages[]`**: one or more linear stages, each `{ timer?, loops?, hold?, allowManualHold?, clips[] }`.
+- **`allowManualHold`**: optional boolean, default `false`, on a linear stage or graph node.
+  A consumer using engine services 3.5 can disable automatic completion on these activities while
+  clips keep looping and cues keep firing. Unmarked introduction/ending nodes still finish normally.
+  Existing content behaves exactly as before until a consumer disables progression. In a graph,
+  put this on the node itself, not its inline `stages`. Explicit navigation/stop always work.
 - **`clips`** entries are animation clip specs: either a bare Data-relative resource-path string, or
   `{ "file": ..., "offset": {...} }`
   to override that role's placement for that stage. Every stage must have the same number of clips —
@@ -239,6 +244,7 @@ segments are an implementation detail and are not addressed by these indexes.
   | *omit `timer` & `loops`* | play through once | the clip ends | `"when": "end"` |
   | `"loops": N`  (N ≥ 1) | loop N times | the Nth loop completes | `"when": "loops"` |
   | `"loops": 0` | **hold** — loop forever | never (manual advance/stop only) | `"when": "advance"` / `"timer"` / `"trigger:…"` |
+  | `"loops": { ... }` (global binding below) | read the count at scene start | the resolved count completes; `0` holds | `"when": "loops"` |
   | `"timer": S` | run for S seconds | S seconds elapse | `"when": "timer"` |
 
   `timer` and `loops` may combine (whichever fires first wins). In a **linear** scene these conditions
@@ -250,6 +256,47 @@ segments are an implementation detail and are not addressed by these indexes.
   participants hold the **clip's final frame** while the scene's stop and fade-out complete — a
   one-shot gesture settles on its
   end pose and fades to the engine from there, it never flashes back to the clip's first frame.
+- **Global-backed loop counts (1.5.0).** A `loops` value can be an object with exactly two required
+  fields: `global`, a `Plugin.esm|0xLocalID` reference to a game **GlobalVariable (GLOB)**, and
+  `default`, an integer in `[0, 2147483647]`. For example:
+
+  ```json
+  {
+    "id": "author.configurable",
+    "stages": [
+      {
+        "loops": { "global": "Surrender.esm|0x1234", "default": 3 },
+        "clips": ["OSF/Anims/Example.glb"]
+      }
+    ]
+  }
+  ```
+
+  The reference uses the plugin's local hexadecimal form ID, just like role form references.
+  A mod's menu or Papyrus script can change that global; OSF only reads it. No settings UI is
+  created by this declaration, and no JSON is rewritten.
+
+  OSF captures each referenced global once when the scene starts, including later nodes and
+  inline stages reached through `use`. Changing the global affects the next start without a
+  content reload; an active scene retains its captured values through transitions and revisits.
+  A same-cast `ReplaceScene` handoff captures values for its new definition.
+
+  A missing plugin, missing form, wrong form type, or invalid global value uses the **local field's
+  default**. Global values must be finite, non-negative whole numbers within the same integer
+  range; fractional, negative, or oversized values fall back rather than truncate. Zero is valid
+  and means hold until advanced (or until a timer/trigger ends the node). Missing globals do not
+  reject the scene. Malformed declarations, references, or defaults do reject it at content load.
+
+  This works on linear stages, graph nodes, and a graph node's inline stages. A graph node's own
+  timing still controls its terminal stage; preceding inline stages retain their individual counts.
+  For a global-backed graph node, use a `"when": "loops"` edge for counted completion, including
+  when the default is zero. An advance edge lets a player/script leave a zero-count hold.
+  Frozen `hold` frames cannot use `loops`, including this object form.
+
+  `SceneOptions.LoopScale` is applied **after** resolving globals/defaults, rounds positive counts
+  with a minimum of one, and leaves zero unchanged. Scaled counts saturate at `2147483647`.
+  Catalog timing displays authored defaults; it does not read live globals. Older OSF versions
+  do not accept the object form; ordinary integer `loops` remains supported.
 - **`hold` — freeze on one frame instead of playing.** `"hold": true` parks the stage on its clips'
   **last** frame; `"hold": <0..1>` parks it on that normalized clip position (same axis as a track's
   `at`). The clock does not advance, so the pose is dead still and the clip never wraps:
@@ -652,7 +699,7 @@ forwarded onto its desugared flow node), so a linear scene gets the full lane vo
 
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
-| `cue` | `{ "at"\|"atFrame", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. |
+| `cue` | `{ "at"\|"atFrame", "id", "role", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. Optional `role` names a declared role: the event's `role` is set and `actorRef` (native `actor`) is that role's bound participant. An undeclared role is a load error. |
 | `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "attachmentNode", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. For prop attach, `attachmentNode` names the actor **attachment node**, not a flow node; legacy alias `node` remains accepted. |
 | `sound` | `{ "at"\|"atFrame", "spec", "role", "emitter", "repeat" }` — an **array/object** position makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at"\|"atFrame", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |

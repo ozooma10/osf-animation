@@ -52,9 +52,11 @@ Default alignment keys: numpad 5 selects a participant; 6/4, 8/2, and 3/1 change
 The HUD shows the role, current delta, step mode, and unsaved status. Numpad +/- remain speed.
 
 `ReplaceScene(handle, id, options)`, `ReplaceSceneRoles(handle, id, roleNames)` and
-`ReplaceSceneByTagsQuery(handle, allOf, anyOf, noneOf)` replace the definition for the same cast
+`ReplaceSceneByTagsQuery(handle, allOf, anyOf, noneOf)` and
+`ReplaceSceneByQuery(handle, allOf, anyOf, noneOf, roles, anchor, requireAnchor)` replace the definition for the same cast
 without changing the handle. `GetSceneId(handle)` returns the live definition id, or empty when
-invalid/ad-hoc. Native engine services **3.3** append `ReplaceScene` and `ReplaceSceneRoles`.
+invalid/ad-hoc. Native engine services **3.3** append `ReplaceScene` and `ReplaceSceneRoles`; **3.4**
+appends `ReplaceSceneByQuery`, which takes an `OSFSceneQuery` (see *Matchmaking by query*).
 Names correspond to the current participant roster: `roleNames[i]` assigns participant `i` to
 a role in the new definition. Empty names preserve positional order; duplicates, missing roles,
 different cast sizes and failed role filters are refused before the old node exits.
@@ -201,8 +203,9 @@ SFSE plugins can copy [src/API/OSFSceneAPI.h](../src/API/OSFSceneAPI.h) into the
 link nothing. `OSF::API::RequestSceneAPI()` resolves `OSF Animation.dll` at runtime and requests the
 current ABI. ABI 1.3 appends synchronous native scene-event registration to the existing start,
 stop, navigation, playback, and query surface. A consumer that requires callbacks should request
-1.3 or later; the current header defaults to 1.4 for event identity/cause. An older OSF build returns
-`nullptr` for a newer request instead of exposing unsupported fields or a short vtable.
+1.3 or later. ABI 1.4 adds event identity/cause, and ABI 1.5 adds matchmaking by query; the current
+header defaults to 1.5. An older OSF build returns `nullptr` for a newer request instead of exposing
+unsupported fields or a short vtable.
 
 ```cpp
 void OnSceneEvent(const OSF::API::OSFSceneEvent* event, void* context)
@@ -238,6 +241,40 @@ Native registration tokens are process-lifetime and survive world replacement; O
 teardown events for the discarded world. Scene filters and event masks use the same handle and bit
 values documented in the Papyrus callback section below. Passing event mask `0` means all events.
 
+### Matchmaking by query (ABI 1.5)
+
+`FindSceneByQuery` and `StartSceneByQuery` match like the Papyrus tag starts, with two additions:
+**per-actor role constraints** and an explicit anchor mode. Both run on the game thread.
+
+```cpp
+const char* allOf[] = { "adult", "mf" };
+const char* roles[] = { "top", "" };            // actor 0 must take the "top" role; actor 1 any role
+OSF::API::OSFSceneQuery query;
+query.allOf = allOf;  query.allOfCount = 2;
+query.roles = roles;  query.roleCount = 2;      // 0 or exactly the actor count
+query.anchor = bed;   query.requireAnchor = 1;  // only scenes whose anchor accepts this ref
+
+OSF::API::OSFSceneMatch match;
+if (osf->FindSceneByQuery(actors, 2, query, match)) {
+    // match.sceneId, and for each caller actor i: match.roleIndex[i] and match.roles[i]
+}
+OSF::API::OSFStartOptions opts;
+std::int32_t handle = osf->StartSceneByQuery(actors, 2, query, opts);
+```
+
+- A role constraint is hard. Actor `i` binds only to a role with that name, compared
+  case-insensitively, and still must pass the role's gender, keyword and race filters. An empty or
+  null entry accepts any role. Among valid assignments, cast order breaks ties.
+- `requireAnchor = 1` matches only anchor-bound scenes the anchor accepts. Otherwise free scenes
+  match too, and anchor-bound scenes need an accepting anchor.
+- `FindSceneByQuery` has no side effects and supports at most `kOSFSceneMatchMaxActors` (8) actors.
+  It picks by priority tier and weighted random, so two calls can differ. To start exactly the
+  found scene, order the actors by `roleIndex` and call `StartScene` with the same anchor in
+  `OSFStartOptions.anchorRef`.
+- `StartSceneByQuery` always enters at the authored entry; `startStage` is ignored. A non-null
+  `OSFStartOptions.anchorRef` that differs from `query.anchor` is rejected. It shows no HUD messages.
+- Both structs are size-prefixed and append-only. Malformed input returns false or 0 and logs why.
+
 ## Starting scenes
 
 There are **three public ways to start a registered scene** from the content registry's scene
@@ -260,7 +297,21 @@ int h2 = OSF.StartSceneByTags(actors, tags)
 
 ; Boolean query form (allOf / anyOf / noneOf — pass real empty arrays, never None):
 int h3 = OSF.StartSceneByTagsQuery(actors, allOf, anyOf, noneOf)
+
+; Query form with role constraints: roles[i] restricts actors[i] to that role name ("" = any).
+string[] roles = new string[2]
+roles[0] = "top"
+int h4 = OSF.StartSceneByQuery(actors, allOf, anyOf, noneOf, roles)
+string id = OSF.FindSceneByQuery(actors, allOf, anyOf, noneOf, roles)   ; match only, no start
 ```
+
+`StartSceneByQuery` and `FindSceneByQuery` match like `StartSceneByTagsQuery` and add per-actor role
+constraints. A constraint is hard and still requires the role's filters to pass; pass `new string[0]`
+for none, or one entry per actor. `abRequireAnchor = true` limits the match to anchor-bound scenes that
+the anchor accepts (`SceneOptions.Anchor` for Start, `akAnchor` for Find). Find picks by priority and
+weighted random without side effects, so a later Start may choose differently; start the found id
+with `StartSceneRoles` to get exactly that scene. The native equivalents are described under
+*Matchmaking by query*.
 
 For raw one-actor clip playback outside a registered scene, use the primitive `OSF.Play(actor, file)`;
 it creates a solo playback session rather than a domain scene.
@@ -352,6 +403,10 @@ so a terminal-driven `GlobalVariable` can lengthen/shorten scenes. It affects on
 fixed number of times; "loop until advance" (hold) and timer-only stages are untouched, so on a mixed graph
 the felt effect is uneven. Sanitized: `≤ 0` / NaN → `1.0` (no scaling); clamped to a ceiling so a runaway
 value can't mint a stage that never auto-advances. Re-applied on every flow-node entry (never compounded).
+Scene JSON can also [read loop counts directly from a game global](SCENE_SCHEMA.md)
+using `"loops": { "global": "Plugin.esm|0x1234", "default": 3 }` (1.5.0).
+Those counts are captured at scene start/handoff, then multiplied by `LoopScale`; zero remains a hold.
+The final scaled count saturates at the signed 32-bit maximum.
 
 > **Capability note:** the DLL and a consumer's compiled scripts ship independently. A consumer compiled
 > against a newer `OSFTypes` but running an older DLL will have these fields silently ignored (the old native
@@ -466,9 +521,24 @@ or after an extreme burst has expired that handle from the recent-history window
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode
 `akEvent.result`.
 
+## Automatic progression controls
+
+Engine services **3.5** append `SetSceneAutoAdvance(handle, enabled)` and
+`ReadSceneControls(handle, callback, context)`. Both require the game thread.
+The automatic preference defaults to true and survives nodes and same-cast handoffs.
+When false, nodes marked `allowManualHold` keep playing and delivering timed cues but do not
+complete from loop or timer budgets. Other nodes still complete normally. Explicit navigation
+and stop remain available. Re-enabling starts a fresh timer/loop budget at the current clip
+phase, without replaying once-only cues. A completed held playback cannot be revived.
+
+`ReadSceneControls` calls back synchronously with a JSON object containing `sceneId`, `node`,
+`automatic`, `allowManualHold`, `speed`, and `edges` (available named advance edges as
+`{ "id": "...", "label": "..." }`). It returns false for an invalid handle. Copy strings in
+the callback. Consumers must recheck live state when applying a choice; snapshots are not commands.
+
 ## Optional engine services
 
-The scene ABI is 1.4. The separate `OSF_RequestEngineAPI` export provides services ABI 3.3
+The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.5
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay

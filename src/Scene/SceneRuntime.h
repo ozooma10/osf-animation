@@ -3,6 +3,7 @@
 #include "Equipment/EquipmentService.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputTypes.h"
+#include "Matchmaking/Matchmaker.h"
 #include "Props/PropService.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/SceneFoundation.h"
@@ -17,8 +18,6 @@ namespace OSF::Camera
 {
 	enum class CameraMode : std::uint8_t;
 }
-
-namespace OSF::Matchmaking { struct TagQuery; }
 
 namespace OSF::Scene
 {
@@ -60,6 +59,10 @@ namespace OSF::Scene
 		bool SetSpeed(std::int32_t a_scene, float a_speed);
 		float GetSpeed(std::int32_t a_scene);
 		bool TogglePause(std::int32_t a_scene);
+		// Game thread. Affects only nodes authored with allowManualHold; other nodes complete normally.
+		bool SetAutoAdvance(std::int32_t a_scene, bool a_enabled);
+		bool GetAutoAdvance(std::int32_t a_scene);
+		bool AllowsManualHold(std::int32_t a_scene);
 		bool SetAlignment(std::int32_t a_scene, std::string_view a_role, const Alignment::Delta& a_delta);
 		std::optional<Alignment::Delta> GetAlignment(std::int32_t a_scene, std::string_view a_role);
 		bool SaveAlignment(std::int32_t a_scene);
@@ -74,7 +77,11 @@ namespace OSF::Scene
 		};
 		bool Replace(std::int32_t a_scene, std::string_view a_id, const std::vector<std::string>& a_roles,
 			const ReplaceOptions& a_options);
-		bool ReplaceByTags(std::int32_t a_scene, const Matchmaking::TagQuery& a_query);
+		// Matchmade handoff for the same cast. a_roles[i] constrains current participant i (GetParticipants order).
+		// A non-null a_anchor replaces the retained anchor reference for both the match and the handoff.
+		bool ReplaceByQuery(std::int32_t a_scene, const Matchmaking::TagQuery& a_query,
+			const Matchmaking::RoleConstraints& a_roles = {}, RE::TESObjectREFR* a_anchor = nullptr,
+			Matchmaking::AnchorMode a_mode = Matchmaking::AnchorMode::kAllow);
 
 		// Enters at the def's `entry`, or a_entryNode when non-empty. 0 = unknown scene or node.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
@@ -136,6 +143,10 @@ namespace OSF::Scene
 		bool HideEquipment(std::int32_t a_handle, RE::Actor* a_actor, std::uint32_t a_slotMask);
 		bool RestoreHiddenEquipment(std::int32_t a_handle);
 
+		// Game thread, SaveLoadEvent: serialize baseline equipment without consuming the scene ledger.
+		void OnSaveBegin();
+		void OnSaveEnd();
+
 		// Load teardown, via GraphManager::StopAll's clear handler.
 		void Clear();
 
@@ -194,6 +205,7 @@ namespace OSF::Scene
 			// One transition at a time: ApplyTransition runs outside _lock, and overlapping triggers
 			// (Papyrus advance vs auto-end) orphaned a graph and froze the player. Claimed under _lock.
 			bool                    transitioning = false;
+			bool                    equipmentSuspended = false;  // baseline is worn during serialization
 			TerminationCause        terminationCause = TerminationCause::kCompleted;
 			std::string             id;
 			std::string             node;
@@ -213,6 +225,7 @@ namespace OSF::Scene
 			float                   loopScale = 1.0f;
 			SceneSpeed              speed;
 			std::optional<Animation::WorldPlacementMode> worldPlacement;
+			bool                    autoAdvance = true;
 			bool                    singleStage = false;
 			bool                    cameraOverridden = false;  // authored node cameras stand down
 			std::vector<Mechanism>  ledger;  // at most one entry per Mechanism
@@ -272,8 +285,9 @@ namespace OSF::Scene
 		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition,
 			std::string_view a_edge = {});
 
+		// A non-empty a_role sets the event's role and its bound actor.
 		static void DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
-			std::string_view a_trackPosition, float a_time);
+			std::string_view a_role, std::string_view a_trackPosition, float a_time);
 
 		// Enter/exit entries only; timed ones go through OnTimedMarks.
 		static void DispatchLifecycleCues(std::int32_t a_handle, std::string_view a_node, bool a_enter);
@@ -302,6 +316,7 @@ namespace OSF::Scene
 		void RecordMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void UndoMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void ReplayLedger(std::int32_t a_handle);
+		void SetEquipmentSaveWindow(bool a_saving);
 
 		void AttachSceneProp(
 			std::int32_t a_handle, const Registry::ActionEntry& a_action);

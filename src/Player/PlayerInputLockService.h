@@ -19,6 +19,10 @@ namespace OSF::Player
 		// Preserve any lock acquired for the new world; never touch other layers.
 		void OnPostLoad();
 
+		// Game-thread save events: keep this layer's disabled bits out of the vanilla save.
+		void OnSaveBegin();
+		void OnSaveEnd();
+
 		// Idempotent; released by the matching false call or OnStopAll.
 		void SetPlayerInputLock(bool a_enable);
 
@@ -38,6 +42,7 @@ namespace OSF::Player
 		std::atomic<std::uint64_t> taskEpoch{ 1 };
 		RE::BSInputEnableLayer* inputLayer = nullptr;
 		bool playerInputLockActive = false;
+		bool saveSuspended = false;
 		// kSceneUserEvents / kSceneOtherEvents, fixed at construction.
 		const uint32_t userMask;
 		const uint32_t otherMask;

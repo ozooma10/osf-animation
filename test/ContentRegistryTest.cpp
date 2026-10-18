@@ -17,6 +17,7 @@ using OSF::Test::Finish;
 
 void CheckCatalogBuilder();
 void CheckContentProviders();
+void CheckLoopGlobals();
 
 // No mounted archives here: report every clip installed so the sweep hides no fixture scene.
 namespace OSF::Animation
@@ -41,6 +42,12 @@ namespace
 			"a service-owned staged request cannot clobber standalone playback");
 		Check(EvaluatePlaybackAdmission({ PlaybackOccupant::kStandalone, 0, 0 }, 0, 0).accepted,
 			"the legacy sink may retain its explicit standalone replacement behavior");
+		const PlaybackClaim fading{ PlaybackOccupant::kFadingOut, 0, 0 };
+		const auto restart = EvaluatePlaybackAdmission(fading, 0, 10);
+		Check(restart.accepted && !restart.replace,
+			"a stopped scene's visual tail admits immediate new scene playback");
+		Check(EvaluatePlaybackAdmission(fading, 42, 10).reason == PlaybackAdmissionReason::kExpectedMissing,
+			"a fading tail cannot satisfy replacement of a playback that has ended");
 		const PlaybackClaim staged{ PlaybackOccupant::kStaged, 42, 7 };
 		Check(EvaluatePlaybackAdmission(staged, 0, 7).reason == PlaybackAdmissionReason::kPlaybackMismatch,
 			"a staged playback is never replaced without its exact id");
@@ -93,7 +100,11 @@ int main()
 
 	auto& reg = ContentRegistry::GetSingleton();
 	reg.LoadAll();
+	if (const auto held = reg.Find("test.reg.refs")) {
+		Check(held->FindNode("#s0") && held->FindNode("#s0")->allowManualHold, "linear nodes parse opt-in manual hold");
+	} else Check(false, "manual hold fixture loads");
 	if (const auto authored = reg.Find("test.bare")) {
+		Check(authored->FindNode("#s0") && !authored->FindNode("#s0")->allowManualHold, "manual hold defaults off for existing content");
 		Check(authored->sourceKind == OSF::Registry::CatalogSourceKind::kAuthoredScene,
 			"ordinary scene definitions are classified as authored scenes");
 	} else {
@@ -352,6 +363,8 @@ int main()
 	if (const auto s = reg.Find("test.reg.frames")) {
 		if (s->nodes.size() == 1) {
 			const auto& node = s->nodes[0];
+			Check(node.cues.size() == 3 && node.cues[1].role == "PLAYER" && node.cues[0].role.empty(),
+				"a cue role is kept as authored and is optional");
 			Check(node.cues.size() == 3 && node.cues[0].pos == TrackPos::kFraction &&
 				node.cues[0].frame == 0.0f && node.cues[1].frame == 24.0f,
 				"atFrame cues parse as frame-carrying fraction positions");
@@ -531,6 +544,13 @@ int main()
 			"a fractional hold parks mid-clip and keeps its timer as the way out");
 	} else {
 		Check(false, "test.hold.timed loads");
+	}
+	Check(!reg.Find("test.reg.cue.badrole") && !reg.Find("test.reg.cue.rolenumber"),
+		"a cue role must be a string naming a declared role");
+	{
+		const auto errors = reg.LoadErrors();
+		CheckError(errors, "cue 'c' references undeclared role 'ghost'", "an undeclared cue role names itself");
+		CheckError(errors, "cue 'c' role must be a string", "a non-string cue role is explained");
 	}
 	Check(!reg.Find("test.hold.loops"), "'hold' with 'loops' is rejected — a frozen clip never loops");
 	Check(!reg.Find("test.hold.range"), "a hold outside [0, 1] is rejected");
@@ -769,7 +789,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 50, "exactly the fifty expected diagnostics");
+	Check(errors.size() == 52, "exactly the fifty-two expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -1102,5 +1122,6 @@ int main()
 	}
 
 	CheckContentProviders();
+	CheckLoopGlobals();
 	return Finish("Scene registry");
 }

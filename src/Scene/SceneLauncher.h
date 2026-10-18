@@ -68,4 +68,11 @@ namespace OSF::Scene
 		const Matchmaking::TagQuery& a_query, const LaunchOpts& a_opts,
 		const char* a_logTag,
 		Matchmaking::AnchorMode a_mode = Matchmaking::AnchorMode::kAllow);
+
+	// The shared matchmade launch. a_roles[i] constrains a_actors[i] (see Matchmaking::Pick); a_launch.anchorRef drives
+	// the anchor filter and placement. Matchmade starts always enter at the authored entry. HUD follows emitHud.
+	std::int32_t LaunchMatched(const std::vector<RE::Actor*>& a_actors,
+		const Matchmaking::TagQuery& a_query, const Matchmaking::RoleConstraints& a_roles,
+		DefLaunchOptions a_launch, const char* a_logTag,
+		Matchmaking::AnchorMode a_mode = Matchmaking::AnchorMode::kAllow);
 }

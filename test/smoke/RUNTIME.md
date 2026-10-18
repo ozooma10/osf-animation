@@ -1,6 +1,6 @@
 # Live runtime smoke contract
 
-Use `pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame` to build and stage the
+Use `pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame -Interactive` to build and stage the
 development DLL in the bench's private output and mod directories. The bench
 configures `--animation_smoke=y` only for that isolated build and restores the
 production configuration afterward. Never run a normal deploying build with

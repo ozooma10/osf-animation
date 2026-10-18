@@ -4,14 +4,16 @@ Run from the repository with PowerShell 7.2 or newer:
 
 ```powershell
 pwsh -NoProfile -File tools/test-release.ps1 -Plan
-pwsh -NoProfile -File tools/test-release.ps1
+pwsh -NoProfile -File tools/test-release.ps1 -Interactive
 # Explicitly omit in-game checks (not a complete release run):
 pwsh -NoProfile -File tools/test-release.ps1 -Offline
 # Use currently deployed host DLLs instead of the pinned releases:
-pwsh -NoProfile -File tools/test-release.ps1 -Hosts Deployed
+pwsh -NoProfile -File tools/test-release.ps1 -Interactive -Hosts Deployed
 ```
 
-The release command includes the game by default and shares the smoke bench's
+The release command includes the game by default and requires explicit `-Interactive`
+permission for keyboard, mouse and focus control. `-Plan` stays read-only and
+`-Offline` requires no interactive permission. It shares the smoke bench's
 implementation, evidence validation, lock and exit codes. VS Code exposes it as
 **Release: Full automated suite** and **Release: Offline checks**.
 The existing smoke commands remain available:
@@ -19,9 +21,9 @@ The existing smoke commands remain available:
 ```powershell
 pwsh -NoProfile -File tools/test-smoke.ps1 -Plan
 pwsh -NoProfile -File tools/test-smoke.ps1
-pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame
+pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame -Interactive
 # Test the UI / Settings DLLs currently deployed in MO2:
-pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame -Hosts Deployed
+pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame -Interactive -Hosts Deployed
 ```
 
 The same commands are available as **Smoke: Offline** and **Smoke: Offline + Game** in

@@ -1,3 +1,4 @@
+#include "API/SceneQuery.h"
 #include "API/OSFEngineAPI.h"
 #include "API/CatalogBuilder.h"
 #include "API/EngineServices.h"
@@ -199,6 +200,31 @@ namespace OSF::API::EngineServices
 				std::vector<std::string> names;
 				for (std::uint32_t i = 0; i < count; ++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
 				return Scene::SceneRuntime::GetSingleton().Replace(handle, id, names, {});
+			},
+			[](std::int32_t handle, const OSFSceneQuery* query) {
+				if (!query) return false;
+				auto& rt = Scene::SceneRuntime::GetSingleton();
+				std::string error;
+				const auto in = ReadSceneQuery(*query, rt.GetParticipants(handle).size(), error);
+				if (!in) {
+					REX::WARN("[API] ReplaceSceneByQuery {:#010x}: {}", handle, error);
+					return false;
+				}
+				return rt.ReplaceByQuery(handle, in->tags, in->roles, in->anchor, in->mode);
+			},
+			[](std::int32_t handle, bool enabled) { return Scene::SceneRuntime::GetSingleton().SetAutoAdvance(handle, enabled); },
+			[](std::int32_t handle, TextCallback callback, void* context) {
+				try {
+					auto& rt = Scene::SceneRuntime::GetSingleton();
+					const auto node = rt.GetNode(handle);
+					if (node.empty()) return false;
+					json edges = json::array();
+					for (std::int32_t i = 0; i < rt.EdgeCount(handle); ++i)
+						edges.push_back({{"id", rt.EdgeId(handle, i)}, {"label", rt.EdgeLabel(handle, i)}});
+					return Send(json{{"sceneId", rt.GetSceneId(handle)}, {"node", node},
+						{"automatic", rt.GetAutoAdvance(handle)}, {"allowManualHold", rt.AllowsManualHold(handle)},
+						{"speed", rt.GetSpeed(handle)}, {"edges", std::move(edges)}}, callback, context);
+				} catch (...) { return false; }
 			}
 		};
 	}

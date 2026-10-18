@@ -67,6 +67,7 @@ namespace OSF::Player
 				return;
 			}
 			std::scoped_lock l{ lock };
+			saveSuspended = false;
 			if (playerInputLockActive) {
 				playerInputLockActive = false;
 				RestoreEnabled();
@@ -87,12 +88,29 @@ namespace OSF::Player
 			// A mid-scene save can restore disabled flags after the old world's
 			// release. The in-memory active flag is then already false, so another
 			// SetPlayerInputLock(false) would skip the necessary engine write.
-			if (playerInputLockActive) {
+			// Keep the layer enabled if recovery drains during a save window.
+			if (playerInputLockActive && !saveSuspended) {
 				ApplyDisabled();
 			} else {
 				RestoreEnabled();
 			}
 		});
+	}
+
+	void PlayerInputLockService::OnSaveBegin()
+	{
+		std::scoped_lock l{ lock };
+		if (!playerInputLockActive || saveSuspended) return;
+		saveSuspended = true;
+		RestoreEnabled();
+	}
+
+	void PlayerInputLockService::OnSaveEnd()
+	{
+		std::scoped_lock l{ lock };
+		if (!saveSuspended) return;
+		saveSuspended = false;
+		if (playerInputLockActive) ApplyDisabled();
 	}
 
 	void PlayerInputLockService::ClearAIDriven()
@@ -117,7 +135,7 @@ namespace OSF::Player
 					return;
 				}
 				playerInputLockActive = true;
-				ApplyDisabled();
+				if (!saveSuspended) ApplyDisabled();
 				// Movement/Fighting/Sneaking/Activation only; looking stays free.
 				REX::DEBUG("[Player] input lock engaged (movement only -- camera look stays free)");
 			} else {

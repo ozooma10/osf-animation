@@ -51,6 +51,7 @@ namespace OSF::Scene
 		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;
 		std::vector<RE::Actor*> weapon;
 		std::vector<ActiveProp> props;
+		bool equipmentSuspended = false;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
@@ -62,6 +63,7 @@ namespace OSF::Scene
 				return;
 			}
 			s->ledger.erase(it);
+			equipmentSuspended = s->equipmentSuspended;
 			if (a_mech == Mechanism::kEquipment) {
 				equip.swap(s->hiddenEquip);
 			} else if (a_mech == Mechanism::kHeldEquipment) {
@@ -77,6 +79,10 @@ namespace OSF::Scene
 				++s->grantRevision;
 			}
 		}
+		// Save begin already reversed these entries. Still consume them above when a scene ends;
+		// in particular, do not remove a transient item twice.
+		if (equipmentSuspended && (a_mech == Mechanism::kEquipment ||
+			a_mech == Mechanism::kHeldEquipment || a_mech == Mechanism::kEquipItem)) return;
 		// Reverse outside _lock: services enter the VM, post UI messages, or take the inventory lock.
 		switch (a_mech) {
 		case Mechanism::kPlayerInputLock:

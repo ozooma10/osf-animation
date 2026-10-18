@@ -26,6 +26,9 @@ for installation, saved preferences, and hotkey changes.
 
 ### Added
 
+- Scene `loops` accepts `{ "global": "Plugin.esm|0xLocalID", "default": N }` on linear stages and
+  graph nodes/inline stages. Globals are captured per start or scene handoff; missing or invalid
+  values use the authored default. Existing `LoopScale` applies afterward, with overflow-safe counts.
 - Framework foundation: scene anchors remain fixed across node transitions; explicit-anchor
   scenes restore the original transform by actor identity, including after role reordering.
 - Scene-owned speed and per-scene pause memory survive node transitions. Papyrus adds
@@ -76,6 +79,16 @@ for installation, saved preferences, and hotkey changes.
   source/binary hashes, logs, and captures. `-Offline` explicitly omits the game;
   [visual, audio, controller, and additional recovery coverage](docs/SMOKE_TESTING.md#coverage-boundaries)
   remains separate from automated success.
+- Native scene ABI 1.5 adds `FindSceneByQuery` / `StartSceneByQuery`: tag matchmaking with
+  per-actor role-name constraints and an explicit anchor mode, without HUD output.
+- Engine services 3.4 add `ReplaceSceneByQuery`: matchmade handoff for the same cast with the same
+  query, where role constraints follow the current participant order and a query anchor replaces
+  the retained one.
+- Papyrus adds `StartSceneByQuery`, `FindSceneByQuery` and `ReplaceSceneByQuery`, mirroring the
+  native query calls with a `string[]` of per-actor role constraints and an anchor-required flag.
+- Cue lane entries accept an optional `role`. The cue event then carries that role and its bound
+  participant in `role` / `actorRef`, so content can say whose moment a cue marks. Undeclared roles
+  are a load error.
 
 ### Changed
 

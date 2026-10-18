@@ -54,6 +54,40 @@ namespace
 
 int main()
 {
+	Run("manual progression keeps looping and preserves cue identity", [] {
+		PlaybackSession s;
+		auto st = Segment(1.0f, 2, 2.0f);
+		st.marks = {{.fraction = 0.25f, .everyLoop = true, .token = "repeat"},
+			{.fraction = 0.5f, .token = "once"}};
+		s.stages = {st};
+		s.SetSegment(0);
+		Check(s.SetAutoAdvance(false), "manual mode accepted");
+		s.Advance(&s, 5.75f);
+		Check(!s.ended && !s.GetPlaybackSnapshot().stage, "manual ignores both timer and loop budget");
+		Near(s.GetPlaybackSnapshot().time, 0.75f, "manual keeps sampling rather than freezing");
+		const auto marks = Drain(s);
+		Check(marks.size() == 7, "six repeating cues and one one-shot cue during manual loops");
+		Check(s.SetAutoAdvance(true), "auto resumes");
+		s.Advance(&s, 0.5f);
+		Check(!s.ended, "time spent in manual does not immediately complete auto");
+		const auto resumed = Drain(s);
+		Check(std::ranges::none_of(resumed, [](const auto& h) { return h.second == "once"; }), "resuming never replays one-shot cues");
+		s.Advance(&s, 1.0f);
+		Check(s.ended && !s.SetAutoAdvance(false), "auto completes and late manual commands cannot revive playback");
+	});
+	Run("manual can be enabled again without changing clip phase", [] {
+		PlaybackSession s;
+		s.stages = {Segment(1.0f, 1)};
+		s.SetSegment(0);
+		s.Advance(&s, 0.5f);
+		s.SetAutoAdvance(false);
+		s.Advance(&s, 2.0f);
+		Near(s.GetPlaybackSnapshot().time, 0.5f, "Auto to Manual preserves phase");
+		Check(!s.ended, "Auto to Manual prevents completion");
+		s.speed.store(0.0f);
+		s.Advance(&s, 10.0f);
+		Near(s.GetPlaybackSnapshot().time, 0.5f, "pause remains distinct from manual");
+	});
 	Run("handoff role permutations and eligibility", [] {
 		int a = 1, b = 2;
 		const std::vector<std::string> names{ "first", "second" };
@@ -71,6 +105,31 @@ int main()
 		Check(!bind({ &a, &a }, {}) && !bind({ &a, nullptr }, {}), "duplicate or null actors refused");
 		Check(!OSF::Matchmaking::BindRoleNames(names, std::vector<int*>{ &a, &b }, {}, result, error,
 			[](std::size_t role, int*) { return role == 0; }), "new role filters are enforced before handoff");
+	});
+	Run("matchmaking role constraints and binding inversion", [] {
+		using namespace OSF::Matchmaking;
+		Check(RoleNameMatches("", "top") && RoleNameMatches("", "") && RoleNameMatches("TOP", "top") &&
+			!RoleNameMatches("top", "bottom") && !RoleNameMatches("top", ""), "empty constraints accept any role; names compare case-insensitively");
+		Check(RoleConstraintsFit({}, 2) && RoleConstraintsFit({ "", "top" }, 2) && !RoleConstraintsFit({ "top" }, 2),
+			"constraints are absent or one per actor");
+		const std::vector<std::string> declared{ "bottom", "top" };
+		const auto order = [&](const RoleConstraints& a_roles, auto a_filter) {
+			return FindRoleOrder(declared.size(), [&](std::size_t role, std::size_t actor) {
+				return (a_roles.empty() || RoleNameMatches(a_roles[actor], declared[role])) && a_filter(role, actor);
+			});
+		};
+		const auto any = [](std::size_t, std::size_t) { return true; };
+		Check(order({}, any) == std::vector<std::size_t>{ 0, 1 }, "unconstrained binding keeps cast order");
+		Check(order({ "top", "" }, any) == std::vector<std::size_t>{ 1, 0 }, "a constrained actor moves to its named role");
+		Check(!order({ "top", "top" }, any) && !order({ "missing", "" }, any), "conflicting or unknown constraints never fit");
+		Check(!order({ "top", "" }, [](std::size_t role, std::size_t actor) { return role == actor; }),
+			"constraints never override role filters");
+		Check(RoleOfActor({ 1, 0, 2 }, 3) == std::vector<std::size_t>{ 1, 0, 2 } && RoleOfActor({ 2, 0, 1 }, 3) == std::vector<std::size_t>{ 1, 2, 0 },
+			"binding inversion maps each actor to its role");
+		Check(RoleOfActor({ 0, 0 }, 2).empty() && RoleOfActor({ 0, 2 }, 2).empty() && RoleOfActor({ 0 }, 2).empty(),
+			"inversion rejects anything but a permutation");
+		Check(RoleNamesUnique({ "top", "bottom", "" }) && !RoleNamesUnique({ "", "" }) && !RoleNamesUnique({ "Top", "top" }),
+			"one anonymous role binds by name; repeated names are ambiguous");
 	});
 	Run("incremental equipment ownership and reverse restore", [] {
 		using namespace OSF::Equipment;

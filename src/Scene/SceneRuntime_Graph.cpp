@@ -6,6 +6,7 @@
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/SceneEventRelay.h"
+#include "Scene/SceneTiming.h"
 #include "Scene/AlignmentStore.h"
 #include "UI/FadeService.h"
 #include "UI/HudMessage.h"
@@ -56,43 +57,14 @@ namespace OSF::Scene
 			return true;
 		}
 
-		// Node policy bounds only the terminal stage; earlier stages keep their authored timers.
-		// timerSec arms only when the node has a `timer` edge.
-		void ApplyNodePolicy(Animation::PlaybackPlan& a_plan, const Registry::SceneNode& a_node)
-		{
-			if (a_plan.stages.empty()) {
-				return;
-			}
-			auto& stage = a_plan.stages.back();
-			switch (a_node.loopMode) {
-			case Registry::LoopMode::kOnce:
-				stage.loops = 1;
-				break;
-			case Registry::LoopMode::kCount:
-				stage.loops = a_node.loopCount;
-				break;
-			case Registry::LoopMode::kHold:
-				stage.loops = 0;
-				break;
-			}
-			bool hasTimerEdge = false;
-			for (const auto& e : a_node.edges) {
-				if (e.when == Registry::EdgeWhen::kTimer) {
-					hasTimerEdge = true;
-					break;
-				}
-			}
-			stage.timer = (hasTimerEdge && a_node.timerSec > 0.0f) ? a_node.timerSec : 0.0f;
-		}
-
 		void ApplyNodeMarks(Animation::PlaybackPlan& a_plan, const Registry::SceneNode& a_node)
 		{
 			if (a_plan.stages.empty()) {
 				return;
 			}
 			auto& marks = a_plan.stages.back().marks;
-			// Cue token = cue id; other lanes' token = entry index.
-			ScheduleMarks(marks, a_node.cues, Registry::CuePos::kFraction, Registry::CuePos::kEnd, kLaneCue, [](const auto& a_cue, std::size_t) { return a_cue.id; });
+			// Every lane's token is the entry index into the node's lane.
+			ScheduleMarks(marks, a_node.cues, Registry::CuePos::kFraction, Registry::CuePos::kEnd, kLaneCue, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.actions, Registry::ActionPos::kFraction, Registry::ActionPos::kEnd, kLaneAction, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.sounds, Registry::SoundPos::kFraction, Registry::SoundPos::kEnd, kLaneSound, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.cameras, Registry::CameraPos::kFraction, Registry::CameraPos::kEnd, kLaneCamera, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
@@ -150,10 +122,13 @@ namespace OSF::Scene
 			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
 
 		// Cues are deferred until the tick's other entries have run.
-		std::vector<std::string> cueIds;
+		std::vector<Registry::CueEntry> cues;
 		for (const auto& m : marks) {
 			if (m.lane == kLaneCue) {
-				cueIds.push_back(m.token);
+				std::size_t idx = 0;
+				if (node && ParseIndexToken(m.token, node->cues.size(), idx)) {
+					cues.push_back(node->cues[idx]);
+				}
 			} else if (m.lane == kLaneAction && node) {
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->actions.size(), idx)) {
@@ -174,8 +149,8 @@ namespace OSF::Scene
 		}
 
 		// TODO: thread the fired fraction back from the Scene; time is sent as -1.
-		for (const auto& id : cueIds) {
-			DispatchCue(handle, oldNode, id, "", -1.0f);
+		for (const auto& cue : cues) {
+			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f);
 		}
 
 		// First fired cue with a matching trigger edge wins. Re-resolve: an action above may have
@@ -190,8 +165,8 @@ namespace OSF::Scene
 				const auto d = s->definition;
 				const auto* n = d ? d->FindNode(s->node) : nullptr;
 				if (n) {
-					for (const auto& id : cueIds) {
-						const auto want = Util::ToLower(id);
+					for (const auto& cue : cues) {
+						const auto want = Util::ToLower(cue.id);
 						const Registry::SceneEdge* edge = nullptr;
 						for (const auto& e : n->edges) {
 							if (e.when == Registry::EdgeWhen::kTrigger && Util::ToLower(e.trigger) == want) {
@@ -228,6 +203,7 @@ namespace OSF::Scene
 		}
 		// Per-start anchor/placement/loopScale are read fresh from the slot for every node entry.
 		float loopScale = 1.0f;
+		bool autoAdvance = true;
 		std::optional<Animation::WorldPlacementMode> placementOverride;
 		auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 		AnchorOverride anchor;
@@ -247,6 +223,7 @@ namespace OSF::Scene
 				baseline = s->baseline;
 				speed = s->speed;
 				loopScale = s->loopScale;
+				autoAdvance = s->autoAdvance;
 				placementOverride = s->worldPlacement;
 				if (def && def->roles.size() == a_participants.size()) {
 					std::vector<std::string> roles;
@@ -269,15 +246,8 @@ namespace OSF::Scene
 		if (placementOverride.has_value()) {
 			plan->SetWorldPlacementMode(*placementOverride);
 		}
-		ApplyNodePolicy(*plan, *node);
-		// Every loop-driven stage, floored at 1; loops<=0 (hold/timer-only) must stay infinite.
-		if (loopScale != 1.0f) {
-			for (auto& st : plan->stages) {
-				if (st.loops > 0) {
-					st.loops = std::max<std::int32_t>(1, static_cast<std::int32_t>(st.loops * loopScale + 0.5f));
-				}
-			}
-		}
+		ApplyNodeTiming(*plan, *node, loopScale);
+		plan->autoAdvance = !node->allowManualHold || autoAdvance;
 		ApplyNodeMarks(*plan, *node);
 		Animation::PlaybackId playbackId = 0;
 		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(a_participants, *plan, 0, &playbackId,
@@ -685,7 +655,8 @@ namespace OSF::Scene
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
 		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor, const StartOverrides& a_over)
 	{
-		const auto definition = Registry::ContentRegistry::GetSingleton().Find(a_id);
+		auto& registry = Registry::ContentRegistry::GetSingleton();
+		const auto definition = registry.ResolveLoopGlobals(registry.Find(a_id));
 		// Every def start funnels here: participants[i] must satisfy roles[i]'s filters.
 		if (definition) {
 			const std::size_t n = std::min(a_participants.size(), definition->roles.size());

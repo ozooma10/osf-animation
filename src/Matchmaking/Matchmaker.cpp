@@ -98,33 +98,10 @@ namespace OSF::Matchmaking
 
 		std::string DescribeAnchorRef(RE::TESObjectREFR* a_ref);
 
-		// perm[role] = actor index; the lexicographically first compatible permutation. Brute force is fine at party size.
-		template <class Pred>
-		std::optional<std::vector<std::size_t>> MatchComplete(std::size_t a_n, Pred a_compatible)
-		{
-			std::vector<std::size_t> perm(a_n);
-			for (std::size_t i = 0; i < a_n; i++) {
-				perm[i] = i;
-			}
-			do {
-				bool ok = true;
-				for (std::size_t role = 0; role < a_n; role++) {
-					if (!a_compatible(role, perm[role])) {
-						ok = false;
-						break;
-					}
-				}
-				if (ok) {
-					return perm;
-				}
-			} while (std::next_permutation(perm.begin(), perm.end()));
-			return std::nullopt;
-		}
-
 		// Pick guarantees a_actors is non-empty.
 		std::vector<Candidate> BuildPool(const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors,
 			RE::TESObjectREFR* a_anchor, AnchorMode a_mode, std::string_view a_exclude,
-			std::optional<Animation::WorldPlacementMode> a_placement)
+			std::optional<Animation::WorldPlacementMode> a_placement, const RoleConstraints& a_roles)
 		{
 			const auto count = static_cast<std::int32_t>(a_actors.size());
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
@@ -157,9 +134,10 @@ namespace OSF::Matchmaking
 				c.id = a_def.id;
 				c.priority = a_def.priority;
 				c.weight = a_def.weight;
-				auto order = MatchComplete(static_cast<std::size_t>(count),
+				auto order = FindRoleOrder(static_cast<std::size_t>(count),
 					[&](std::size_t a_role, std::size_t a_actorIndex) {
-						return RoleAccepts(a_def.roles[a_role], a_actors[a_actorIndex]);
+						return (a_roles.empty() || RoleNameMatches(a_roles[a_actorIndex], a_def.roles[a_role].name)) &&
+						       RoleAccepts(a_def.roles[a_role], a_actors[a_actorIndex]);
 					});
 				if (!order) {
 					return;
@@ -184,6 +162,18 @@ namespace OSF::Matchmaking
 				return out;
 			};
 			return std::format("all=[{}] any=[{}] none=[{}]", join(a_query.allOf), join(a_query.anyOf), join(a_query.noneOf));
+		}
+
+		std::string DescribeRoles(const RoleConstraints& a_roles)
+		{
+			std::string out;
+			for (std::size_t i = 0; i < a_roles.size(); i++) {
+				if (i) {
+					out += ',';
+				}
+				out += a_roles[i].empty() ? "*" : a_roles[i];
+			}
+			return out;
 		}
 
 		const char* DescribeAnchorMode(AnchorMode a_mode)
@@ -345,16 +335,20 @@ namespace OSF::Matchmaking
 
 	static std::optional<Candidate> PickImpl(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query,
 		RE::TESObjectREFR* a_anchor, AnchorMode a_mode, std::string_view a_exclude,
-		std::optional<Animation::WorldPlacementMode> a_placement)
+		std::optional<Animation::WorldPlacementMode> a_placement, const RoleConstraints& a_roles)
 	{
 		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
-		REX::DEBUG("[Match] searching for {} actor(s), tags {}, {}",
-			actorCount, DescribeQuery(a_query), DescribeAnchorSearch(a_anchor, a_mode));
+		REX::DEBUG("[Match] searching for {} actor(s), tags {}, roles [{}], {}",
+			actorCount, DescribeQuery(a_query), DescribeRoles(a_roles), DescribeAnchorSearch(a_anchor, a_mode));
 		if (a_actors.empty()) {
 			REX::DEBUG("[Match] no match (no actors supplied)");
 			return std::nullopt;
 		}
-		auto pool = BuildPool(a_query, a_actors, a_anchor, a_mode, a_exclude, a_placement);
+		if (!RoleConstraintsFit(a_roles, a_actors.size())) {
+			REX::DEBUG("[Match] no match ({} role constraint(s) for {} actor(s))", a_roles.size(), actorCount);
+			return std::nullopt;
+		}
+		auto pool = BuildPool(a_query, a_actors, a_anchor, a_mode, a_exclude, a_placement, a_roles);
 		if (pool.empty()) {
 			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + anchor filters + a complete actor binding; {})",
 				actorCount, DescribeAnchorSearch(a_anchor, a_mode));
@@ -393,14 +387,15 @@ namespace OSF::Matchmaking
 	}
 
 	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& actors, const TagQuery& query,
-		RE::TESObjectREFR* anchor, AnchorMode mode)
+		RE::TESObjectREFR* anchor, AnchorMode mode, const RoleConstraints& roles)
 	{
-		return PickImpl(actors, query, anchor, mode, {}, std::nullopt);
+		return PickImpl(actors, query, anchor, mode, {}, std::nullopt, roles);
 	}
 
 	std::optional<Candidate> PickReplacement(const std::vector<RE::Actor*>& actors, const TagQuery& query,
-		RE::TESObjectREFR* anchor, std::string_view exclude, Animation::WorldPlacementMode placement)
+		RE::TESObjectREFR* anchor, std::string_view exclude, Animation::WorldPlacementMode placement,
+		const RoleConstraints& roles, AnchorMode mode)
 	{
-		return PickImpl(actors, query, anchor, AnchorMode::kAllow, exclude, placement);
+		return PickImpl(actors, query, anchor, mode, exclude, placement, roles);
 	}
 }

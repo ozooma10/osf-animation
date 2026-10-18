@@ -5,12 +5,18 @@
 #include <charconv>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace OSF::Util
 {
-	// "<plugin>|0x<localId>" -> runtime FormID. The local id's load-order bits are ignored, so a
-	// FormID pasted whole from xEdit resolves.
-	inline std::optional<RE::TESFormID> ComposeFormID(const std::string& a_ref)
+	struct ParsedFormRef
+	{
+		std::string plugin;
+		std::uint32_t local;
+	};
+
+	// Syntax only: does not require the plugin or the game to be loaded.
+	inline std::optional<ParsedFormRef> ParseFormRef(const std::string& a_ref)
 	{
 		const auto bar = a_ref.find('|');
 		if (bar == std::string::npos) {
@@ -36,11 +42,21 @@ namespace OSF::Util
 				return std::nullopt;
 			}
 		}
+		return ParsedFormRef{ std::move(plugin), local };
+	}
+
+	// "<plugin>|0x<localId>" -> runtime FormID. The local id's load-order bits are ignored, so a
+	// FormID pasted whole from xEdit resolves.
+	inline std::optional<RE::TESFormID> ComposeFormID(const std::string& a_ref)
+	{
+		const auto parsed = ParseFormRef(a_ref);
+		if (!parsed) return std::nullopt;
+		const auto local = parsed->local;
 		auto* dh = RE::TESDataHandler::GetSingleton();
 		if (!dh) {
 			return std::nullopt;
 		}
-		const auto want = ToLower(plugin);
+		const auto want = ToLower(parsed->plugin);
 		auto nameMatches = [&](RE::TESFile* a_file) {
 			return a_file && ToLower(a_file->fileName) == want;
 		};
