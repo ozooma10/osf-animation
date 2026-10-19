@@ -69,9 +69,9 @@ namespace OSF::Serialization::PersistenceHost
 						// The engine promotes overridden string settings from static 's' to
 						// dynamic 'S'. GetSetting compares keys case-sensitively; missing the
 						// dynamic name sent private-profile sidecars into shared Saves.
-						auto* setting = ini->GetSetting("sLocalSavePath:General");
+						auto* setting = ini->GetSetting("SLocalSavePath:General");
 						if (!setting) {
-							setting = ini->GetSetting("SLocalSavePath:General");
+							setting = ini->GetSetting("sLocalSavePath:General");
 						}
 						if (setting && setting->GetType() == RE::Setting::Type::kString) {
 							const auto local = setting->GetString();
