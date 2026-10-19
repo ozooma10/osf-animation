@@ -78,6 +78,7 @@ export type BrowserAction =
   | { type: "wheel/reset"; catalog: SceneModel[]; library: SceneModel[] }
   | { type: "visibility/hidden" }
   | { type: "visibility/shown" }
+  | { type: "world/received"; generation: number }
   | { type: "seeded/remembered"; token: number }
   | { type: "notice/show"; kind: "info" | "ok" | "err"; text: string }
   | { type: "notice/clear"; serial: number };

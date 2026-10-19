@@ -348,9 +348,20 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "wheel/reset":
       return { ...state, wheelCustomized: false, catalog: action.catalog, library: action.library };
     case "visibility/hidden":
+      // Native reference tokens share the world lifetime, so preserve cast and placement.
       return { ...state, wheel: null, mode: "scenes", settingsOpen: false, importsOpen: false, minimized: false, pickMode: null, actorIndicators: [], pickTargets: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
     case "visibility/shown":
       return { ...state, viewVisible: true };
+    case "world/received":
+      if (state.worldGeneration === action.generation) return state;
+      return {
+        ...state,
+        worldGeneration: action.generation,
+        cast: [PLAYER_CAST], furniture: null, locationMode: "cast", locationToken: null,
+        nearbyActors: [], nearbyFurniture: [], castMatch: null, anchorMatch: null,
+        seededTokens: new Set(), actorIndicators: [], pickTargets: [], pickMode: null,
+        active: null, lastHandle: 0, lastSceneId: "", wheel: null,
+      };
     case "seeded/remembered": {
       const seededTokens = new Set(state.seededTokens);
       seededTokens.add(action.token);

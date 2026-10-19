@@ -17,7 +17,8 @@ namespace OSF::API::UIBridgeWorld
 	std::string ScanLabel(RE::TESObjectREFR* a_ref, RE::BGSKeyword* a_matchedKw = nullptr);
 	std::string RefSexTag(RE::TESObjectREFR* a_ref);
 	RE::TESObjectREFR* CrosshairRef();
-	void ClearSessionTokens();
+	// Picks survive presentation changes, but never a world-replacing load.
+	void ClearWorldTokens();
 
 	void RegisterCommands();
 }

@@ -200,6 +200,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         if (!stateRef.current.libraryReceived) requestLibrary(true);
         break;
       case "osf.animation.version": dispatch({ type: "plugin/received", plugin: record }); break;
+      case "osf.animation.world":
+        if (Number.isSafeInteger(record.generation) && record.generation > 0) {
+          dispatch({ type: "world/received", generation: record.generation });
+        }
+        break;
       case "settings.data": {
         const preferences = decodePreferences(record);
         dispatch({ type: "settings/received", preferences });
@@ -284,7 +289,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         if (record.slot === "furniture" && !stateRef.current.furniture) {
           dispatch({ type: "anchor/selected", anchor: { token, name: String(record.name || "furniture"), distance: typeof record.distance === "number" ? record.distance : null } });
           send("osf.animation.anchorMatch", { token });
-        } else if (record.slot !== "furniture") {
+        } else if (record.slot !== "furniture" && !stateRef.current.cast.some((member) => member.token === token)) {
           const member: CastMember = { token, name: String(record.name || "actor"), distance: typeof record.distance === "number" ? record.distance : null, species: String(record.species || "human"), sex: String(record.sex || "").toLowerCase() };
           dispatch(stateRef.current.cast.length === 1 && stateRef.current.cast[0].kind === "player" ? { type: "cast/replaced", members: [member] } : { type: "cast/toggled", member });
         }

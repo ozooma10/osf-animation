@@ -249,11 +249,13 @@ export interface BrowserState {
   viewVisible: boolean;
   notice: NoticeState;
   visibilitySerial: number;
+  worldGeneration: number;
 }
 
 export function createInitialState(): BrowserState {
   return {
     ready: false,
+    worldGeneration: 0,
     catalog: [],
     catalogReceived: false,
     library: [],

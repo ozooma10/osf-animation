@@ -116,6 +116,11 @@ before notifying consumers and before engine teardown. Its callback must invalid
 immediately and post cleanup; it must not perform game mutations during notification. Other notifications
 also post game work. The addon retains a separate presentation generation, invalidated on native hide
 and world reset, so queued opens, commands, and pointer deltas cannot act on an old presentation/world.
+Picked reference tokens have the longer world lifetime: closing/reopening preserves the cast and
+placement and rescanning returns the same tokens. Resolution still validates the current reference.
+World reset clears the native token table; `osf.animation.world` carries its generation to clear the
+view's picks, matches, nearby results and scene handles. Every open replays that generation before
+token-bearing data, so a hidden document that missed the reset also drops old-world state.
 Catalog invalidation is atomic and survives hidden presentations. Reload triggers a duration scan only
 when the addon subscribed; scan completion refreshes metadata without starting another scan.
 

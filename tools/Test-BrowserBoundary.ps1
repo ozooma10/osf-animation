@@ -49,4 +49,12 @@ if (($coreHotkeys -and $coreHotkeys.Value) -or @($coreKeys | Where-Object { $_ -
     -not $browserHotkeys.Value.PSObject.Properties['openWheel']) {
     throw 'Engine and browser schemas must have separate settings ownership and retain browser hotkey IDs.'
 }
-Write-Host 'Browser boundary: public headers only, independent target, no engine-to-browser implementation dependency.'
+# The view retains its picked cast/placement on hide. Keep the native invalidation
+# boundary at world replacement; UI tests exercise reopen, rescan and reset replay.
+$bridge = [IO.File]::ReadAllText((Join-Path $source 'API/UIBridge.cpp'))
+$hidden = [regex]::Match($bridge, '(?s)void OnHidden\(\)(.*?)(?=\n\t\tvoid OnRequestClose)').Value
+$reset = [regex]::Match($bridge, '(?s)if \(event == EngineEvent::WorldReset\)(.*?)(?=} else if)').Value
+if (-not $hidden -or -not $reset -or $hidden -match 'Clear\w*Tokens\(' -or $reset -notmatch 'UIBridgeWorld::ClearWorldTokens\(\)') {
+    throw 'Picked browser references must survive hiding and be invalidated on world replacement.'
+}
+Write-Host 'Browser boundary: public headers only, independent target, no engine-to-browser implementation dependency; picks have world lifetime.'

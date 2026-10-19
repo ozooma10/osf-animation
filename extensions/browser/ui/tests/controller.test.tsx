@@ -36,6 +36,7 @@ function nativeHost() {
 async function browser(catalog: unknown[] = [{ id: "solo", actorCount: 1 }], library: unknown[] = []) {
   const host = nativeHost();
   const hook = renderHook(() => useBrowserController());
+  await host.emit("osf.animation.world", { generation: 1 });
   await host.emit("osf.animation.catalog.data", catalog);
   await host.emit("osf.animation.library.data", library);
   await host.emit("osf.animation.castMatch", { tokens: [-1], sceneIds: ["solo"] });
@@ -47,6 +48,60 @@ beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-01-01T00:
 afterEach(() => { cleanup(); delete window.osfui; vi.useRealTimers(); document.body.className = ""; });
 
 describe("native browser startup and lifetime", () => {
+  it.each(["actor", "furniture"] as const)("retains picked cast and %s placement across reopening and rescanning", async (mode) => {
+    const { host, result } = await browser([{ id: "duet", actorCount: 2, requiresFurniture: mode === "furniture" }]);
+    const actors = [{ token: 7, name: "Sarah", isActor: true }];
+    await host.emit("osf.animation.scanResults", { kind: "actor", items: actors });
+    await act(() => result.current.commands.toggleActor(7));
+    await host.emit("osf.animation.scanResults", { kind: "furniture", items: [{ token: 70, name: "Chair" }] });
+    await act(() => result.current.commands.toggleAnchor(70));
+    await act(() => result.current.commands.selectLocation(mode, mode === "actor" ? 7 : 70));
+    await host.emit("osf.animation.castMatch", { tokens: [-1, 7], sceneIds: ["duet"] });
+    await host.emit("osf.animation.anchorMatch", { token: 70, sceneIds: ["duet"] });
+
+    for (let i = 0; i < 2; ++i) {
+      await host.emit("ui.visibility", { visible: false });
+      await host.emit("ui.visibility", { visible: true });
+      await host.emit("osf.animation.world", { generation: 1 });
+      await host.emit("osf.animation.openTarget", { token: 7, name: "Sarah" });
+      await host.emit("osf.animation.scanResults", { kind: "actor", items: actors });
+      expect(result.current.state.cast.map(({ token }) => token)).toEqual([-1, 7]);
+      expect(result.current.state.furniture?.token).toBe(70);
+      await act(() => result.current.commands.launch(undefined, false, "duet"));
+      expect(host.calls("osf.animation.launch").at(-1)?.[1]).toMatchObject({
+        castTokens: [-1, 7], location: { mode, token: mode === "actor" ? 7 : 70 },
+        ...(mode === "furniture" ? { furnitureToken: 70 } : {}),
+      });
+    }
+    // A scan result for an already-picked actor toggles it off, never appends a duplicate.
+    await act(() => result.current.commands.toggleActor(7));
+    expect(result.current.state.cast.map(({ token }) => token)).toEqual([-1]);
+  });
+
+  it.each([false, true])("clears old-world picks and handles when reset is replayed (hidden delivery: %s)", async (deliverWhileHidden) => {
+    const { host, result } = await browser();
+    await host.emit("osf.animation.openTarget", { token: 7, name: "Sarah" });
+    await host.emit("osf.animation.scanResults", { kind: "actor", items: [{ token: 7, name: "Sarah" }] });
+    await host.emit("osf.animation.openTarget", { token: 70, name: "Chair", slot: "furniture" });
+    await host.emit("osf.animation.castMatch", { tokens: [7], sceneIds: ["solo"] });
+    await host.emit("osf.animation.anchorMatch", { token: 70, sceneIds: ["solo"] });
+    await host.emit("osf.animation.launchResult", { ok: true, handle: 41, sceneId: "solo" });
+    await host.emit("osf.animation.activeScenes", { scenes: [{ handle: 41, sceneId: "solo" }] });
+    await host.emit("ui.visibility", { visible: false });
+    if (deliverWhileHidden) await host.emit("osf.animation.world", { generation: 2 });
+    await host.emit("ui.visibility", { visible: true });
+    await host.emit("osf.animation.world", { generation: 2 });
+    expect(result.current.state).toMatchObject({
+      worldGeneration: 2, cast: [{ token: -1 }], furniture: null, locationMode: "cast", locationToken: null,
+      nearbyActors: [], nearbyFurniture: [], castMatch: null, anchorMatch: null,
+      active: null, lastHandle: 0, lastSceneId: "", wheel: null,
+    });
+    expect(result.current.state.seededTokens.size).toBe(0);
+    await host.emit("osf.animation.openTarget", { token: 8, name: "Sarah" });
+    await host.emit("osf.animation.world", { generation: 2 });
+    expect(result.current.state.cast.map(({ token }) => token)).toEqual([8]);
+  });
+
   it("requests both catalogs on document initialization and grants gamepad/back routing", async () => {
     const host = nativeHost();
     const { result } = renderHook(() => useBrowserController());

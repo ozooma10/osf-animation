@@ -217,7 +217,7 @@ namespace OSF::API::UIBridgeWorld
 		return (ref && (ref->Is(RE::FormType::kREFR) || ref->Is(RE::FormType::kACHR))) ? ref : nullptr;
 	}
 
-	void ClearSessionTokens()
+	void ClearWorldTokens()
 	{
 		g_tokens.clear();
 		g_formToken.clear();

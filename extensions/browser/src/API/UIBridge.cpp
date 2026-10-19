@@ -53,6 +53,7 @@ namespace OSF::API
 		using UIBridgeWorld::ScanLabel;
 
 		auto& g_ui = BrowserSession::Views();
+		std::uint32_t g_worldGeneration = 1;
 		BrowserJsonTransport g_jsonTransport(
 			[](const std::string& view, const std::string& type, const std::string& text) {
 				return g_ui && g_ui.EmitEvent(view.c_str(), type.c_str(), text.c_str());
@@ -894,6 +895,8 @@ namespace OSF::API
 		void ReplayBrowser(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			if (!g_viewVisible) return;
+			// Replay before any tokens, including when the document missed a reset while hidden.
+			SendJson(a_srcView, "osf.animation.world", json{ { "generation", g_worldGeneration } });
 			if (g_wheel.active) {
 				SendWheelMode();
 			}
@@ -942,7 +945,8 @@ namespace OSF::API
 			g_orbitHeld = false;
 			g_wheel = {};
 			g_openPickToken = 0;
-			UIBridgeWorld::ClearSessionTokens();
+			// Cast and placement remain in the view across close/reopen. Their tokens live
+			// until world replacement; ResolveToken still validates each reference at use.
 			g_orbitSpaceNoticed = false;
 			// NPC-only scenes outlive the browser; unpause them before their only control surface goes.
 			for (const auto& [handle, speed] : g_resumeSpeeds) {
@@ -1200,6 +1204,9 @@ namespace OSF::API
 						g_orbitHeld = false;
 						g_closeStops.clear(); g_resumeSpeeds.clear(); g_lastHandle = 0;
 						OnHidden();
+						UIBridgeWorld::ClearWorldTokens();
+						++g_worldGeneration;
+						SendJson(kViewId, "osf.animation.world", json{ { "generation", g_worldGeneration } });
 						g_ui.RequestMenu(kViewId, false);
 					});
 				} else if (event == EngineEvent::CatalogChanged || event == EngineEvent::ContentReloaded) {

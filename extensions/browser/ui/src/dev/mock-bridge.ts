@@ -198,6 +198,7 @@ export class StandaloneBridge implements AnimationBridge {
       this.resumeSpeeds.clear();
       this.active = this.active.filter((scene) => !scene.player);
     } else if (command === "osf.animation.opened") {
+      this.emit({ type: "osf.animation.world", payload: { generation: 1 } });
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 50);
       const target = new URLSearchParams(location.search).get("target");
       if (target === "actor" || target === "furniture") this.later({ type: "osf.animation.openTarget", payload: { slot: target, ...(target === "actor" ? MOCK_ACTORS[0] : MOCK_ANCHORS[0]) } }, 60);

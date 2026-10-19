@@ -32,7 +32,7 @@ export class OsfUiBridge implements AnimationBridge {
     if (!hasCurrentHelper(bridge)) return;
 
     const events = [
-      "osf.animation.version", "osf.animation.catalog.data",
+      "osf.animation.version", "osf.animation.world", "osf.animation.catalog.data",
       "osf.animation.library.data", "osf.animation.imports.data",
       "osf.animation.imports.reloadResult", "osf.animation.imports.copyResult",
       "osf.animation.wheel.data", "osf.animation.pick", "osf.animation.openTarget",
