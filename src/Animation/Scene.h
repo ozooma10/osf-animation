@@ -232,6 +232,14 @@ namespace OSF::Animation
 			// One-shot final stage ended: hold the clip's last frame (no wrap to 0) while the deferred stop
 			// and fade-out land.
 			bool holdEnd = false;
+			bool holding = false;  // authored hold on the current stage, including while paused
+
+			// Participant clips can differ from the reference duration used by the shared clock.
+			// Holds clamp to each clip's end; normal playback wraps. Caller supplies a positive duration.
+			float SampleTime(float a_duration) const
+			{
+				return holding || holdEnd ? std::min(time, a_duration) : std::fmod(time, a_duration);
+			}
 		};
 		struct DiagnosticSnapshot
 		{

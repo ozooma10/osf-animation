@@ -415,11 +415,9 @@ namespace OSF::Animation
 			localTime = tick.time;
 			// Sticks through DetachAndFadeOut so the fade-out also samples the end pose.
 			holdClipAtEnd = tick.holdEnd;
-			// Participant durations can differ from the stage's reference clip; wrap by our own so the
-			// SamplingJob ratio stays in [0,1).
+			// Bound the sample to this participant's clip rather than the stage's reference duration.
 			if (anim && anim->data && anim->data->duration() > 0.0f) {
-				localTime = holdClipAtEnd ? std::min(localTime, anim->data->duration()) :
-				                            std::fmod(localTime, anim->data->duration());
+				localTime = tick.SampleTime(anim->data->duration());
 			}
 		}
 

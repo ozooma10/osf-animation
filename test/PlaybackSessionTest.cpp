@@ -235,6 +235,7 @@ int main()
 		Check(session.ended && tick.holdEnd && tick.stage == 0 && tick.time == 2,
 			"oversized delta completes one loop and parks at clip end");
 		Check(session.endReason == PlaybackEndReason::kLoopComplete, "one-shot reports loop completion");
+		Near(tick.SampleTime(1.99f), 1.99f, "one-shot completion clamps a shorter participant to its last frame");
 		Check(Drain(session) == Hits{ { 0, "enter" }, { 2, "middle" }, { 3, "exit" } },
 			"all crossed marks including final mark are available before teardown");
 		const auto stopped = session.Advance(&owner, 1);
@@ -414,6 +415,50 @@ int main()
 			Near(last.time, first.time, "held pose stays fixed until termination");
 			Check(Drain(session).empty(), "repeating authored marks remain one-shot while frozen");
 		}
+	});
+	Run("held poses clamp each participant instead of wrapping", [] {
+		for (float hold : { 0.0f, 0.5f, 1.0f }) {
+			PlaybackSession session;
+			auto stage = Segment(2, 0, 1);
+			stage.hold = hold;
+			session.stages = { stage };
+			Check(session.SetSegment(0), "mismatched held stage initialized");
+			int owner = 0, follower = 0;
+			const auto checkPose = [&](const PlaybackSession::Tick& tick) {
+				Near(tick.SampleTime(1.99f), hold == 1 ? 1.99f : 2 * hold,
+					"slightly shorter clip holds its final frame instead of wrapping to the start");
+				Near(tick.SampleTime(0.75f), hold == 0 ? 0 : 0.75f,
+					"hold beyond a participant's end clamps even at a fractional hold position");
+				Near(tick.SampleTime(2), 2 * hold, "reference clip keeps its authored hold time");
+				Near(tick.SampleTime(2.1f), 2 * hold, "longer clip keeps shared time without rescaling");
+			};
+			checkPose(session.Advance(&owner, 0));
+			session.speed = 0;
+			checkPose(session.Advance(&owner, 10));
+			checkPose(session.Advance(&follower, 10));
+			session.speed = 1;
+			checkPose(session.Advance(&owner, 0.25f));
+			checkPose(session.Advance(&owner, 0.75f));
+			Check(session.ended, "held timer completed");
+			checkPose(session.Advance(&owner, 1));
+		}
+	});
+	Run("leaving a hold restores independent participant wrapping", [] {
+		PlaybackSession session;
+		auto held = Segment(2, 0, 0.5f);
+		held.hold = 1;
+		session.stages = { held, Segment(2) };
+		Check(session.SetSegment(0), "held transition initialized");
+		int owner = 0;
+		Near(session.Advance(&owner, 0.25f).SampleTime(1.99f), 1.99f, "initial hold clamps");
+		const auto transition = session.Advance(&owner, 0.25f);
+		Check(transition.stage == 1, "hold timer advances to normal playback");
+		Near(transition.SampleTime(1.99f), 0, "next stage starts at frame zero");
+		Near(session.Advance(&owner, 1.995f).SampleTime(1.99f), 0.005f, "normal playback wraps the shorter clip");
+		Check(session.SetSegment(0), "manual navigation re-enters hold");
+		Near(session.Advance(&owner, 0).SampleTime(1.99f), 1.99f, "re-entered hold clamps immediately");
+		Check(session.SetSegment(1), "manual navigation leaves hold");
+		Near(session.Advance(&owner, 1.995f).SampleTime(1.99f), 0.005f, "manual navigation restores wrapping");
 	});
 	Run("untimed hold and empty session remain stable", [] {
 		PlaybackSession session;
