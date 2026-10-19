@@ -208,8 +208,15 @@ namespace OSF::Equipment
 
 	void EquipmentService::Rehide(RE::Actor* a_actor, const Snapshot& a_snapshot)
 	{
+		if (!a_actor || a_snapshot.Empty()) {
+			return;
+		}
 		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
+			return;
+		}
 		for (const auto& item : a_snapshot.hiddenItems) {
+			if (!item.object) continue;
 			if (!FindItem(a_actor, item.object).equipped) continue;
 			RE::BGSObjectInstance instance{ item.object, LiveInstance(a_actor, item.object) };
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
