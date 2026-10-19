@@ -99,6 +99,12 @@ for installation, saved preferences, and hotkey changes.
 
 ### Changed
 
+- Content validation is stricter in 1.5.0. Authored `loops` and `loops.default` must
+  be JSON integers in `[0, 2147483647]`; fractional, negative and floating-point
+  spellings such as `2.0` now reject the scene instead of using 1.4's numeric
+  conversion. File-default types/ranges, catalog paths, track timing/repeat values,
+  vocabulary aliases, template references and registry limits are also checked.
+  See [content migration notes](docs/UPGRADING.md#content-validation-changes).
 - Browser is an independently linked addon under `extensions/browser`. It owns
   browsing, the wheel, picking, preferences, hotkeys, duration scanning/cache
   persistence, derived inspection clips, and front-of-view placement policy.

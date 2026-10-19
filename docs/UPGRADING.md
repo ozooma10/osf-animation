@@ -27,10 +27,41 @@ A mod's settings menu or Papyrus script can update that global, so users do not 
 to edit the scene JSON. OSF captures the value when the scene starts or is replaced;
 changing it during playback affects the next start, not the active scene.
 Missing plugins/forms, non-global forms, and invalid values use `default`.
-Values must be nonnegative whole numbers; zero holds indefinitely. Existing numeric
-`loops` declarations continue to work, and `SceneOptions.LoopScale` multiplies the
-resolved count. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full authoring
-contract.
+Global values must be nonnegative whole numbers; zero holds indefinitely.
+Existing integer `loops` declarations in `[0, 2147483647]` continue to work, and
+`SceneOptions.LoopScale` multiplies the resolved count. See
+[SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full authoring contract.
+
+## Content validation changes
+
+Version 1.5.0 rejects a scene when an authored `loops` or `loops.default` is not a
+JSON integer in `[0, 2147483647]`. This applies to linear stages, graph nodes and
+inline stages. Version 1.4 accepted numeric values through integer conversion;
+fractional and negative values no longer load. Write `2` instead of `2.0` or
+`2.5`, and choose an explicit nonnegative count for any old negative value.
+Use `0` only when an indefinite hold is intended. Invalid authored counts reject
+the scene; an invalid value read from a game global uses its valid authored default.
+
+Other stricter checks can expose previously tolerated content errors:
+
+- File defaults require their documented JSON types: booleans for flags, integer
+  `priority`, integer `weight` in `[1, 1000000]`, and string arrays for `tags`.
+  Unknown `section` and camera values are errors. Scene controls accept a boolean
+  or an object with boolean `enabled`/`locked` and a string-array `disable` list;
+  unknown capability names still warn and are ignored.
+- Catalog `folder` paths must be nonempty relative paths with `/` separators and
+  no empty, `.` or `..` segments. `clipRoot` cannot contain a drive prefix or `:`.
+- Track positions and repeat values are validated: numeric `at` is in `[0,1)`
+  (use `"end"` for the endpoint), `atFrame` is a nonnegative whole frame number,
+  and the two fields cannot be combined. Named anchors cannot use `repeat:loop`.
+- Conflicting vocabulary aliases, malformed shared role/prop templates, unknown
+  template references and mismatched role/clip counts are load errors. File size
+  and registry entry limits also apply.
+
+A bad file default or shared template rejects its content file; a bad scene field
+rejects that scene. Check Browser's **Imports** panel or `OSF Animation.log`, repair
+the reported field and reload packs. See the [scene schema](SCENE_SCHEMA.md) for
+field contracts and limits.
 
 ## Choose the packages
 
