@@ -33,11 +33,16 @@ Scene keyboard controls use key settings under OSF Animation > Scenes - Keyboard
 They are dispatched only while the active scene grants their capability. Rebinding replaces
 the default key, and unbinding disables it. The input hook continues to pass keys to the game.
 
-Alignment overrides are deltas keyed by exact scene id, node id, and role name in
+Alignment overrides are deltas keyed by exact scene id and node id, and case-insensitive role name in
 `Documents/My Games/Starfield/SFSE/OSF/alignment-overrides.json` (formatVersion 1).
+Anonymous roles use their zero-based cast index (`#0`, `#1`, ...); if an authored role already
+uses that key, additional `#` prefixes avoid the collision. These keys also identify anonymous
+roles in Set/Get/Reset calls and the alignment HUD. Named roles keep their authored names.
 The JSON heading is degrees; missing components mean zero. Zero rows are removed, with no
 wildcard fallback. Reload replaces persisted rows while live scenes retain their working copies.
-Malformed documents leave the previous table intact and report one Mod Issue; scenes still play.
+Invalid rows or scene/node branches are skipped with a Mod Issue; valid rows remain available
+and survive later saves. Unreadable documents, unsupported versions and document size/row limits
+leave the previous table intact and block saving until a successful reload; scenes still play.
 
 Engine services 3.2 and Papyrus expose `SetSceneAlignment`, `GetSceneAlignment`,
 `SaveSceneAlignment`, and `ResetSceneAlignment`. Set/Get use four floats: X, Y, Z, heading in

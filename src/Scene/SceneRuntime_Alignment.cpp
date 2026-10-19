@@ -11,7 +11,7 @@ namespace OSF::Scene
 		{
 			std::vector<std::string> names;
 			for (const auto& role : def.roles) names.push_back(role.name);
-			return names;
+			return Alignment::RoleKeys(names);
 		}
 	}
 	bool SceneRuntime::SetAlignment(std::int32_t a_scene, std::string_view a_role, const Alignment::Delta& a_delta)
@@ -21,7 +21,7 @@ namespace OSF::Scene
 		auto* s = Resolve(a_scene);
 		if (!s || !s->definition || s->transitioning) return false;
 		const auto names = RoleNames(*s->definition);
-		const auto role = std::ranges::find(names, a_role);
+		const auto role = Alignment::FindRole(names, a_role);
 		if (role == names.end() || names.size() != s->participants.size()) return false;
 		const auto index = static_cast<std::size_t>(role - names.begin());
 		if (!Animation::GraphManager::GetSingleton().SetAlignmentDelta(s->participants[index], a_delta, s->playbackId)) return false;
@@ -34,7 +34,7 @@ namespace OSF::Scene
 		auto* s = Resolve(a_scene);
 		if (!s || !s->definition) return std::nullopt;
 		const auto names = RoleNames(*s->definition);
-		const auto role = std::ranges::find(names, a_role);
+		const auto role = Alignment::FindRole(names, a_role);
 		if (role == names.end() || names.size() != s->participants.size()) return std::nullopt;
 		return s->align.Enter(s->node, Alignment::Read(s->id, s->node, names))[role - names.begin()];
 	}

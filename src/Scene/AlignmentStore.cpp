@@ -11,6 +11,7 @@ namespace OSF::Scene::Alignment
 	{
 		std::mutex g_lock;
 		Table g_table;
+		bool g_loadFailed = false;
 #ifdef OSF_ANIMATION_SMOKE
 		std::filesystem::path g_smokeFile;
 #endif
@@ -38,35 +39,43 @@ namespace OSF::Scene::Alignment
 	void Load()
 	{
 		std::lock_guard l{ g_lock };
+		// A rejected document may contain rows absent from memory. Never overwrite it on save.
+		g_loadFailed = true;
 		try {
 			const auto file = UserFilePath();
 			if (file.empty()) { Problem("User directory is unavailable; alignment overrides were not loaded."); return; }
-			if (!std::filesystem::exists(file)) { g_table.clear(); API::Health::Clear("alignment.overrides"); return; }
+			if (!std::filesystem::exists(file)) { g_table.clear(); g_loadFailed = false; API::Health::Clear("alignment.overrides"); return; }
 			if (std::filesystem::file_size(file) > Util::kMaxRegistryFileBytes) { Problem("Alignment file exceeds the size limit; previous overrides retained."); return; }
 			std::ifstream input(file, std::ios::binary);
-			const auto next = input ? Parse(nlohmann::json::parse(input, nullptr, false, true)) : std::nullopt;
+			std::size_t skipped = 0;
+			const auto next = input ? Parse(nlohmann::json::parse(input, nullptr, false, true), &skipped) : std::nullopt;
 			if (!next) { Problem("Invalid or unreadable alignment file; previous overrides retained."); return; }
 			g_table = *next;
-			API::Health::Clear("alignment.overrides");
+			g_loadFailed = false;
+			if (skipped) Problem("Invalid alignment entries were skipped; valid overrides were loaded.");
+			else API::Health::Clear("alignment.overrides");
 		} catch (...) { Problem("Alignment file could not be loaded; previous overrides retained."); }
 	}
 	std::vector<Delta> Read(std::string_view scene, std::string_view node, const std::vector<std::string>& roles)
 	{
 		std::lock_guard l{ g_lock };
 		std::vector<Delta> result;
-		for (const auto& role : roles) result.push_back(Find(g_table, scene, node, role));
+		for (const auto& role : RoleKeys(roles)) result.push_back(Find(g_table, scene, node, role));
 		return result;
 	}
 	bool Save(const std::string& scene, const std::string& node, const std::vector<std::string>& roles, const std::vector<Delta>& values)
 	{
 		if (scene.empty() || node.empty() || roles.size() != values.size() || !std::ranges::all_of(values, Valid)) return false;
 		std::lock_guard l{ g_lock };
+		if (g_loadFailed) { Problem("Alignment file was not loaded; repair it and reload before saving. Changes remain unsaved."); return false; }
 		try {
 			auto next = g_table;
-			for (std::size_t i = 0; i < roles.size(); ++i) Put(next, scene, node, roles[i], values[i]);
+			const auto keys = RoleKeys(roles);
+			for (std::size_t i = 0; i < keys.size(); ++i) Put(next, scene, node, keys[i], values[i]);
 			const auto doc = Serialize(next);
 			const auto text = doc.dump(2);
-			if (text.size() > Util::kMaxRegistryFileBytes || !Parse(doc)) { Problem("Alignment table exceeds supported limits; changes remain unsaved."); return false; }
+			std::size_t skipped = 0;
+			if (text.size() > Util::kMaxRegistryFileBytes || !Parse(doc, &skipped) || skipped) { Problem("Alignment table contains invalid entries or exceeds supported limits; changes remain unsaved."); return false; }
 			const auto file = UserFilePath();
 			if (file.empty()) { Problem("User directory is unavailable; changes remain unsaved."); return false; }
 			std::filesystem::create_directories(file.parent_path());

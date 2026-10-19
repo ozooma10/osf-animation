@@ -187,8 +187,61 @@ int main()
 		Near(Find(*table, "demo", "#s2", "partner").y, 6, "reset changes only the working copy until save");
 		Put(*table, "demo", "#s2", "partner", {});
 		Check(table->empty(), "saving reset prunes empty node and scene");
-		Check(!Parse(nlohmann::json::parse(R"({"formatVersion":1,"scenes":{"demo":{"n":{"r":{"x":"bad"}}}}})")), "one invalid row rejects the whole document");
 		Check(!Parse(nlohmann::json{ { "formatVersion", 2 }, { "scenes", nlohmann::json::object() } }), "unknown version refused");
+	});
+	Run("alignment role identity survives selection and storage", [] {
+		using namespace OSF::Scene::Alignment;
+		const auto keys = RoleKeys({ "", "", "Lead", "#0", "##0" });
+		Check(keys[0] == "###0" && keys[1] == "#1", "anonymous keys use cast indices without colliding with authored names");
+		Check(RoleKeys(keys) == keys, "runtime keys and raw-name storage paths agree");
+		Check(FindRole(keys, keys[1]) == keys.begin() + 1, "selecting the second anonymous participant resolves its own slot");
+		Check(FindRole(keys, "lEaD") == keys.begin() + 2, "role API lookup ignores case");
+		Check(FindRole(keys, "missing") == keys.end(), "unknown roles stay invalid");
+		Table table;
+		Put(table, "scene", "node", keys[0], { 1, 0, 0, 0 });
+		Put(table, "scene", "node", keys[1], { 2, 0, 0, 0 });
+		Put(table, "scene", "node", "Lead", { 3, 0, 0, 0 });
+		Put(table, "scene", "node", "LEAD", { 4, 0, 0, 0 });
+		std::size_t skipped = 0;
+		const auto loaded = Parse(Serialize(table), &skipped);
+		Check(loaded && skipped == 0, "anonymous roles save and reload without invalid empty keys");
+		if (!loaded) return;
+		Near(Find(*loaded, "scene", "node", keys[0]).x, 1, "first anonymous role keeps its own delta");
+		Near(Find(*loaded, "scene", "node", keys[1]).x, 2, "second anonymous role keeps its own delta");
+		Near(Find(*loaded, "scene", "node", "lEaD").x, 4, "case changes replace the same saved row");
+		Near(Find(*loaded, "Scene", "node", "lead").x, 0, "scene identity stays exact");
+		Check(loaded->at("scene").at("node").size() == 3, "case variants do not create duplicate rows");
+		Put(table, "scene", "node", "LEAD", {});
+		Near(Find(table, "scene", "node", "lead").x, 0, "reset removes a row regardless of role casing");
+	});
+	Run("alignment recovery preserves valid siblings through the next save", [] {
+		using namespace OSF::Scene::Alignment;
+		auto document = nlohmann::json::parse(R"({"formatVersion":1,"scenes":{
+			"badScene":[],"demo":{"badNode":[],"n":{
+				"":{"x":99},"badNumber":{"x":"bad"},"badShape":[],
+				"Lead":{"x":1},"partner":{"y":2}}},"other":{"n":{"role":{"z":3}}}}})");
+		document["scenes"]["demo"]["n"]["overflow"] = { { "x", 1e100 } };
+		document["scenes"]["demo"]["n"]["nonfinite"] = { { "heading", std::numeric_limits<double>::infinity() } };
+		document["scenes"]["demo"]["n"][std::string(4097, 'x')] = { { "x", 1 } };
+		std::size_t skipped = 0;
+		auto loaded = Parse(document, &skipped);
+		Check(loaded && skipped == 8, "bad branches, empty keys, types and nonfinite rows are skipped and reported");
+		if (!loaded) return;
+		Near(Find(*loaded, "demo", "n", "LEAD").x, 1, "existing mixed-case names remain readable");
+		Put(*loaded, "demo", "n", "lead", { 4, 0, 0, 0 });
+		const auto saved = Parse(Serialize(*loaded), &skipped);
+		Check(saved && skipped == 0, "recovered table saves without invalid rows");
+		if (!saved) return;
+		Near(Find(*saved, "demo", "n", "lead").x, 4, "edited row persists");
+		Near(Find(*saved, "demo", "n", "partner").y, 2, "valid sibling survives the next save");
+		Near(Find(*saved, "other", "n", "role").z, 3, "unrelated scene survives the next save");
+		Check(!Parse(nlohmann::json::parse("{", nullptr, false)), "syntactically malformed files remain rejected");
+		Check(!Parse(nlohmann::json{ { "formatVersion", 1 }, { "scenes", nullptr } }), "invalid document envelopes remain rejected");
+		Table bounded;
+		for (int i = 0; i < 8192; ++i) Put(bounded, "s", "n", std::to_string(i), { 1, 0, 0, 0 });
+		Check(Parse(Serialize(bounded)).has_value(), "row limit accepts its boundary");
+		Put(bounded, "s", "n", "overflow", { 1, 0, 0, 0 });
+		Check(!Parse(Serialize(bounded)), "row limit remains a document-level failure");
 	});
 	Run("scene speed survives rebuilds and pause is per scene", [] {
 		OSF::Scene::SceneSpeed a, b;
