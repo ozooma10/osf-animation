@@ -699,10 +699,28 @@ forwarded onto its desugared flow node), so a linear scene gets the full lane vo
 
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
-| `cue` | `{ "at"\|"atFrame", "id", "role", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. Optional `role` names a declared role: the event's `role` is set and `actorRef` (native `actor`) is that role's bound participant. An undeclared role is a load error. |
+| `cue` | `{ "at"\|"atFrame", "id", "role", "repeat", "delivery" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. Optional `role` names a declared role: the event's `role` is set and `actorRef` (native `actor`) is that role's bound participant. An undeclared role is a load error. |
 | `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "attachmentNode", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. For prop attach, `attachmentNode` names the actor **attachment node**, not a flow node; legacy alias `node` remains accepted. |
 | `sound` | `{ "at"\|"atFrame", "spec", "role", "emitter", "repeat" }` — an **array/object** position makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at"\|"atFrame", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
+
+#### Cue delivery
+
+The optional cue field `delivery` accepts `"both"` (the default) or `"native"`.
+Native-only cues invoke synchronous native scene callbacks, then skip Papyrus target
+collection, struct allocation, and VM scheduling. Use this for high-frequency cues
+whose consumers are entirely native. Ordinary cues and scene/node lifecycle events
+retain their existing delivery. Unknown values and non-string values reject the scene.
+
+This applies to graph and compiled-stage lanes, frame/fraction marks (including loop
+repeats), and enter/exit/end cues. Native payloads, role binding, original detection
+timestamps, and `trigger:<id>` edges are unchanged. Delivery selects subscribers; it
+does not alter cue timing or navigation. An older engine that ignores this field will
+still deliver to Papyrus, so content requiring suppression needs this implementation.
+
+```json
+{ "atFrame": 24, "id": "beat", "role": "lead", "repeat": "loop", "delivery": "native" }
+```
 
 #### Frames vs. fractions
 

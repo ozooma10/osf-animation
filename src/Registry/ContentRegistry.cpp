@@ -1396,6 +1396,12 @@ namespace OSF::Registry
 			}
 			for (const auto& c : a_entries) {
 				CueEntry ce;
+				if (const auto delivery = c.find("delivery"); delivery != c.end()) {
+					if (!delivery->is_string() || (*delivery != "both" && *delivery != "native")) {
+						throw std::runtime_error("node '" + a_node.id + "': cue 'delivery' must be 'both' or 'native'");
+					}
+					ce.nativeOnly = *delivery == "native";
+				}
 				ce.id = c.value("id", std::string{});
 				if (ce.id.empty()) {
 					throw std::runtime_error("node '" + a_node.id + "': a cue track entry is missing 'id'");

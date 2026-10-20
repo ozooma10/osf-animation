@@ -91,6 +91,7 @@ namespace OSF::Registry
 	// Fires EVENT_CUE.
 	struct CueEntry
 	{
+		bool nativeOnly = false; // delivery:"native"; omitted/"both" preserves Papyrus delivery
 		CuePos       pos = CuePos::kEnter;
 		float        fraction = 0.0f;   // when pos == kFraction and frame < 0
 		float        frame = -1.0f;     // authored `atFrame`; < 0 = authored as a fraction

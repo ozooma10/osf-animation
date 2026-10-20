@@ -163,7 +163,7 @@ namespace OSF::Scene
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, mark.lane, mark.token, mark.detectedNs, mark.d3MotionLateNs, mark.d3InputDelta);
 #endif
-			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f, mark.detectedNs);
+			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f, mark.detectedNs, cue.nativeOnly);
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::D3AudioProbe::EndMark();
 #endif

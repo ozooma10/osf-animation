@@ -99,8 +99,8 @@
         "clips": ["Fixture/x.glb"],
         "cue": [
           { "atFrame": 0, "id": "frames.start" },
-          { "atFrame": 24, "id": "frames.beat", "role": "PLAYER" },
-          { "at": 0.5, "id": "frames.fraction" }
+          { "atFrame": 24, "id": "frames.beat", "role": "PLAYER", "delivery": "native" },
+          { "at": 0.5, "id": "frames.fraction", "delivery": "both" }
         ],
         "action": [
           { "atFrame": 15, "type": "osf.fade.out" }

@@ -467,6 +467,12 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 [dist/Scripts/Source/OSFTypes.psc](../dist/Scripts/Source/OSFTypes.psc)). Dispatch is **asynchronous**
 — the payload is a snapshot struct (no dispatch-time getters).
 
+Cues authored with `delivery:"native"` reach synchronous native callbacks only; they skip
+Papyrus target collection, payload construction, and VM dispatch. Omitted delivery or
+`delivery:"both"` keeps existing behavior. This per-cue option does not change scene/node
+lifecycle events, role binding, source timestamps, or `trigger:<id>` navigation. See
+[cue delivery](SCENE_SCHEMA.md#cue-delivery).
+
 > **Participants at scene end:** the one exception to "no live getters" — the event's
 > `sceneHandle` stays *roster-queryable* through the `EVENT_SCENE_END` callback, so
 > `OSF.GetSceneParticipants(akEvent.sceneHandle)` returns who took part even though the scene has

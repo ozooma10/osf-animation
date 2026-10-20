@@ -22,7 +22,7 @@
           "clips": ["Fixture/Route/single.glb"],
           "cue": [
             { "at": 0.0, "id": "route.start" },
-            { "at": 0.375, "id": "route.source.hidden" },
+            { "at": 0.375, "id": "route.source.hidden", "delivery": "native" },
             { "at": "end", "id": "route.end" }
           ],
           "action": [

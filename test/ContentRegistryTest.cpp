@@ -117,7 +117,7 @@ int main()
 		Check(false, "reference source-kind fixture loads");
 	}
 	// Authored scenes only; generated clip entries and clipLibrary registrations don't count.
-	Check(reg.Size() == 36, "authored scene count");
+	Check(reg.Size() == 37, "authored scene count");
 
 	std::int32_t curatedCount = 0;
 	std::int32_t curatedFlagged = 0;
@@ -365,6 +365,8 @@ int main()
 			const auto& node = s->nodes[0];
 			Check(node.cues.size() == 3 && node.cues[1].role == "PLAYER" && node.cues[0].role.empty(),
 				"a cue role is kept as authored and is optional");
+			Check(node.cues.size() == 3 && !node.cues[0].nativeOnly && node.cues[1].nativeOnly && !node.cues[2].nativeOnly,
+				"cue delivery defaults to both and accepts explicit native or both on frame/fraction marks");
 			Check(node.cues.size() == 3 && node.cues[0].pos == TrackPos::kFraction &&
 				node.cues[0].frame == 0.0f && node.cues[1].frame == 24.0f,
 				"atFrame cues parse as frame-carrying fraction positions");
@@ -431,6 +433,9 @@ int main()
 			Check(stage && node.cues.size() == 3 && stage->cues.size() == 3,
 				"compiled stage cue lane is retained and forwarded to its node");
 			if (node.cues.size() == 3) {
+				Check(!node.cues[0].nativeOnly && node.cues[1].nativeOnly && !node.cues[2].nativeOnly &&
+					stage && stage->cues[1].nativeOnly,
+					"compiled stages retain per-cue native delivery when forwarded to flow nodes");
 				Check(node.cues[0].id == "route.start" && node.cues[0].pos == TrackPos::kFraction &&
 					node.cues[0].fraction == 0.0f &&
 					node.cues[1].id == "route.source.hidden" && node.cues[1].fraction == 0.375f &&
@@ -547,6 +552,15 @@ int main()
 	}
 	Check(!reg.Find("test.reg.cue.badrole") && !reg.Find("test.reg.cue.rolenumber"),
 		"a cue role must be a string naming a declared role");
+	for (const auto id : { "unknown", "number", "null", "bool", "compiled" }) {
+		Check(!reg.Find(std::string("test.delivery.bad.") + id), "invalid cue delivery rejects its scene");
+	}
+	if (const auto s = reg.Find("test.delivery.good")) {
+		const auto& cues = s->nodes[0].cues;
+		Check(cues.size() == 4 && cues[0].nativeOnly && cues[1].nativeOnly && cues[2].nativeOnly && !cues[3].nativeOnly,
+			"graph enter/exit/end cues retain delivery and a valid neighbor survives rejected scenes");
+	} else Check(false, "valid cue delivery graph loads");
+	CheckError(reg.LoadErrors(), "cue 'delivery' must be 'both' or 'native'", "invalid delivery has an actionable diagnostic");
 	{
 		const auto errors = reg.LoadErrors();
 		CheckError(errors, "cue 'c' references undeclared role 'ghost'", "an undeclared cue role names itself");
@@ -789,7 +803,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 52, "exactly the fifty-two expected diagnostics");
+	Check(errors.size() == 57, "exactly the fifty-seven expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -968,7 +982,7 @@ int main()
 
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 20, "one import record per discovered *.osf.json");
+		Check(files.size() == 21, "one import record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::ContentFileStats* {
 			for (const auto& f : files) {
@@ -993,7 +1007,7 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 36, "per-file scene counts sum to the authored total");
+		Check(accepted == 37, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");

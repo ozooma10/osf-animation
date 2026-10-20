@@ -164,6 +164,11 @@ namespace OSF::Scene
 	{
 		// Native consumers run synchronously at the authored runtime mark.
 		API::DispatchNativeSceneEvent(a_event);
+		// Opt-in cues stop before collecting VM targets or allocating a Papyrus payload.
+		// Lifecycle events retain their ordinary delivery regardless of this internal flag.
+		if (a_event.event == Event::kCue && a_event.nativeOnly) {
+			return;
+		}
 
 		// Dispatch outside the lock; callbacks may (un)register.
 		struct Target

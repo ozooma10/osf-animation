@@ -65,7 +65,7 @@ namespace OSF::Scene
 	}
 
 	void SceneRuntime::DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
-		std::string_view a_role, std::string_view a_trackPosition, float a_time, std::uint64_t a_detectedNs)
+		std::string_view a_role, std::string_view a_trackPosition, float a_time, std::uint64_t a_detectedNs, bool a_nativeOnly)
 	{
 		REX::DEBUG("[Scene] scene {:#010x} CUE '{}' node='{}' role='{}' trackPosition='{}' time={:.3f}",
 			a_handle, a_cue, a_node, a_role, a_trackPosition, a_time);
@@ -78,6 +78,7 @@ namespace OSF::Scene
 		e.trackPosition = std::string(a_trackPosition);
 		e.time = a_time;
 		e.detectedNs = a_detectedNs;
+		e.nativeOnly = a_nativeOnly;
 		if (!a_role.empty()) {
 			e.role = std::string(a_role);
 			e.actor = GetSingleton().ResolveRoleActor(a_handle, a_role);
@@ -99,7 +100,7 @@ namespace OSF::Scene
 		const auto wantPos = a_enter ? Registry::CuePos::kEnter : Registry::CuePos::kExit;
 		for (const auto& cue : node->cues) {
 			if (cue.pos == wantPos) {
-				DispatchCue(a_handle, a_node, cue.id, cue.role, a_enter ? "enter" : "exit", -1.0f);
+				DispatchCue(a_handle, a_node, cue.id, cue.role, a_enter ? "enter" : "exit", -1.0f, 0, cue.nativeOnly);
 			}
 		}
 	}
