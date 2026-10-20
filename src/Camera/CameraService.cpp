@@ -381,10 +381,6 @@ namespace OSF::Camera
 				if (!camera) {
 					return;
 				}
-				// Leave first person first, or FreeFly keeps the 1st-person skin (floating hands).
-				if (camera->IsInFirstPerson()) {
-					camera->ForceThirdPerson();
-				}
 				camera->SetCameraState(RE::CameraState::kFreeFly);
 				auto* player = RE::PlayerCharacter::GetSingleton();
 				{
@@ -522,9 +518,13 @@ namespace OSF::Camera
 				}
 				return;  // toggling again would exit
 			}
+			// Switch the on-foot player model before TFC changes the camera state.
+			// After TFC, IsInFirstPerson() is false even if the first-person skin (floating arms) is still selected.
+			if (auto* camera = RE::PlayerCamera::GetSingleton(); camera && camera->IsInFirstPerson() && !PlayerIsPilot()) {
+				camera->ForceThirdPerson();
+			}
 			SetNativeFreeCam(true);
-			REX::DEBUG("[Camera] native free camera entered (ToggleFreeCameraMode, state {}, input={})",
-				kNativeFreeCamState, a_gamepadPassthrough ? "native" : "OSF orbit");
+			REX::DEBUG("[Camera] native free camera entered (ToggleFreeCameraMode, state {}, input={})", kNativeFreeCamState, a_gamepadPassthrough ? "native" : "OSF orbit");
 		});
 	}
 
