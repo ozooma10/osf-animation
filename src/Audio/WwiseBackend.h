@@ -4,6 +4,16 @@
 
 namespace OSF::Audio::Wwise
 {
+	// Borrowed from the process-lifetime media cache; preparation does no Wwise submission.
+	struct PreparedMedia
+	{
+		void* data{};
+		std::uint32_t size{};
+		RE::BGSAudio::AkCodecID codec{ RE::BGSAudio::AkCodecID::kVorbis };
+	};
+	PreparedMedia PrepareExternalFile(const std::wstring& a_path);
+	// No file I/O or decoding. The caller serializes its final validity check and this commit.
+	std::uint32_t PostPreparedFile(const PreparedMedia& a_media, std::uint64_t a_gameObject = 0);
 	// AK::SoundEngine::GetIDFromString: FNV-1 32-bit over the lowercased name (basis 0x811C9DC5, prime 0x1000193).
 	std::uint32_t HashEventName(std::string_view a_name);
 

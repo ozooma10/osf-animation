@@ -4,6 +4,7 @@
 #include "API/EngineServices.h"
 #include "API/EngineServiceState.h"
 #include "Animation/GraphManager.h"
+#include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Input/InputService.h"
 #include "Matchmaking/Matchmaker.h"
@@ -225,6 +226,15 @@ namespace OSF::API::EngineServices
 						{"automatic", rt.GetAutoAdvance(handle)}, {"allowManualHold", rt.AllowsManualHold(handle)},
 						{"speed", rt.GetSpeed(handle)}, {"edges", std::move(edges)}}, callback, context);
 				} catch (...) { return false; }
+			},
+			[]() -> std::uint64_t {
+				try { return Audio::SoundService::GetSingleton().CreateChannel(); } catch (...) { return 0; }
+			},
+			[](std::uint64_t channel, const char* spec) {
+				try { return spec && Audio::SoundService::GetSingleton().PlayChannel(channel, spec); } catch (...) { return false; }
+			},
+			[](std::uint64_t channel) {
+				try { return Audio::SoundService::GetSingleton().CloseChannel(channel); } catch (...) { return false; }
 			}
 		};
 	}

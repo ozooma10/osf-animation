@@ -1,6 +1,7 @@
 #include "Audio/SoundPlayback.h"
 
 #include "Audio/SoundService.h"
+#include "Testing/D3AudioProbe.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/SoundRegistry.h"
 #include "UI/Subtitle.h"
@@ -10,6 +11,9 @@ namespace OSF::Audio::SoundPlayback
 	void Play(RE::Actor* a_actor, std::uint64_t a_fallbackChannel, std::string_view a_spec,
 		Registry::SoundEmitter a_emitter, std::string_view a_diagnosticOwner)
 	{
+#ifdef OSF_ANIMATION_SMOKE
+		if (Testing::D3AudioProbe::TryScopedSound(a_spec)) return;
+#endif
 		std::string spec(a_spec);
 		if (!spec.empty() && spec.front() == '$') {
 			const std::string gender = a_actor ? Matchmaking::ActorGenderTag(a_actor) : std::string{};

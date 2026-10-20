@@ -5,8 +5,8 @@
 
 namespace OSF::API
 {
-	// Services 3.5 appends progression controls; 3.4 added matchmade handoff, 3.3 same-cast handoff.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030005;
+	// Services 3.6 appends independently owned audio channels; 3.5 added progression controls.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030006;
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
@@ -113,6 +113,20 @@ namespace OSF::API
 		bool (*SetSceneAutoAdvance)(std::int32_t, bool);
 		// Live JSON snapshot: sceneId, node, automatic, allowManualHold, speed, edges [{id,label}].
 		bool (*ReadSceneControls)(std::int32_t, TextCallback, void*);
+		// 3.6. Any thread. Opaque, process-local channel; 0 on exhaustion (4096 live maximum).
+		// Caller owns the handle and closes it at its chosen scope boundary. No scene/actor
+		// policy is inferred. World replacement revokes every channel; IDs are never recycled.
+		std::uint64_t (*CreateAudioChannel)();
+		// Literal Data-relative audio file or event: spec; copied before return. No pool queries.
+		// Files queue without IO on the caller. true means accepted, not audible/decoded.
+		// Event specs submit inline. Listener-relative until actor emitters are supported.
+		// Latest published request replaces this channel's voice; older completions cannot post.
+		bool (*PlayAudioChannel)(std::uint64_t, const char* spec);
+		// Permanently retires the handle, cancels queued work and stops its submitted voice.
+		// Serialized with final Wwise submission: after return no old job can post. A job that
+		// committed first is stopped before return. Other channels and legacy slots survive.
+		// false for invalid/already-closed handles; repeated close is harmless. No disk IO.
+		bool (*CloseAudioChannel)(std::uint64_t);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

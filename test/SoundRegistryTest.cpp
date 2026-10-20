@@ -11,6 +11,7 @@
 
 using OSF::Test::Check;
 using OSF::Test::Finish;
+void TestSoundService();
 
 namespace
 {
@@ -86,5 +87,6 @@ int main()
 		}
 	}
 
-	return Finish("Sound registry and PCM/WEM");
+	TestSoundService();
+	return Finish("Sound registry, PCM/WEM and audio cancellation");
 }

@@ -24,9 +24,9 @@ $doc = @{
 }
 [IO.File]::WriteAllBytes((Join-Path $assets 'motion.bin'),$bytes)
 $doc | ConvertTo-Json -Depth 15 | Set-Content (Join-Path $assets 'motion.gltf') -Encoding utf8NoBOM
+function New-D3Tone([int]$Samples,[double]$Frequency) {
 $stream = [IO.MemoryStream]::new(); $writer = [IO.BinaryWriter]::new($stream)
 try {
-    $samples=2400
     $writer.Write([Text.Encoding]::ASCII.GetBytes('RIFF')); $writer.Write([uint32](36+$samples*2))
     $writer.Write([Text.Encoding]::ASCII.GetBytes('WAVEfmt ')); $writer.Write([uint32]16)
     $writer.Write([uint16]1); $writer.Write([uint16]1); $writer.Write([uint32]24000); $writer.Write([uint32]48000)
@@ -34,10 +34,16 @@ try {
     $writer.Write([Text.Encoding]::ASCII.GetBytes('data')); $writer.Write([uint32]($samples*2))
     for ($i=0;$i -lt $samples;$i++) {
         $envelope=[Math]::Min(1,$i/120.0)*[Math]::Min(1,($samples-$i)/120.0)
-        $writer.Write([int16](700*$envelope*[Math]::Sin(2*[Math]::PI*660*$i/24000)))
+        $writer.Write([int16](700*$envelope*[Math]::Sin(2*[Math]::PI*$Frequency*$i/24000)))
     }
     $tone=$stream.ToArray()
 } finally { $writer.Dispose(); $stream.Dispose() }
+return ,$tone
+}
+$tone=New-D3Tone 2400 660
+foreach($channel in @(@('voice',660),@('contact',880),@('other',1100))) {
+    [IO.File]::WriteAllBytes((Join-Path $assets ($channel[0]+'.wav')),(New-D3Tone 192000 $channel[1]))
+}
 $scenes = @()
 foreach ($route in @('lane','beat')) {
     [IO.Directory]::CreateDirectory((Join-Path $assets $route)) | Out-Null

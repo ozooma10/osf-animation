@@ -11,6 +11,8 @@ namespace OSF::Testing::D3AudioProbe
     void BeginMark(std::int32_t scene, std::uint64_t playback, std::string_view node,
         std::uint8_t lane, std::string_view token, std::uint64_t crossed);
     void EndMark();
+    bool TryScopedSound(std::string_view spec);
+    void VoiceStopped(std::uint32_t playing);
     std::uint64_t CaptureAudio(std::string_view path, std::uint64_t slot);
     void Point(std::uint64_t id, const char* name, std::uint64_t value = 0);
     void Checkpoint(std::uint64_t id, const char* name);

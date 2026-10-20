@@ -165,6 +165,11 @@ Each entry: **system** (`path`) — role.
   public `OSFClipScene.h`). Providers rebuild on registration/reload against base content, publish
   atomically, and never replace authored IDs. Old runtime refs remain pinned. Browser also owns
   front-of-view placement policy (`BrowserPlacement.*`); core exposes world/navmesh queries.
+- **Owned audio** (`SoundService`, services ABI 3.6) — independent opaque channels, closed by the
+  consumer at its scope boundary and revoked on world replacement. Media preparation is separate
+  from the synchronized validity-check/post/publication commit. Channel close cannot race a late
+  submission; legacy authored tails retain their scene-stop policy. The sound-registry native
+  suite also runs the production audio service/worker against a deterministic backend.
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no

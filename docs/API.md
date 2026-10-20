@@ -544,11 +544,44 @@ phase, without replaying once-only cues. A completed held playback cannot be rev
 `{ "id": "...", "label": "..." }`). It returns false for an invalid handle. Copy strings in
 the callback. Consumers must recheck live state when applying a choice; snapshots are not commands.
 
+## Owned audio channels
+
+Engine services **3.6** append three any-thread operations:
+
+| Operation | Contract |
+|---|---|
+| `CreateAudioChannel()` | Returns an opaque process-local handle, or zero when the 4096 live-channel limit is reached. Handles are never reused. |
+| `PlayAudioChannel(channel, spec)` | Copies a literal Data-relative file path or `event:` spec. File preparation runs on the bounded audio workers; true means queued, not decoded or audible. Events submit inline. Unsupported paths, pool queries and retired handles return false. |
+| `CloseAudioChannel(channel)` | Permanently retires the handle, invalidates pending requests and stops its submitted voice. Repeated close is harmless and returns false. Other channels and legacy authored slots are unaffected. |
+
+Each channel holds one published voice. New publication stops its previous voice; an older
+completion cannot submit after a newer request has published. A newer queued request that fails
+to prepare does not replace an existing voice. There is no automatic backlog/coalescing policy.
+
+Media preparation occurs outside the service lock. The final validity check, Wwise submission
+and publication share the same lock as channel close and world teardown. If close wins, an old
+job cannot submit. If submission wins, close waits for that short commit and stops its playing
+ID before returning. No decoder/file IO or consumer callback runs inside the commit. This is a
+submission-order guarantee, not proof of silence or a bound on output-device latency.
+
+The caller owns scope policy: allocate separate channels for effects that may overlap, close
+them at the appropriate lifecycle boundary, and create fresh handles for resumed scopes.
+Animation does not infer scene, node, actor or provider identity from a channel. In native scene
+callbacks, `NODE_ENTER` is delivered before authored entry sounds, allowing a consumer to close
+generated voice while retaining a separate contact channel. World replacement automatically
+revokes every channel; consumers must forget the old handles. Nothing is persisted.
+
+Playback currently uses the listener emitter and existing Wwise dialogue bus. This API does not
+promise actor-positioned emitters, separate mixer buses, pool selection, subtitles or prewarming.
+Legacy sound lanes keep their normal scene-stop tail policy, while gaining the same final
+world/sequence check before submission. Consumers should call the service directly from native
+beat callbacks; posting another frame command would introduce an unnecessary queue hop.
+
 ## Optional engine services
 
-The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.5
+The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.6
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
-playback controls, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
+playback controls, owned audio channels, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
 consumers need neither OSF Animation Browser nor OSF UI.
 

@@ -54,12 +54,7 @@ namespace OSF::Audio::Wwise
 		}
 
 		// AK reads pInMemory zero-copy for the whole playback, so cached buffers are never freed.
-		struct MediaBuffer
-		{
-			void* data{ nullptr };
-			std::uint32_t size{ 0 };
-			RE::BGSAudio::AkCodecID codec{ RE::BGSAudio::AkCodecID::kVorbis };
-		};
+		using MediaBuffer = PreparedMedia;
 
 		constexpr std::size_t kMaxMediaBytes = 64u << 20;       // per clip
 		constexpr std::size_t kMaxMediaCacheBytes = 256u << 20;  // aggregate, process lifetime
@@ -297,17 +292,10 @@ namespace OSF::Audio::Wwise
 		}
 
 		// pInMemory, not szFile: the engine's file resolver is registry-gated, so a szFile post is accepted but silent.
-		std::uint32_t PostExternalOn(std::uint32_t a_eventID, const std::wstring& a_path, std::uint64_t a_gameObj)
+		std::uint32_t PostExternalOn(std::uint32_t a_eventID, const PreparedMedia& media, std::uint64_t a_gameObj)
 		{
 #ifdef OSF_ANIMATION_SMOKE
 			const auto d3 = Testing::D3AudioProbe::Current();
-			Testing::D3AudioProbe::Point(d3, "prepareNs");
-			Testing::D3AudioProbe::Checkpoint(d3, "during-prepare");
-#endif
-			const MediaBuffer media = GetOrLoadMedia(a_path);
-#ifdef OSF_ANIMATION_SMOKE
-			Testing::D3AudioProbe::Point(d3, "mediaReadyNs");
-			Testing::D3AudioProbe::Checkpoint(d3, "before-post");
 #endif
 			if (media.data == nullptr) {
 				return 0;
@@ -374,6 +362,9 @@ namespace OSF::Audio::Wwise
 	{
 		if (a_playingID == 0) return false;
 		RE::BGSAudio::AkSoundEngine::StopPlayingID(a_playingID);
+#ifdef OSF_ANIMATION_SMOKE
+		Testing::D3AudioProbe::VoiceStopped(a_playingID);
+#endif
 		return true;
 	}
 
@@ -383,9 +374,29 @@ namespace OSF::Audio::Wwise
 		return ext == "wem" || ext == "wav" || ext == "mp3" || ext == "ogg" || ext == "flac";
 	}
 
-	std::uint32_t PostExternalFile(const std::wstring& a_path, std::uint64_t a_gameObject)
+	PreparedMedia PrepareExternalFile(const std::wstring& a_path)
+	{
+#ifdef OSF_ANIMATION_SMOKE
+		const auto d3 = Testing::D3AudioProbe::Current();
+		Testing::D3AudioProbe::Point(d3, "prepareNs");
+		Testing::D3AudioProbe::Checkpoint(d3, "during-prepare");
+#endif
+		const auto media = GetOrLoadMedia(a_path);
+#ifdef OSF_ANIMATION_SMOKE
+		Testing::D3AudioProbe::Point(d3, "mediaReadyNs");
+		Testing::D3AudioProbe::Checkpoint(d3, "before-post");
+#endif
+		return media;
+	}
+
+	std::uint32_t PostPreparedFile(const PreparedMedia& a_media, std::uint64_t a_gameObject)
 	{
 		const auto gameObject = a_gameObject != 0 ? a_gameObject : RE::BGSAudio::AkSoundEngine::kPlayerGameObject;
-		return PostExternalOn(kExternalSourceEvent, a_path, gameObject);
+		return PostExternalOn(kExternalSourceEvent, a_media, gameObject);
+	}
+
+	std::uint32_t PostExternalFile(const std::wstring& a_path, std::uint64_t a_gameObject)
+	{
+		return PostPreparedFile(PrepareExternalFile(a_path), a_gameObject);
 	}
 }

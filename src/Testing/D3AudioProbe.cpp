@@ -19,6 +19,9 @@ namespace OSF::Testing::D3AudioProbe
         std::atomic<std::uint64_t> drain{0};
         thread_local std::uint64_t current{};
         bool active{}, released{}, waiting{}, timedOut{};
+        bool scoped{};
+        std::uint64_t voiceChannel{};
+        std::array<std::uint64_t,3> testChannels{};
         std::uint64_t gateId{}, callback{}, pending{}, resetCount{};
         std::int32_t scene{};
         std::string trial, gatePoint;
@@ -26,6 +29,13 @@ namespace OSF::Testing::D3AudioProbe
         Json events = Json::array();
         std::chrono::steady_clock::time_point deadline;
         API::IOSFSceneAPI* api{};
+
+        void CloseVoice()
+        {
+            std::uint64_t channel;
+            { std::lock_guard lock(mutex); channel = std::exchange(voiceChannel,0); }
+            if (channel) API::RequestEngineAPI()->CloseAudioChannel(channel);
+        }
 
         void Event(const char* name)
         {
@@ -43,6 +53,9 @@ namespace OSF::Testing::D3AudioProbe
             if (e->eventType == API::SceneEventType::kSceneEnd) Event("scene-end");
             if (e->eventType == API::SceneEventType::kSceneHandoff) Event("scene-handoff");
             if (e->eventType == API::SceneEventType::kNodeEnter) Event("node-enter");
+            if (e->eventType == API::SceneEventType::kSceneEnd ||
+                e->eventType == API::SceneEventType::kSceneHandoff ||
+                e->eventType == API::SceneEventType::kNodeEnter) CloseVoice();
             if (e->eventType != API::SceneEventType::kCue) return;
             const std::string_view cue = e->cue ? e->cue : "";
             if (!cue.starts_with("d3:OSF/D3/")) return;
@@ -55,14 +68,20 @@ namespace OSF::Testing::D3AudioProbe
         Json Snapshot()
         {
             Json result;
+            std::array<std::uint64_t,3> channels;
             {
                 std::lock_guard lock(mutex);
                 result = {{"trial",trial},{"active",active},{"scene",scene},{"pending",pending},
                     {"gate",gatePoint},{"waiting",waiting},{"released",released},{"gateId",gateId},
-                    {"gateTimedOut",timedOut},{"worldResets",resetCount},{"samples",samples},{"events",events}};
+                    {"gateTimedOut",timedOut},{"worldResets",resetCount},{"samples",samples},{"events",events},{"scoped",scoped}};
+                channels = testChannels;
             }
             auto* player = RE::PlayerCharacter::GetSingleton();
             result["playerPlaying"] = api && player && api->IsPlaying(player);
+            result["channels"] = Json::array();
+            for (const auto channel : channels)
+                result["channels"].push_back({{"handle",channel},
+                    {"playingID",Audio::SoundService::GetSingleton().ChannelVoiceForSmoke(channel)}});
             return result;
         }
     }
@@ -86,6 +105,23 @@ namespace OSF::Testing::D3AudioProbe
             {"dispatchDrain",drain.load()}});
     }
     void EndMark() { current = 0; }
+    bool TryScopedSound(std::string_view spec)
+    {
+        std::uint64_t channel;
+        {
+            std::lock_guard lock(mutex);
+            if (!active || !scoped || !current || !spec.starts_with("OSF/D3/")) return false;
+            channel = voiceChannel;
+        }
+        const std::string path(spec);
+        if (!API::RequestEngineAPI()->PlayAudioChannel(channel,path.c_str())) Point(current,"submissionRefused",1);
+        return true;
+    }
+    void VoiceStopped(std::uint32_t playing)
+    {
+        std::lock_guard lock(mutex);
+        if (active) events.push_back({{"name","voice-stop"},{"playingID",playing},{"atNs",NowNs()}});
+    }
     std::uint64_t CaptureAudio(std::string_view path, std::uint64_t slot)
     {
         std::lock_guard lock(mutex);
@@ -140,6 +176,7 @@ namespace OSF::Testing::D3AudioProbe
             ++resetCount;
             events.push_back({{"name","world-reset"},{"atNs",NowNs()},{"drain",drain.load()}});
             scene = 0;
+            voiceChannel = 0; // The engine's world teardown has revoked all channels.
         } catch (...) {}
     }
     void Tick()
@@ -158,6 +195,40 @@ namespace OSF::Testing::D3AudioProbe
         if (command == "d3-release") {
             { std::lock_guard lock(mutex); released = true; }
             Event("release"); gate.notify_all(); return Snapshot();
+        }
+        if (command == "d3-channels") {
+            const auto* services = API::RequestEngineAPI();
+            const auto action = args.at("action").get<std::string>();
+            if (action == "start") {
+                {
+                    std::lock_guard lock(mutex);
+                    if (pending || waiting || voiceChannel) throw std::runtime_error("D3 audio still in flight");
+                    active = true; scoped = false; scene = 0; trial = "independent-channels";
+                    gatePoint.clear(); gateId = 0; timedOut = false; resetCount = 0;
+                    samples.clear(); events = Json::array();
+                }
+                const char* paths[] = {"OSF/D3/voice.wav","OSF/D3/contact.wav","OSF/D3/other.wav"};
+                for (std::size_t i=0; i<3; ++i) {
+                    testChannels[i] = services->CreateAudioChannel();
+                    if (!testChannels[i] || !services->PlayAudioChannel(testChannels[i],paths[i]))
+                        throw std::runtime_error("D3 channel start refused");
+                }
+            } else if (action == "cancel") {
+                if (!services->CloseAudioChannel(testChannels[0])) throw std::runtime_error("D3 voice close refused");
+                Event("voice-cancelled");
+                auto result = Snapshot();
+                result["closedPlayRejected"] = !services->PlayAudioChannel(testChannels[0],"OSF/D3/voice.wav");
+                result["repeatCloseRejected"] = !services->CloseAudioChannel(testChannels[0]);
+                return result;
+            } else if (action == "restart") {
+                const auto retired = testChannels[0];
+                testChannels[0] = services->CreateAudioChannel();
+                if (!testChannels[0] || testChannels[0] == retired ||
+                    !services->PlayAudioChannel(testChannels[0],"OSF/D3/voice.wav")) throw std::runtime_error("D3 fresh channel refused");
+            } else if (action == "finish") {
+                for (const auto channel : testChannels) services->CloseAudioChannel(channel);
+            } else throw std::runtime_error("Unknown D3 channel action");
+            return Snapshot();
         }
         if (command == "d3-start") {
             {
@@ -183,6 +254,7 @@ namespace OSF::Testing::D3AudioProbe
             {
                 std::lock_guard lock(mutex);
                 active = true; released = false; waiting = false; timedOut = false;
+                scoped = args.value("scoped",false); testChannels = {};
                 trial = args.at("trial"); gatePoint = point; gateId = 0; resetCount = 0;
                 samples.clear(); events = Json::array(); scene = 0;
                 deadline = std::chrono::steady_clock::now() + std::chrono::seconds(180);
@@ -195,6 +267,11 @@ namespace OSF::Testing::D3AudioProbe
             const auto handle = api->StartScene(&actor,1,id.c_str(),options);
             { std::lock_guard lock(mutex); scene = handle; if (!handle) active = false; }
             if (!handle) throw std::runtime_error("D3 scene start refused");
+            if (scoped) {
+                const auto channel = services->CreateAudioChannel();
+                { std::lock_guard lock(mutex); voiceChannel = channel; }
+                if (!channel) throw std::runtime_error("D3 channel allocation refused");
+            }
             const auto speed = args.value("speed",1.0f);
             if (!std::isfinite(speed) || speed < 0 || speed > 2 || !services->SetSceneSpeed(scene,speed))
                 throw std::runtime_error("D3 speed refused");
@@ -224,6 +301,9 @@ namespace OSF::Testing::D3AudioProbe
             gate.notify_all();
             if (scene && api && api->GetSceneForActor(RE::PlayerCharacter::GetSingleton()) == scene)
                 (void)api->StopScene(scene);
+            CloseVoice();
+            if (const auto* services = API::RequestEngineAPI())
+                for (const auto channel : testChannels) services->CloseAudioChannel(channel);
             Event("finish"); return Snapshot();
         }
         throw std::runtime_error("Unknown D3 command");
