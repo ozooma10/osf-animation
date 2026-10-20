@@ -160,11 +160,11 @@ namespace OSF::Audio
 	}
 
 	bool SoundService::Commit(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket,
-		const std::function<std::uint32_t()>& a_post)
+		std::string_view a_spec, const std::function<std::uint32_t()>& a_post)
 	{
 		// Preparation must finish before this lock. Close/StopAll cannot interleave the
 		// final validity check, Wwise submission and publication; no user callbacks run here.
-		std::lock_guard l{ lock };
+		std::unique_lock l{ lock };
 		if (!TicketCurrent(a_slot, a_channel, a_ticket)) {
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::D3AudioProbe::Point(Testing::D3AudioProbe::Current(), "cancelledBeforePostNs");
@@ -172,7 +172,11 @@ namespace OSF::Audio
 			return false;
 		}
 		const auto playing = a_post();
-		if (!playing) return false;
+		if (!playing) {
+			l.unlock();
+			REX::WARN("[Audio] Wwise rejected '{}' — cue skipped", a_spec);
+			return false;
+		}
 		if (a_channel) {
 			auto& voice = channels.at(a_channel);
 			if (voice.playingID) Wwise::StopVoice(voice.playingID);
@@ -239,7 +243,7 @@ namespace OSF::Audio
 		if (!ticket.sequence) return false;
 
 		if (eventID) {
-			return Commit(a_slot, a_channel, ticket, [&] { return Wwise::PostEvent(*eventID, a_gameObject); });
+			return Commit(a_slot, a_channel, ticket, a_dataRelPath, [&] { return Wwise::PostEvent(*eventID, a_gameObject); });
 		}
 
 		const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
@@ -272,7 +276,7 @@ namespace OSF::Audio
 					REX::WARN("[Audio] media preparation failed '{}' — cue skipped", path);
 					return;
 				}
-				(void)Commit(a_slot, a_channel, ticket, [&] { return Wwise::PostPreparedFile(media, a_gameObject); });
+				(void)Commit(a_slot, a_channel, ticket, path, [&] { return Wwise::PostPreparedFile(media, a_gameObject); });
 			});
 		if (!queued) {
 #ifdef OSF_ANIMATION_SMOKE

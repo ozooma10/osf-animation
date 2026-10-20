@@ -10,7 +10,7 @@ namespace
     using OSF::Test::Check;
     std::mutex fakeLock;
     std::condition_variable fakeCV;
-    bool holdPrepare{}, prepareEntered{}, holdPost{}, postEntered{};
+    bool holdPrepare{}, prepareEntered{}, holdPost{}, postEntered{}, rejectNext{};
     std::uint32_t nextVoice{1};
     std::vector<std::uint32_t> posted, stopped;
     std::uint32_t Post()
@@ -19,6 +19,7 @@ namespace
         postEntered = true; fakeCV.notify_all();
         if (!fakeCV.wait_for(l, std::chrono::seconds(5), [] { return !holdPost; }))
             Check(false, "fake submission gate expired");
+        if (rejectNext) { rejectNext = false; return 0; }
         posted.push_back(nextVoice);
         return nextVoice++;
     }
@@ -40,6 +41,7 @@ namespace
         fakeCV.notify_all();
     }
     std::size_t Posts() { std::lock_guard l(fakeLock); return posted.size(); }
+    void RejectNext() { std::lock_guard l(fakeLock); rejectNext = true; }
     std::uint32_t Last() { std::lock_guard l(fakeLock); return posted.back(); }
     bool Stopped(std::uint32_t voice)
     {
@@ -85,6 +87,17 @@ void TestSoundService()
     Check(!service.CloseChannel(voice) && !service.PlayChannel(voice, "event:test"), "retired handles cannot be reused");
     Check(!service.PlayChannel(contact, "../outside.wav") && !service.PlayChannel(contact, "C:/outside.wav") &&
         !service.PlayChannel(contact, "$pool") && !service.PlayChannel(0, "event:test"), "public channel validates specs and handles");
+
+    RejectNext();
+    Check(!service.PlayChannel(contact, "event:test") && !Stopped(c), "rejected event preserves the current voice");
+    RejectNext();
+    Check(service.PlayChannel(contact, "rejected.wav"), "file admission does not imply Wwise acceptance");
+    Check(service.WaitIdleForTest() && !Stopped(c), "rejected file preserves the current voice");
+    Arm(); Check(service.PlayChannel(contact, "held.wav"), "older replacement queued"); Await();
+    RejectNext(); auto acceptedBefore = Posts();
+    Check(!service.PlayChannel(contact, "event:test"), "newer event rejected"); Release();
+    Check(service.WaitIdleForTest() && Posts() == acceptedBefore + 1 && Stopped(c),
+        "failed newer request does not invalidate an older pending replacement");
 
     // Cancel a decoded/queued request before submission, then prove the worker finished without posting.
     auto channel = service.CreateChannel(); auto before = Posts();

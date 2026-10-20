@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <string_view>
 #include <unordered_map>
 
 // Playback only through the game's Wwise engine, so the game mix (volume sliders, pause, ducking) applies.
@@ -75,7 +76,7 @@ namespace OSF::Audio
 		[[nodiscard]] bool TicketCurrent(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket) const;
 		void PublishVoice(std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket);
 		bool Commit(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket,
-			const std::function<std::uint32_t()>& a_post);
+			std::string_view a_spec, const std::function<std::uint32_t()>& a_post);
 		bool PlayImpl(std::uint64_t a_slot, std::uint64_t a_channel, const std::string& a_spec, std::uint64_t a_gameObject);
 
 		std::mutex lock;
