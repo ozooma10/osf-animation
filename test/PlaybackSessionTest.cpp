@@ -164,6 +164,32 @@ int main()
 		Near(second.pos.x, 110, "new scene offset does not accumulate old placement");
 		Near(second.heading, 0.25f, "new heading does not accumulate old heading");
 	});
+	Run("furniture offsets follow Starfield's native yaw basis", [] {
+		// Native yaw maps model +Y to world -X at +90 degrees. In particular,
+		// the GE ShipLadder root correction is +1 local Y, not +1 world Y.
+		struct Case { float degrees, x, y; };
+		constexpr std::array cases{
+			Case{ 0, 100, 201 }, Case{ 90, 99, 200 }, Case{ 180, 100, 199 },
+			Case{ 270, 101, 200 }, Case{ -90, 101, 200 }
+		};
+		for (const auto& expected : cases) {
+			const OSF::Scene::WorldAnchor base{ true, { 100, 200, 300 }, expected.degrees * OSF::Util::kDegToRadF };
+			const auto anchor = OSF::Scene::ComposeSceneAnchor(base, { 0, 1, 0, 0 });
+			Near(anchor.pos.x, expected.x, "ladder offset rotates with furniture X");
+			Near(anchor.pos.y, expected.y, "ladder offset rotates with furniture Y");
+			Near(anchor.pos.z, 300, "ladder correction keeps furniture height");
+			Near(anchor.heading, base.heading, "ladder correction keeps furniture heading");
+		}
+		const OSF::Scene::WorldAnchor quarterTurn{ true, { 100, 200, 300 }, 90 * OSF::Util::kDegToRadF };
+		const auto anchor = OSF::Scene::ComposeSceneAnchor(quarterTurn, { 2, 3, 4, 90 * OSF::Util::kDegToRadF });
+		Near(anchor.pos.x, 97, "offset uses original furniture heading before heading correction");
+		Near(anchor.pos.y, 202, "local X uses the same native basis as local Y");
+		Near(anchor.pos.z, 304, "local Z remains world up");
+		Near(anchor.heading, 180 * OSF::Util::kDegToRadF, "relative facing is applied once");
+		const auto participant = PlacementToWorld(anchor.pos, anchor.heading, { 0, 0.5f, 0, 0 });
+		Near(participant.x, 97, "participant offset composes from corrected anchor X");
+		Near(participant.y, 201.5f, "participant offset follows corrected heading");
+	});
 	Run("alignment persistence and working-copy ownership", [] {
 		using namespace OSF::Scene::Alignment;
 		auto table = Parse(nlohmann::json::parse(R"({"formatVersion":1,"scenes":{"demo":{"#s2":{"partner":{"y":5,"heading":90},"lead":{}}}}})"));
