@@ -1,7 +1,14 @@
 {
+  "$schema": "https://raw.githubusercontent.com/ozooma10/osf-settings/dev/sdk/osf-settings.schema.json",
   "schemaVersion": 1,
   "title": "OSF Animation Browser",
   "description": "Optional animation browser, wheel, and launch preferences.",
+  "version": "1.5.0",
+  "dependencies": {
+    "osfsettings": "1.2.0",
+    "osfui": "2.1.0",
+    "osf.animation.engine": "1.5.0"
+  },
   "groups": {
     "Browser - Behavior": [
       {
