@@ -20,6 +20,9 @@ namespace OSF::Animation
 			if (!std::isfinite(remaining) || remaining <= 0.0f) {
 				remaining = 0.0f;
 			}
+#ifdef OSF_ANIMATION_SMOKE
+			const float d3SecondsPerMotion = remaining > 0.0f ? a_deltaTime / remaining : 0.0f;
+#endif
 
 			// One loop/timer boundary at a time keeps loop counts and repeat marks exact at high speed.
 			while (remaining > 0.0f && !ended.load(std::memory_order_relaxed) && !stages.empty()) {
@@ -80,12 +83,23 @@ namespace OSF::Animation
 					if (!(prevTime <= markTime && markTime < nextTime)) {
 						continue;
 					}
+#ifdef OSF_ANIMATION_SMOKE
+					const auto before = firedMarks.size();
+#endif
 					if (mark.everyLoop) {
 						firedMarks.push_back({ mark.lane, mark.token });
 					} else if (stageLoops == 0 && i < markFired.size() && !markFired[i]) {
 						firedMarks.push_back({ mark.lane, mark.token });
 						markFired[i] = true;
 					}
+#ifdef OSF_ANIMATION_SMOKE
+					if (firedMarks.size() != before) {
+						auto& fired = firedMarks.back();
+						fired.d3InputDelta = a_deltaTime;
+						fired.d3MotionLateNs = static_cast<std::uint64_t>(std::max(0.0f,
+							(remaining - (markTime - prevTime)) * d3SecondsPerMotion) * 1e9);
+					}
+#endif
 				}
 
 				clock.time = nextTime;

@@ -9,7 +9,8 @@ namespace OSF::Testing::D3AudioProbe
     std::uint64_t NowNs();
     void FrameDrain();
     void BeginMark(std::int32_t scene, std::uint64_t playback, std::string_view node,
-        std::uint8_t lane, std::string_view token, std::uint64_t crossed);
+        std::uint8_t lane, std::string_view token, std::uint64_t crossed,
+        std::uint64_t motionLateNs = 0, float inputDelta = 0);
     void EndMark();
     bool TryScopedSound(std::string_view spec);
     void VoiceStopped(std::uint32_t playing);

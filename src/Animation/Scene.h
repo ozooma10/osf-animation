@@ -94,6 +94,8 @@ namespace OSF::Animation
 		std::string  token;
 #ifdef OSF_ANIMATION_SMOKE
 		std::uint64_t d3CrossedNs = Testing::D3AudioProbe::NowNs();
+		std::uint64_t d3MotionLateNs = 0; // lateness within the engine-delivered delta, not wall-clock due time
+		float d3InputDelta = 0;
 #endif
 	};
 

@@ -145,7 +145,7 @@ namespace OSF::Scene
 				if (ParseIndexToken(m.token, node->sounds.size(), idx)) {
 					const auto& snd = node->sounds[idx];
 #ifdef OSF_ANIMATION_SMOKE
-					Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, m.lane, m.token, m.d3CrossedNs);
+					Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, m.lane, m.token, m.d3CrossedNs, m.d3MotionLateNs, m.d3InputDelta);
 #endif
 					PlaySound(handle, snd.spec, snd.role, snd.emitter);
 #ifdef OSF_ANIMATION_SMOKE
@@ -165,7 +165,7 @@ namespace OSF::Scene
 			const auto& cue = cues[cueIndex];
 #ifdef OSF_ANIMATION_SMOKE
 			const auto& mark = *d3CueMarks[cueIndex];
-			Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, mark.lane, mark.token, mark.d3CrossedNs);
+			Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, mark.lane, mark.token, mark.d3CrossedNs, mark.d3MotionLateNs, mark.d3InputDelta);
 #endif
 			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f);
 #ifdef OSF_ANIMATION_SMOKE

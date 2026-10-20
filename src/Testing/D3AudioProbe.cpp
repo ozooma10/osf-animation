@@ -8,6 +8,7 @@
 #include "Registry/ContentRegistry.h"
 #include <chrono>
 #include <condition_variable>
+#include <thread>
 
 namespace OSF::Testing::D3AudioProbe
 {
@@ -20,6 +21,9 @@ namespace OSF::Testing::D3AudioProbe
         thread_local std::uint64_t current{};
         bool active{}, released{}, waiting{}, timedOut{};
         bool scoped{};
+        bool holdWorkers{};
+        std::uint64_t waitingWorkers{}, peakPending{}, lastFrameNs{}, maxFrameGapNs{};
+        std::uint32_t workerDelayMs{};
         std::uint64_t voiceChannel{};
         std::array<std::uint64_t,3> testChannels{};
         std::uint64_t gateId{}, callback{}, pending{}, resetCount{};
@@ -48,6 +52,8 @@ namespace OSF::Testing::D3AudioProbe
             if (!e) return;
             {
                 std::lock_guard lock(mutex);
+                if (active && !scene && e->eventType==API::SceneEventType::kSceneBegin && e->sceneId &&
+                    std::string_view(e->sceneId).starts_with("osf.intimacy.audio")) scene=e->sceneHandle;
                 if (!active || e->sceneHandle != scene) return;
             }
             if (e->eventType == API::SceneEventType::kSceneEnd) Event("scene-end");
@@ -72,7 +78,9 @@ namespace OSF::Testing::D3AudioProbe
             {
                 std::lock_guard lock(mutex);
                 result = {{"trial",trial},{"active",active},{"scene",scene},{"pending",pending},
-                    {"gate",gatePoint},{"waiting",waiting},{"released",released},{"gateId",gateId},
+                    {"gate",gatePoint},{"waiting",waiting || waitingWorkers > 0},{"released",released},{"gateId",gateId},
+                    {"waitingWorkers",waitingWorkers},{"peakPending",peakPending},{"maxFrameGapNs",maxFrameGapNs},
+                    {"holdWorkers",holdWorkers},{"workerDelayMs",workerDelayMs},
                     {"gateTimedOut",timedOut},{"worldResets",resetCount},{"samples",samples},{"events",events},{"scoped",scoped}};
                 channels = testChannels;
             }
@@ -91,18 +99,25 @@ namespace OSF::Testing::D3AudioProbe
         return std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
     }
-    void FrameDrain() { ++drain; }
+    void FrameDrain() {
+        ++drain;
+        std::lock_guard lock(mutex);
+        const auto now=NowNs();
+        if (active && lastFrameNs) maxFrameGapNs=std::max(maxFrameGapNs,now-lastFrameNs);
+        lastFrameNs=now;
+    }
     std::uint64_t Current() { return current; }
     void BeginMark(std::int32_t handle, std::uint64_t playback, std::string_view node,
-        std::uint8_t lane, std::string_view token, std::uint64_t crossed)
+        std::uint8_t lane, std::string_view token, std::uint64_t crossed,
+        std::uint64_t motionLateNs, float inputDelta)
     {
         current = 0;
         std::lock_guard lock(mutex);
-        if (!active || handle != scene || (lane != 2 && lane != 3) || samples.size() >= 512) return;
+        if (!active || handle != scene || (lane != 2 && lane != 3) || samples.size() >= 4096) return;
         current = samples.size() + 1;
         samples.push_back({{"id",current},{"scene",handle},{"playback",playback},{"node",node},
             {"lane",lane},{"token",token},{"crossedNs",crossed},{"dispatchNs",NowNs()},
-            {"dispatchDrain",drain.load()}});
+            {"dispatchDrain",drain.load()},{"motionLateNs",motionLateNs},{"inputDeltaSeconds",inputDelta}});
     }
     void EndMark() { current = 0; }
     bool TryScopedSound(std::string_view spec)
@@ -128,7 +143,7 @@ namespace OSF::Testing::D3AudioProbe
         if (!active || !path.starts_with("OSF/D3/")) return 0;
         auto id = current;
         if (!id || samples.at(id-1).contains("enqueueNs")) {
-            if (samples.size() >= 512) return 0;
+            if (samples.size() >= 4096) return 0;
             const auto parent=id;
             id = samples.size() + 1;
             samples.push_back({{"id",id},{"auxiliary",true}});
@@ -138,6 +153,7 @@ namespace OSF::Testing::D3AudioProbe
         sample["path"] = path; sample["slot"] = slot; sample["enqueueNs"] = NowNs();
         if (!gateId && !gatePoint.empty() && (gatePath.empty() ? !sample.value("auxiliary",false) : path==gatePath)) gateId = id;
         ++pending;
+        peakPending=std::max(peakPending,pending);
         return id;
     }
     void Point(std::uint64_t id, const char* name, std::uint64_t value)
@@ -150,6 +166,25 @@ namespace OSF::Testing::D3AudioProbe
     {
         if (!id) return;
         std::unique_lock lock(mutex);
+        if (std::string_view(name)=="worker") {
+            if (holdWorkers && !released) {
+                ++waitingWorkers;
+                samples.at(id-1)["workerHoldEnteredNs"]=NowNs();
+                if (!gate.wait_for(lock,std::chrono::seconds(45),[]{return released;})) {
+                    timedOut=true; released=true; gate.notify_all();
+                }
+                --waitingWorkers;
+                samples.at(id-1)["workerHoldReleasedNs"]=NowNs();
+            }
+            const auto delay=workerDelayMs;
+            if (delay) {
+                samples.at(id-1)["workerDelayBeginNs"]=NowNs();
+                lock.unlock();
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+                lock.lock();
+                samples.at(id-1)["workerDelayEndNs"]=NowNs();
+            }
+        }
         if (id != gateId || gatePoint != name || released) return;
         waiting = true;
         samples.at(id - 1)["gateEnteredNs"] = NowNs();
@@ -194,6 +229,16 @@ namespace OSF::Testing::D3AudioProbe
     Json Command(const std::string& command, const Json& args)
     {
         if (command == "d3-status") return Snapshot();
+        if (command == "d3-stall") {
+            const auto ms=args.at("milliseconds").get<std::uint32_t>();
+            if (!ms || ms>1000 || !api || !scene || !api->IsPlaying(RE::PlayerCharacter::GetSingleton()))
+                throw std::runtime_error("D3 frame stall requires an active fixture and 1..1000 ms");
+            Event("frame-stall-begin");
+            // Deliberate, bounded main-frame stall, only in a private instrumented fixture.
+            std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+            Event("frame-stall-end");
+            return Snapshot();
+        }
         if (command == "d3-observe") {
             if (!api) api=API::RequestSceneAPI();
             if (!callback) callback=api->RegisterSceneEventCallback(OnScene,nullptr);
@@ -204,6 +249,10 @@ namespace OSF::Testing::D3AudioProbe
                 scene=args.value("scene",0); trial=args.value("trial",std::string("intimacy-provider"));
                 gatePoint=args.value("gate",std::string{}); gateId=0; resetCount=0;
                 gatePath=args.value("gatePath",std::string{});
+                holdWorkers=args.value("holdWorkers",false);
+                workerDelayMs=args.value("workerDelayMs",0u);
+                if (workerDelayMs>1000) throw std::runtime_error("D3 worker delay exceeds 1000 ms");
+                waitingWorkers=peakPending=maxFrameGapNs=0; lastFrameNs=NowNs();
                 samples.clear(); events=Json::array();
                 deadline=std::chrono::steady_clock::now()+std::chrono::minutes(10);
             }
@@ -225,6 +274,7 @@ namespace OSF::Testing::D3AudioProbe
                     std::lock_guard lock(mutex);
                     if (pending || waiting || voiceChannel) throw std::runtime_error("D3 audio still in flight");
                     active = true; scoped = false; scene = 0; trial = "independent-channels";
+                    holdWorkers=false; workerDelayMs=0; peakPending=maxFrameGapNs=0;
                     gatePoint.clear(); gateId = 0; timedOut = false; resetCount = 0;
                     samples.clear(); events = Json::array();
                 }
@@ -276,6 +326,7 @@ namespace OSF::Testing::D3AudioProbe
                 std::lock_guard lock(mutex);
                 active = true; released = false; waiting = false; timedOut = false;
                 scoped = args.value("scoped",false); testChannels = {};
+                holdWorkers=false; workerDelayMs=0; peakPending=maxFrameGapNs=0;
                 trial = args.at("trial"); gatePoint = point; gatePath.clear(); gateId = 0; resetCount = 0;
                 samples.clear(); events = Json::array(); scene = 0;
                 deadline = std::chrono::steady_clock::now() + std::chrono::seconds(180);

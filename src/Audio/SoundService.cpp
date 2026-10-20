@@ -28,14 +28,24 @@ namespace OSF::Audio
 				return *instance;
 			}
 
-			bool Enqueue(std::function<void()> a_job)
+			bool Enqueue(std::function<void()> a_job
+#ifdef OSF_ANIMATION_SMOKE
+				, std::uint64_t d3
+#endif
+			)
 			{
 				{
 					std::lock_guard lock{ _mutex };
 					if (_jobs.size() >= kMaxPendingAudioJobs) {
+#ifdef OSF_ANIMATION_SMOKE
+						Testing::D3AudioProbe::Point(d3, "queueDepth", _jobs.size());
+#endif
 						return false;
 					}
 					_jobs.push_back(std::move(a_job));
+#ifdef OSF_ANIMATION_SMOKE
+					Testing::D3AudioProbe::Point(d3, "queueDepth", _jobs.size());
+#endif
 #ifdef OSF_AUDIO_TEST
 					++_pending;
 #endif
@@ -291,7 +301,11 @@ namespace OSF::Audio
 					return;
 				}
 				(void)Commit(a_slot, a_channel, ticket, path, [&] { return Wwise::PostPreparedFile(media, a_gameObject); });
-			});
+			}
+#ifdef OSF_ANIMATION_SMOKE
+			, d3
+#endif
+			);
 		if (!queued) {
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::D3AudioProbe::AudioContext context(d3);
