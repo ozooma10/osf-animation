@@ -1,7 +1,14 @@
 {
+  "$schema": "https://raw.githubusercontent.com/ozooma10/osf-settings/dev/sdk/osf-settings.schema.json",
   "schemaVersion": 1,
   "title": "OSF Animation",
   "description": "Animation playback, scene runtime, and diagnostics.",
+  "version": "1.5.0",
+  "nexusModId": 17457,
+  "dependencies": {
+    "osfsettings": "1.2.0",
+    "osfui": "2.2.0"
+  },
   "groups": {
     "Scenes - Scene gear": [
       {
