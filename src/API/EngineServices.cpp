@@ -16,6 +16,7 @@
 #include "Serialization/ClipDurations.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "Util/Species.h"
+#include "Util/MonotonicClock.h"
 
 namespace OSF::API::EngineServices
 {
@@ -238,6 +239,14 @@ namespace OSF::API::EngineServices
 			},
 			[](RE::Actor* actor, std::uint64_t channel) {
 				try { return actor && Audio::SoundService::GetSingleton().BindSlot((1ull << 62) | actor->GetFormID(), channel); } catch (...) { return false; }
+			},
+			[](const AudioChannelOptions* options) -> std::uint64_t {
+				if (!options || options->size < sizeof(AudioChannelOptions) || options->latestPending > 1) return 0;
+				try { return Audio::SoundService::GetSingleton().CreateChannel(options->latestPending != 0, options->maxAgeMs); } catch (...) { return 0; }
+			},
+			&Util::MonotonicNs,
+			[](std::uint64_t channel, const char* spec, std::uint64_t detectedNs) {
+				try { return spec && detectedNs && Audio::SoundService::GetSingleton().PlayChannel(channel, spec, detectedNs); } catch (...) { return false; }
 			}
 		};
 	}

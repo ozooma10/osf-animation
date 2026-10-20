@@ -2,6 +2,7 @@
 
 #include "Audio/WwiseBackend.h"
 #include "Testing/D3AudioProbe.h"
+#include "Util/MonotonicClock.h"
 
 #include <condition_variable>
 #include <filesystem>
@@ -28,7 +29,12 @@ namespace OSF::Audio
 				return *instance;
 			}
 
-			bool Enqueue(std::function<void()> a_job
+			struct Job {
+				std::uint64_t channel{}; // nonzero only for latest-pending channels
+				std::function<void()> run;
+				std::function<void(bool)> discard; // true = coalesced, false = revoked
+			};
+			bool Enqueue(Job a_job
 #ifdef OSF_ANIMATION_SMOKE
 				, std::uint64_t d3
 #endif
@@ -36,6 +42,16 @@ namespace OSF::Audio
 			{
 				{
 					std::lock_guard lock{ _mutex };
+					if (a_job.channel) {
+						for (auto& waiting : _jobs) if (waiting.channel == a_job.channel) {
+							waiting.discard(true);
+							waiting = std::move(a_job); // retains FIFO position; no extra queue slot
+#ifdef OSF_ANIMATION_SMOKE
+							Testing::D3AudioProbe::Point(d3, "queueDepth", _jobs.size());
+#endif
+							return true;
+						}
+					}
 					if (_jobs.size() >= kMaxPendingAudioJobs) {
 #ifdef OSF_ANIMATION_SMOKE
 						Testing::D3AudioProbe::Point(d3, "queueDepth", _jobs.size());
@@ -52,6 +68,21 @@ namespace OSF::Audio
 				}
 				_cv.notify_one();
 				return true;
+			}
+
+			void Revoke(std::uint64_t channel = 0) {
+				std::lock_guard l{_mutex};
+				std::erase_if(_jobs, [&](const Job& job) {
+					if (!job.channel || (channel && job.channel != channel)) return false;
+					job.discard(false);
+#ifdef OSF_AUDIO_TEST
+					--_pending;
+#endif
+					return true;
+				});
+#ifdef OSF_AUDIO_TEST
+				_idle.notify_all();
+#endif
 			}
 
 #ifdef OSF_AUDIO_TEST
@@ -73,7 +104,7 @@ namespace OSF::Audio
 			void Run()
 			{
 				for (;;) {
-					std::function<void()> job;
+					Job job;
 					{
 						std::unique_lock lock{ _mutex };
 						_cv.wait(lock, [&] { return !_jobs.empty(); });
@@ -81,7 +112,7 @@ namespace OSF::Audio
 						_jobs.pop_front();
 					}
 					try {
-						job();
+						job.run();
 					} catch (const std::exception& e) {
 						REX::ERROR("[Audio] background audio job failed: {}", e.what());
 					} catch (...) {
@@ -96,7 +127,7 @@ namespace OSF::Audio
 
 			std::mutex _mutex;
 			std::condition_variable _cv;
-			std::deque<std::function<void()>> _jobs;
+			std::deque<Job> _jobs;
 #ifdef OSF_AUDIO_TEST
 			std::condition_variable _idle;
 			std::size_t _pending{};
@@ -120,12 +151,15 @@ namespace OSF::Audio
 		return 0;
 	}
 
-	std::uint64_t SoundService::CreateChannel()
+	std::uint64_t SoundService::CreateChannel(bool a_latestPending, std::uint32_t a_maxAgeMs)
 	{
 		std::lock_guard l{ lock };
 		if (!nextChannel || channels.size() >= kMaxTrackedSlottedVoices) return 0;
 		const auto id = nextChannel++;
-		channels.emplace(id, SlotVoice{});
+		Channel channel;
+		channel.latestPending = a_latestPending;
+		channel.maxAgeMs = a_maxAgeMs;
+		channels.emplace(id, channel);
 		return id;
 	}
 
@@ -136,6 +170,7 @@ namespace OSF::Audio
 		if (it == channels.end()) return false;
 		if (it->second.playingID) Wwise::StopVoice(it->second.playingID);
 		channels.erase(it);
+		AudioWorker::GetSingleton().Revoke(a_channel);
 		std::erase_if(bindings, [=](const auto& entry) { return entry.second == a_channel; });
 		return true;
 	}
@@ -152,24 +187,28 @@ namespace OSF::Audio
 		return true;
 	}
 
-	bool SoundService::PlayChannel(std::uint64_t a_channel, const std::string& a_spec)
+	bool SoundService::PlayChannel(std::uint64_t a_channel, const std::string& a_spec, std::uint64_t a_detectedNs)
 	{
+		if (!a_detectedNs) a_detectedNs = Util::MonotonicNs();
 		if (!a_channel || a_spec.empty() || a_spec.size() > 4096 || a_spec.front() == '$') return false;
 		if (!a_spec.starts_with("event:")) {
 			const std::filesystem::path path(a_spec);
 			if (path.has_root_path()) return false;
 			for (const auto& part : path) if (part == "..") return false;
 		}
-		return PlayImpl(0, a_channel, a_spec, 0);
+		return PlayImpl(0, a_channel, a_spec, 0, a_detectedNs);
 	}
 
-	SoundService::PlayTicket SoundService::BeginPlay(std::uint64_t a_slot, std::uint64_t& a_channel)
+	SoundService::PlayTicket SoundService::BeginPlay(std::uint64_t a_slot, std::uint64_t& a_channel, std::uint64_t a_detectedNs)
 	{
-		std::lock_guard l{ lock };
 		if (!a_channel) if (const auto it = bindings.find(a_slot); it != bindings.end()) a_channel = it->second;
 		if (!nextSequence || (a_channel && !channels.contains(a_channel))) return {};
+		const auto now = Util::MonotonicNs();
+		if (a_detectedNs > now) return {};
+		if (!a_detectedNs) a_detectedNs = now;
 		const auto sequence = nextSequence++;
-		return { teardownEpoch, sequence };
+		const auto age = a_channel ? channels.at(a_channel).maxAgeMs : 0;
+		return { teardownEpoch, sequence, age ? a_detectedNs + static_cast<std::uint64_t>(age) * 1000000 : 0 };
 	}
 
 	bool SoundService::TicketCurrent(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket) const
@@ -183,18 +222,25 @@ namespace OSF::Audio
 		return !a_slot || (!bindings.contains(a_slot) && (it == slots.end() || it->second.sequence <= a_ticket.sequence));
 	}
 
+	bool SoundService::Ready(std::uint64_t slot, std::uint64_t channel, const PlayTicket& ticket, const char* cancelPoint) const {
+		const char* reason = nullptr;
+		if (!TicketCurrent(slot, channel, ticket)) reason = cancelPoint;
+		else if (channel && channels.at(channel).latestPending && channels.at(channel).latestAdmitted > ticket.sequence)
+			reason = "supersededNs";
+		else if (ticket.deadlineNs && Util::MonotonicNs() >= ticket.deadlineNs) reason = "expiredNs";
+#ifdef OSF_ANIMATION_SMOKE
+		if (reason) Testing::D3AudioProbe::Point(Testing::D3AudioProbe::Current(), reason);
+#endif
+		return !reason;
+	}
+
 	bool SoundService::Commit(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket,
 		std::string_view a_spec, const std::function<std::uint32_t()>& a_post)
 	{
 		// Preparation must finish before this lock. Close/StopAll cannot interleave the
 		// final validity check, Wwise submission and publication; no user callbacks run here.
 		std::unique_lock l{ lock };
-		if (!TicketCurrent(a_slot, a_channel, a_ticket)) {
-#ifdef OSF_ANIMATION_SMOKE
-			Testing::D3AudioProbe::Point(Testing::D3AudioProbe::Current(), "cancelledBeforePostNs");
-#endif
-			return false;
-		}
+		if (!Ready(a_slot, a_channel, a_ticket, "cancelledBeforePostNs")) return false;
 		const auto playing = a_post();
 		if (!playing) {
 			l.unlock();
@@ -206,6 +252,7 @@ namespace OSF::Audio
 			if (voice.playingID) Wwise::StopVoice(voice.playingID);
 			voice.playingID = playing;
 			voice.sequence = a_ticket.sequence;
+			voice.latestAdmitted = std::max(voice.latestAdmitted, a_ticket.sequence);
 		} else PublishVoice(a_slot, playing, a_ticket);
 #ifdef OSF_ANIMATION_SMOKE
 		Testing::D3AudioProbe::Point(Testing::D3AudioProbe::Current(), "publishedNs");
@@ -255,18 +302,23 @@ namespace OSF::Audio
 		(void)PlayImpl(a_slot, 0, a_dataRelPath, a_gameObject);
 	}
 
-	bool SoundService::PlayImpl(std::uint64_t a_slot, std::uint64_t a_channel, const std::string& a_dataRelPath, std::uint64_t a_gameObject)
+	bool SoundService::PlayImpl(std::uint64_t a_slot, std::uint64_t a_channel, const std::string& a_dataRelPath, std::uint64_t a_gameObject, std::uint64_t a_detectedNs)
 	{
+		if (!a_detectedNs) a_detectedNs = Util::MonotonicNs();
 		const auto eventID = Wwise::ParseEventSpec(a_dataRelPath);
 		if (a_dataRelPath.starts_with("event:") && !eventID) return false;
 		if (!eventID && !Wwise::IsWwiseExternalSource(a_dataRelPath)) {
 			REX::WARN("[Audio] unsupported sound spec '{}' — cue skipped", a_dataRelPath);
 			return false;
 		}
-		const PlayTicket ticket = BeginPlay(a_slot, a_channel);
+		// Admission, queue replacement and latest-admitted publication are one operation.
+		// Workers release the queue mutex before acquiring this service mutex.
+		std::unique_lock admission{lock};
+		const PlayTicket ticket = BeginPlay(a_slot, a_channel, a_detectedNs);
 		if (!ticket.sequence) return false;
 
 		if (eventID) {
+			admission.unlock();
 			return Commit(a_slot, a_channel, ticket, a_dataRelPath, [&] { return Wwise::PostEvent(*eventID, a_gameObject); });
 		}
 
@@ -274,8 +326,20 @@ namespace OSF::Audio
 #ifdef OSF_ANIMATION_SMOKE
 		const auto d3 = Testing::D3AudioProbe::CaptureAudio(a_dataRelPath, a_slot);
 		if (a_channel) Testing::D3AudioProbe::Point(d3, "channel", a_channel);
+		Testing::D3AudioProbe::Point(d3, "requestSequence", ticket.sequence);
+		if (ticket.deadlineNs) Testing::D3AudioProbe::Point(d3, "deadlineNs", ticket.deadlineNs);
+		if (a_detectedNs) Testing::D3AudioProbe::Point(d3, "detectedNs", a_detectedNs);
 #endif
+		if (ticket.deadlineNs && Util::MonotonicNs() >= ticket.deadlineNs) {
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::AudioContext context(d3);
+			Testing::D3AudioProbe::Point(d3, "expiredNs");
+#endif
+			return false; // never admitted; does not supersede a pending replacement
+		}
+		const auto key = a_channel && channels.at(a_channel).latestPending ? a_channel : 0;
 		const bool queued = AudioWorker::GetSingleton().Enqueue(
+			{key,
 			[this, ticket, a_slot, a_channel, a_gameObject, rel, path = a_dataRelPath
 #ifdef OSF_ANIMATION_SMOKE
 			, d3
@@ -288,12 +352,7 @@ namespace OSF::Audio
 #endif
 				{
 					std::lock_guard l{ lock };
-					if (!TicketCurrent(a_slot, a_channel, ticket)) {
-#ifdef OSF_ANIMATION_SMOKE
-						Testing::D3AudioProbe::Point(d3, "cancelledBeforePrepareNs");
-#endif
-						return;
-					}
+					if (!Ready(a_slot, a_channel, ticket, "cancelledBeforePrepareNs")) return;
 				}
 				const auto media = Wwise::PrepareExternalFile(rel);
 				if (!media.data) {
@@ -301,11 +360,28 @@ namespace OSF::Audio
 					return;
 				}
 				(void)Commit(a_slot, a_channel, ticket, path, [&] { return Wwise::PostPreparedFile(media, a_gameObject); });
-			}
+			},
+			[
+#ifdef OSF_ANIMATION_SMOKE
+				d3
+#endif
+			](bool coalesced) {
+#ifdef OSF_ANIMATION_SMOKE
+				Testing::D3AudioProbe::AudioContext context(d3);
+				Testing::D3AudioProbe::Point(d3, coalesced ? "coalescedNs" : "cancelledBeforePrepareNs");
+#else
+				(void)coalesced;
+#endif
+			}}
 #ifdef OSF_ANIMATION_SMOKE
 			, d3
 #endif
 			);
+		if (queued && key) channels.at(key).latestAdmitted = ticket.sequence;
+#ifdef OSF_ANIMATION_SMOKE
+		if (queued) Testing::D3AudioProbe::Point(d3, "admittedNs");
+#endif
+		admission.unlock();
 		if (!queued) {
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::D3AudioProbe::AudioContext context(d3);
@@ -328,6 +404,7 @@ namespace OSF::Audio
 			if (voice.playingID) Wwise::StopVoice(voice.playingID);
 		}
 		channels.clear();
+		AudioWorker::GetSingleton().Revoke();
 		bindings.clear();
 		for (const auto& [key, voice] : slots) {
 			(void)key;

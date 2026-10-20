@@ -65,7 +65,7 @@ namespace OSF::Scene
 	}
 
 	void SceneRuntime::DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
-		std::string_view a_role, std::string_view a_trackPosition, float a_time)
+		std::string_view a_role, std::string_view a_trackPosition, float a_time, std::uint64_t a_detectedNs)
 	{
 		REX::DEBUG("[Scene] scene {:#010x} CUE '{}' node='{}' role='{}' trackPosition='{}' time={:.3f}",
 			a_handle, a_cue, a_node, a_role, a_trackPosition, a_time);
@@ -77,6 +77,7 @@ namespace OSF::Scene
 		e.cue = std::string(a_cue);
 		e.trackPosition = std::string(a_trackPosition);
 		e.time = a_time;
+		e.detectedNs = a_detectedNs;
 		if (!a_role.empty()) {
 			e.role = std::string(a_role);
 			e.actor = GetSingleton().ResolveRoleActor(a_handle, a_role);

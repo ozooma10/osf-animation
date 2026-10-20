@@ -32,6 +32,7 @@ namespace OSF::Scene
 		std::int32_t result = 0;       // RESULT_*
 		std::int32_t cause = -1;       // SCENE_END only: completed=0, cancelled=1, interrupted=2
 		std::string sceneId;
+		std::uint64_t detectedNs{}; // native only; Papyrus payload is unchanged
 	};
 
 	// Thread-safe.

@@ -5,8 +5,14 @@
 
 namespace OSF::API
 {
-	// Services 3.6 appends independently owned audio channels; 3.5 added progression controls.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030007;
+	// Services 3.8 appends opt-in channel coalescing, expiry and a shared monotonic clock.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030008;
+
+	struct AudioChannelOptions {
+		std::uint32_t size{sizeof(AudioChannelOptions)};
+		std::uint32_t latestPending{}; // 0/1; replace one waiting job for this channel before capacity checks
+		std::uint32_t maxAgeMs{}; // 0 disables expiry; otherwise measured from detection to submission
+	};
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
@@ -132,6 +138,19 @@ namespace OSF::API
 		// Closing the channel removes its binding; world reset clears all bindings.
 		// Actorless sounds and other actors are unaffected. Does not transfer ownership.
 		bool (*BindActorSoundChannel)(RE::Actor*, std::uint64_t);
+		// 3.8. Any thread. Options are immutable for the channel lifetime. Null/invalid options fail.
+		// Latest-pending also suppresses executing older jobs before preparation/submission.
+		// Once a newer file is admitted, superseded work is never revived if its preparation fails.
+		// Invalid/rejected admissions do not supersede; failed replacements never stop a playing voice.
+		// CreateAudioChannel retains the original non-coalescing, non-expiring behavior.
+		std::uint64_t (*CreateAudioChannelWithOptions)(const AudioChannelOptions*);
+		// Process-local monotonic nanoseconds; not wall time or animation time. Do not persist.
+		std::uint64_t (*AudioClockNs)();
+		// detectedNs must be nonzero, from AudioClockNs or scene 1.6 OSFSceneEvent.detectedNs,
+		// and not in the future. Expiry includes queue/provider delay. Checks before preparation
+		// and immediately before Wwise submission; no completion/audibility deadline is implied.
+		// PlayAudioChannel starts age at call entry. Bindings inherit their channel's options.
+		bool (*PlayAudioChannelAt)(std::uint64_t, const char* spec, std::uint64_t detectedNs);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

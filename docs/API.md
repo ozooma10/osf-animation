@@ -588,7 +588,24 @@ beat callbacks; posting another frame command would introduce an unnecessary que
 
 ## Optional engine services
 
-The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.7
+Services 3.8 adds `CreateAudioChannelWithOptions`, `AudioClockNs` and `PlayAudioChannelAt`.
+Options are fixed for a channel's lifetime. `latestPending=1` retains at most one waiting job
+per channel, replacing it in place before checking global queue capacity. Executing older jobs
+recheck supersession before preparation and before submission. An admitted replacement that
+later fails decoding does not revive discarded work; it also does not stop the playing voice.
+Invalid specs and rejected admissions do not supersede pending work. Closing an opted channel
+removes its waiting job immediately and fences executing work through the existing commit lock.
+
+`maxAgeMs=0` disables expiry. A positive limit checks age before admission, before preparation,
+and immediately before Wwise submission, even when there is no newer request. Use the scene 1.6
+event's `detectedNs` for timed cues; it preserves the original monotonic mark-detection time
+across the native frame queue. For other requests obtain a timestamp from `AudioClockNs` before
+selection work. `PlayAudioChannelAt` rejects zero/future timestamps. Plain `PlayAudioChannel`
+starts age at entry. These are submission limits, not audible-onset or sound-duration limits.
+Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
+continues without coalescing or expiry, including its existing failed-replacement behavior.
+
+The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.8
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay

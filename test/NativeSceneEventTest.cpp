@@ -18,6 +18,7 @@ using OSF::Test::Finish;
 static_assert(offsetof(OSF::API::OSFSceneEvent, result) == 80);
 static_assert(offsetof(OSF::API::OSFSceneEvent, cause) == 88);
 static_assert(offsetof(OSF::API::OSFSceneEvent, sceneId) == 96);
+static_assert(offsetof(OSF::API::OSFSceneEvent, detectedNs) == 104);
 
 namespace
 {
@@ -315,6 +316,8 @@ int main()
 		}, &received, 42, SceneEventType::kSceneEnd | SceneEventType::kSceneHandoff);
 		CHECK(token != 0);
 		OSF::Scene::SceneEvent event;
+		event.detectedNs = 123456789;
+		CHECK(NativeEventPayload(event).detectedNs == event.detectedNs);
 		event.scene = 42; event.node = "entry"; event.sceneId = "old"; event.event = OSF::Scene::Event::kSceneEnd;
 		for (int cause : { 0, 1, 2 }) {
 			event.cause = cause;

@@ -13,7 +13,7 @@
 namespace OSF::API
 {
 	// Packed (MAJOR << 16) | MINOR. MINOR bumps append vmethods or OSFStartOptions fields.
-	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 5u;
+	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 6u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
 	inline constexpr std::uint32_t kOSFSceneAPIMinor   = kOSFSceneAPIVersion & 0xFFFFu;
 
@@ -195,6 +195,9 @@ namespace OSF::API
 		std::uint32_t reserved = 0; // preserves the v1.3 tail padding; new fields begin after its size
 		std::int32_t cause = -1; // v1.4: SCENE_END only, completed=0 / cancelled=1 / interrupted=2
 		const char* sceneId = ""; // v1.4: definition id at dispatch, empty for ad-hoc scenes
+		// v1.6: monotonic mark-detection ns, in services AudioClockNs domain. Zero for non-timed
+		// events. Preserved across the frame queue; not an authored due time or clip fraction.
+		std::uint64_t detectedNs = 0;
 	};
 
 	// Runs synchronously on the dispatch thread (game thread for authored events), before the Papyrus event

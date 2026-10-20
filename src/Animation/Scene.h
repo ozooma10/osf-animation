@@ -6,6 +6,7 @@
 #include "Animation/BoneMask.h"
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
+#include "Util/MonotonicClock.h"
 #ifdef OSF_ANIMATION_SMOKE
 #include "Testing/D3AudioProbe.h"
 #endif
@@ -92,8 +93,8 @@ namespace OSF::Animation
 	{
 		std::uint8_t lane = 0;
 		std::string  token;
+		std::uint64_t detectedNs = Util::MonotonicNs();
 #ifdef OSF_ANIMATION_SMOKE
-		std::uint64_t d3CrossedNs = Testing::D3AudioProbe::NowNs();
 		std::uint64_t d3MotionLateNs = 0; // lateness within the engine-delivered delta, not wall-clock due time
 		float d3InputDelta = 0;
 #endif

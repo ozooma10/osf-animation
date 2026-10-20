@@ -27,8 +27,8 @@ namespace OSF::Audio
 
 		// Independent, bounded capability handles. Close retires the handle permanently and
 		// serializes with submission: no queued job can post after Close returns.
-		std::uint64_t CreateChannel();
-		bool PlayChannel(std::uint64_t a_channel, const std::string& a_spec);
+		std::uint64_t CreateChannel(bool a_latestPending = false, std::uint32_t a_maxAgeMs = 0);
+		bool PlayChannel(std::uint64_t a_channel, const std::string& a_spec, std::uint64_t a_detectedNs = 0);
 		bool CloseChannel(std::uint64_t a_channel);
 		bool BindSlot(std::uint64_t a_slot, std::uint64_t a_channel);
 #ifdef OSF_AUDIO_TEST
@@ -58,6 +58,7 @@ namespace OSF::Audio
 		{
 			std::uint64_t epoch = 0;
 			std::uint64_t sequence = 0;
+			std::uint64_t deadlineNs = 0;
 		};
 
 		struct SlotVoice
@@ -72,17 +73,24 @@ namespace OSF::Audio
 			std::uint64_t sequence = 0;
 		};
 
-		[[nodiscard]] PlayTicket BeginPlay(std::uint64_t a_slot, std::uint64_t& a_channel);
+		struct Channel : SlotVoice {
+			bool latestPending{};
+			std::uint32_t maxAgeMs{};
+			std::uint64_t latestAdmitted{};
+		};
+
+		[[nodiscard]] PlayTicket BeginPlay(std::uint64_t a_slot, std::uint64_t& a_channel, std::uint64_t a_detectedNs);
 		// Caller holds lock for these helpers. Commit holds it through post AND publication.
 		[[nodiscard]] bool TicketCurrent(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket) const;
+		bool Ready(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket, const char* a_cancelPoint) const;
 		void PublishVoice(std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket);
 		bool Commit(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket,
 			std::string_view a_spec, const std::function<std::uint32_t()>& a_post);
-		bool PlayImpl(std::uint64_t a_slot, std::uint64_t a_channel, const std::string& a_spec, std::uint64_t a_gameObject);
+		bool PlayImpl(std::uint64_t a_slot, std::uint64_t a_channel, const std::string& a_spec, std::uint64_t a_gameObject, std::uint64_t a_detectedNs = 0);
 
 		std::mutex lock;
 		std::unordered_map<std::uint64_t, SlotVoice> slots;
-		std::unordered_map<std::uint64_t, SlotVoice> channels;
+		std::unordered_map<std::uint64_t, Channel> channels;
 		std::unordered_map<std::uint64_t, std::uint64_t> bindings;
 		std::deque<SlotOrderEntry> slotOrder;
 		std::deque<std::uint32_t> unslottedVoices;           // stopped on world teardown

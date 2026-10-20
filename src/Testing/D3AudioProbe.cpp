@@ -77,7 +77,7 @@ namespace OSF::Testing::D3AudioProbe
             std::array<std::uint64_t,3> channels;
             {
                 std::lock_guard lock(mutex);
-                result = {{"trial",trial},{"active",active},{"scene",scene},{"pending",pending},
+                result = {{"trial",trial},{"active",active},{"scene",scene},{"pending",pending},{"snapshotNs",NowNs()},
                     {"gate",gatePoint},{"waiting",waiting || waitingWorkers > 0},{"released",released},{"gateId",gateId},
                     {"waitingWorkers",waitingWorkers},{"peakPending",peakPending},{"maxFrameGapNs",maxFrameGapNs},
                     {"holdWorkers",holdWorkers},{"workerDelayMs",workerDelayMs},

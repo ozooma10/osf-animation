@@ -123,17 +123,13 @@ namespace OSF::Scene
 
 		// Cues are deferred until the tick's other entries have run.
 		std::vector<Registry::CueEntry> cues;
-#ifdef OSF_ANIMATION_SMOKE
-		std::vector<const Animation::FiredMark*> d3CueMarks;
-#endif
+		std::vector<const Animation::FiredMark*> cueMarks;
 		for (const auto& m : marks) {
 			if (m.lane == kLaneCue) {
 				std::size_t idx = 0;
 				if (node && ParseIndexToken(m.token, node->cues.size(), idx)) {
 					cues.push_back(node->cues[idx]);
-#ifdef OSF_ANIMATION_SMOKE
-					d3CueMarks.push_back(&m);
-#endif
+					cueMarks.push_back(&m);
 				}
 			} else if (m.lane == kLaneAction && node) {
 				std::size_t idx = 0;
@@ -145,7 +141,7 @@ namespace OSF::Scene
 				if (ParseIndexToken(m.token, node->sounds.size(), idx)) {
 					const auto& snd = node->sounds[idx];
 #ifdef OSF_ANIMATION_SMOKE
-					Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, m.lane, m.token, m.d3CrossedNs, m.d3MotionLateNs, m.d3InputDelta);
+					Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, m.lane, m.token, m.detectedNs, m.d3MotionLateNs, m.d3InputDelta);
 #endif
 					PlaySound(handle, snd.spec, snd.role, snd.emitter);
 #ifdef OSF_ANIMATION_SMOKE
@@ -163,11 +159,11 @@ namespace OSF::Scene
 		// TODO: thread the fired fraction back from the Scene; time is sent as -1.
 		for (std::size_t cueIndex = 0; cueIndex < cues.size(); ++cueIndex) {
 			const auto& cue = cues[cueIndex];
+			const auto& mark = *cueMarks[cueIndex];
 #ifdef OSF_ANIMATION_SMOKE
-			const auto& mark = *d3CueMarks[cueIndex];
-			Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, mark.lane, mark.token, mark.d3CrossedNs, mark.d3MotionLateNs, mark.d3InputDelta);
+			Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, mark.lane, mark.token, mark.detectedNs, mark.d3MotionLateNs, mark.d3InputDelta);
 #endif
-			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f);
+			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f, mark.detectedNs);
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::D3AudioProbe::EndMark();
 #endif

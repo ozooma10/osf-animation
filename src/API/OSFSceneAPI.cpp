@@ -120,7 +120,7 @@ namespace OSF::API
 		static_assert(offsetof(OSFSceneMatch, roles) == 296);
 
 		static_assert(std::is_standard_layout_v<OSFSceneEvent>, "OSFSceneEvent must be standard-layout (POD ABI)");
-		static_assert(sizeof(OSFSceneEvent) == 104, "OSFSceneEvent layout changed - bump the API version");
+		static_assert(offsetof(OSFSceneEvent, detectedNs) == 104 && sizeof(OSFSceneEvent) == 112, "OSFSceneEvent layout changed - bump the API version");
 		static_assert(offsetof(OSFSceneEvent, cause) == 88);
 		static_assert(offsetof(OSFSceneEvent, sceneId) == 96);
 		static_assert(offsetof(OSFSceneEvent, size) == 0, "OSFSceneEvent.size must be first");
