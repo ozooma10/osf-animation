@@ -1,6 +1,7 @@
 #include "Audio/SoundService.h"
 
 #include "Audio/WwiseBackend.h"
+#include "Testing/D3AudioProbe.h"
 
 #include <condition_variable>
 #include <filesystem>
@@ -174,9 +175,24 @@ namespace OSF::Audio
 		}
 
 		const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
+#ifdef OSF_ANIMATION_SMOKE
+		const auto d3 = Testing::D3AudioProbe::CaptureAudio(a_dataRelPath, a_slot);
+#endif
 		const bool queued = AudioWorker::GetSingleton().Enqueue(
-			[this, ticket, a_slot, a_gameObject, rel, path = a_dataRelPath]() {
+			[this, ticket, a_slot, a_gameObject, rel, path = a_dataRelPath
+#ifdef OSF_ANIMATION_SMOKE
+			, d3
+#endif
+			]() {
+#ifdef OSF_ANIMATION_SMOKE
+				Testing::D3AudioProbe::AudioContext context(d3);
+				Testing::D3AudioProbe::Point(d3, "workerNs");
+				Testing::D3AudioProbe::Checkpoint(d3, "worker");
+#endif
 				if (!TicketCurrent(ticket)) {
+#ifdef OSF_ANIMATION_SMOKE
+					Testing::D3AudioProbe::Point(d3, "cancelledBeforePrepareNs");
+#endif
 					return;  // queued before a world-replacing teardown
 				}
 				const auto playingID = Wwise::PostExternalFile(rel, a_gameObject);
@@ -185,11 +201,21 @@ namespace OSF::Audio
 					return;
 				}
 				if (PublishVoice(a_slot, playingID, ticket)) {
+#ifdef OSF_ANIMATION_SMOKE
+					Testing::D3AudioProbe::Point(d3, "publishedNs");
+#endif
 					REX::DEBUG("[Audio] posted external '{}' -> playingID {} (engine-mixed, slot {:#x}, emitter {})",
 						path, playingID, a_slot, a_gameObject != 0 ? "role" : "listener");
 				}
+#ifdef OSF_ANIMATION_SMOKE
+				else Testing::D3AudioProbe::Point(d3, "rejectedAfterPostNs");
+#endif
 			});
 		if (!queued) {
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::AudioContext context(d3);
+			Testing::D3AudioProbe::Point(d3, "queueRejectedNs");
+#endif
 			REX::WARN("[Audio] background audio queue is full ({} jobs) — '{}' skipped",
 				kMaxPendingAudioJobs, a_dataRelPath);
 		}

@@ -123,11 +123,17 @@ namespace OSF::Scene
 
 		// Cues are deferred until the tick's other entries have run.
 		std::vector<Registry::CueEntry> cues;
+#ifdef OSF_ANIMATION_SMOKE
+		std::vector<const Animation::FiredMark*> d3CueMarks;
+#endif
 		for (const auto& m : marks) {
 			if (m.lane == kLaneCue) {
 				std::size_t idx = 0;
 				if (node && ParseIndexToken(m.token, node->cues.size(), idx)) {
 					cues.push_back(node->cues[idx]);
+#ifdef OSF_ANIMATION_SMOKE
+					d3CueMarks.push_back(&m);
+#endif
 				}
 			} else if (m.lane == kLaneAction && node) {
 				std::size_t idx = 0;
@@ -138,7 +144,13 @@ namespace OSF::Scene
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->sounds.size(), idx)) {
 					const auto& snd = node->sounds[idx];
+#ifdef OSF_ANIMATION_SMOKE
+					Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, m.lane, m.token, m.d3CrossedNs);
+#endif
 					PlaySound(handle, snd.spec, snd.role, snd.emitter);
+#ifdef OSF_ANIMATION_SMOKE
+					Testing::D3AudioProbe::EndMark();
+#endif
 				}
 			} else if (m.lane == kLaneCamera && node && !cameraOverridden) {
 				std::size_t idx = 0;
@@ -149,8 +161,16 @@ namespace OSF::Scene
 		}
 
 		// TODO: thread the fired fraction back from the Scene; time is sent as -1.
-		for (const auto& cue : cues) {
+		for (std::size_t cueIndex = 0; cueIndex < cues.size(); ++cueIndex) {
+			const auto& cue = cues[cueIndex];
+#ifdef OSF_ANIMATION_SMOKE
+			const auto& mark = *d3CueMarks[cueIndex];
+			Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, mark.lane, mark.token, mark.d3CrossedNs);
+#endif
 			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f);
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::EndMark();
+#endif
 		}
 
 		// First fired cue with a matching trigger edge wins. Re-resolve: an action above may have

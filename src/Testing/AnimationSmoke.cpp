@@ -2,6 +2,7 @@
 
 #ifdef OSF_ANIMATION_SMOKE
 #include "Testing/AnimationCases.h"
+#include "Testing/D3AudioProbe.h"
 #include "API/OSFPersistenceAPI.h"
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
@@ -690,6 +691,10 @@ namespace OSF::Testing::AnimationSmoke
 				g.seenRequests.insert(id);
 				const auto command = request.at("command").get<std::string>();
 				if (command == "start") Start(request.at("args").at("runId").get<std::string>());
+				else if (command.starts_with("d3-")) {
+					if (g.running) throw std::runtime_error("D3 cannot overlap the full smoke suite");
+					response["data"] = D3AudioProbe::Command(command, request.value("args", Json::object()));
+				}
 				else if (command == "probe-menu" || command == "probe-playback")
 					response["data"] = MenuPauseProbe(command, request.value("args", Json::object()));
 				else if (command != "status") throw std::runtime_error("Unknown smoke command");
@@ -712,6 +717,7 @@ namespace OSF::Testing::AnimationSmoke
 				} else Finish("blocked", "Unexpected world replacement interrupted the run", true);
 			}
 			PollMailbox();
+			D3AudioProbe::Tick();
 			if (g.running) AdvanceRun();
 		} catch (const std::exception& e) {
 			REX::ERROR("[API] development smoke bench error: {}", e.what());
@@ -723,6 +729,6 @@ namespace OSF::Testing::AnimationSmoke
 		}
 	}
 
-	void OnWorldReset() noexcept { g_worldReset.store(true); }
+	void OnWorldReset() noexcept { g_worldReset.store(true); D3AudioProbe::WorldReset(); }
 }
 #endif

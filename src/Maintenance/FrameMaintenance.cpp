@@ -8,6 +8,7 @@
 #include "REL/THook.h"
 #ifdef OSF_ANIMATION_SMOKE
 #include "Testing/AnimationSmoke.h"
+#include "Testing/D3AudioProbe.h"
 #endif
 
 #include <optional>
@@ -22,6 +23,9 @@ namespace OSF::Maintenance
 		void FrameThunk() noexcept
 		{
 			(*g_frameHook)();
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::FrameDrain();
+#endif
 			Util::NativeMainThreadQueue::Drain();
 			// Playback time and pose stamping live in the AnimationManager/BGSModelNode::Update hooks.
 			Camera::CameraService::GetSingleton().Tick();

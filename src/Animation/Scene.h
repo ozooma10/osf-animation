@@ -6,6 +6,9 @@
 #include "Animation/BoneMask.h"
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
+#ifdef OSF_ANIMATION_SMOKE
+#include "Testing/D3AudioProbe.h"
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -89,6 +92,9 @@ namespace OSF::Animation
 	{
 		std::uint8_t lane = 0;
 		std::string  token;
+#ifdef OSF_ANIMATION_SMOKE
+		std::uint64_t d3CrossedNs = Testing::D3AudioProbe::NowNs();
+#endif
 	};
 
 	// `resourcePath` may use NAF/GLB clip-spec syntax; resolved only at the GraphManager boundary.

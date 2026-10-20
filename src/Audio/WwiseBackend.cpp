@@ -1,4 +1,5 @@
 #include "Audio/WwiseBackend.h"
+#include "Testing/D3AudioProbe.h"
 
 #include "Audio/PcmWem.h"
 
@@ -243,12 +244,18 @@ namespace OSF::Audio::Wwise
 			}
 
 			if (!loader) {
+#ifdef OSF_ANIMATION_SMOKE
+				Testing::D3AudioProbe::Point(Testing::D3AudioProbe::Current(), "cacheState", 2);
+#endif
 				std::unique_lock entryLock{ entry->mutex };
 				entry->readyCV.wait(entryLock, [&] { return entry->ready; });
 				return entry->media;
 			}
 
 			MediaBuffer media;
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::Point(Testing::D3AudioProbe::Current(), "cacheState", 1);
+#endif
 			struct ReadyPublisher
 			{
 				std::shared_ptr<MediaCacheEntry> entry;
@@ -292,7 +299,16 @@ namespace OSF::Audio::Wwise
 		// pInMemory, not szFile: the engine's file resolver is registry-gated, so a szFile post is accepted but silent.
 		std::uint32_t PostExternalOn(std::uint32_t a_eventID, const std::wstring& a_path, std::uint64_t a_gameObj)
 		{
+#ifdef OSF_ANIMATION_SMOKE
+			const auto d3 = Testing::D3AudioProbe::Current();
+			Testing::D3AudioProbe::Point(d3, "prepareNs");
+			Testing::D3AudioProbe::Checkpoint(d3, "during-prepare");
+#endif
 			const MediaBuffer media = GetOrLoadMedia(a_path);
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::Point(d3, "mediaReadyNs");
+			Testing::D3AudioProbe::Checkpoint(d3, "before-post");
+#endif
 			if (media.data == nullptr) {
 				return 0;
 			}
@@ -303,7 +319,15 @@ namespace OSF::Audio::Wwise
 			ext.pInMemory = media.data;
 			ext.uiMemorySize = media.size;
 			ext.idFile = 0;
-			return RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, a_gameObj, 0, nullptr, nullptr, 1, &ext, 0);
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::Point(d3, "postNs");
+#endif
+			const auto playing = RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, a_gameObj, 0, nullptr, nullptr, 1, &ext, 0);
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::D3AudioProbe::Point(d3, "postReturnNs");
+			Testing::D3AudioProbe::Point(d3, playing ? "acceptedPlayingId" : "postRejected", playing ? playing : 1);
+#endif
+			return playing;
 		}
 	}
 
