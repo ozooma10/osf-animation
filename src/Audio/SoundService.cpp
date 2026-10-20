@@ -126,6 +126,19 @@ namespace OSF::Audio
 		if (it == channels.end()) return false;
 		if (it->second.playingID) Wwise::StopVoice(it->second.playingID);
 		channels.erase(it);
+		std::erase_if(bindings, [=](const auto& entry) { return entry.second == a_channel; });
+		return true;
+	}
+
+	bool SoundService::BindSlot(std::uint64_t a_slot, std::uint64_t a_channel)
+	{
+		std::lock_guard l{ lock };
+		if (!a_slot || !channels.contains(a_channel) || !nextSequence) return false;
+		if (const auto it = bindings.find(a_slot); it != bindings.end()) return it->second == a_channel;
+		if (bindings.size() >= kMaxTrackedSlottedVoices) return false;
+		bindings.emplace(a_slot, a_channel);
+		// Fence earlier legacy completions and stop any published legacy tail on opt-in.
+		PublishVoice(a_slot, 0, {teardownEpoch, nextSequence++});
 		return true;
 	}
 
@@ -140,9 +153,10 @@ namespace OSF::Audio
 		return PlayImpl(0, a_channel, a_spec, 0);
 	}
 
-	SoundService::PlayTicket SoundService::BeginPlay(std::uint64_t a_channel)
+	SoundService::PlayTicket SoundService::BeginPlay(std::uint64_t a_slot, std::uint64_t& a_channel)
 	{
 		std::lock_guard l{ lock };
+		if (!a_channel) if (const auto it = bindings.find(a_slot); it != bindings.end()) a_channel = it->second;
 		if (!nextSequence || (a_channel && !channels.contains(a_channel))) return {};
 		const auto sequence = nextSequence++;
 		return { teardownEpoch, sequence };
@@ -156,7 +170,7 @@ namespace OSF::Audio
 			return it != channels.end() && it->second.sequence <= a_ticket.sequence;
 		}
 		const auto it = slots.find(a_slot);
-		return !a_slot || it == slots.end() || it->second.sequence <= a_ticket.sequence;
+		return !a_slot || (!bindings.contains(a_slot) && (it == slots.end() || it->second.sequence <= a_ticket.sequence));
 	}
 
 	bool SoundService::Commit(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket,
@@ -239,7 +253,7 @@ namespace OSF::Audio
 			REX::WARN("[Audio] unsupported sound spec '{}' — cue skipped", a_dataRelPath);
 			return false;
 		}
-		const PlayTicket ticket = BeginPlay(a_channel);
+		const PlayTicket ticket = BeginPlay(a_slot, a_channel);
 		if (!ticket.sequence) return false;
 
 		if (eventID) {
@@ -300,6 +314,7 @@ namespace OSF::Audio
 			if (voice.playingID) Wwise::StopVoice(voice.playingID);
 		}
 		channels.clear();
+		bindings.clear();
 		for (const auto& [key, voice] : slots) {
 			(void)key;
 			if (voice.playingID != 0) {

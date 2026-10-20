@@ -6,7 +6,7 @@
 namespace OSF::API
 {
 	// Services 3.6 appends independently owned audio channels; 3.5 added progression controls.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030006;
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030007;
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
@@ -127,6 +127,11 @@ namespace OSF::API
 		// committed first is stopped before return. Other channels and legacy slots survive.
 		// false for invalid/already-closed handles; repeated close is harmless. No disk IO.
 		bool (*CloseAudioChannel)(std::uint64_t);
+		// 3.7. Game context. Route this actor's authored sound-lane/action playback into
+		// an owned channel. Bind before authored entry sounds. Refuses another live binding.
+		// Closing the channel removes its binding; world reset clears all bindings.
+		// Actorless sounds and other actors are unaffected. Does not transfer ownership.
+		bool (*BindActorSoundChannel)(RE::Actor*, std::uint64_t);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

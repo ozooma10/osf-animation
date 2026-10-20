@@ -135,6 +135,18 @@ void TestSoundService()
     Check(service.WaitIdleForTest() && Posts() == before, "legacy older completion cannot post over published replacement");
     service.StopAll();
 
+    // Authored playback can join a consumer-owned channel without affecting other slots.
+    auto bound = service.CreateChannel();
+    auto competitor = service.CreateChannel();
+    Check(service.BindSlot(91,bound) && !service.BindSlot(91,competitor), "actor sound binding cannot steal another owner");
+    service.Play(91,"event:test"); const auto authored=Last();
+    Check(service.PlayChannel(bound,"event:test") && Stopped(authored), "generated and authored sound share one channel");
+    Arm(); before=Posts(); service.Play(91,"held.wav"); Await();
+    service.CloseChannel(bound); Release();
+    Check(service.WaitIdleForTest() && Posts()==before, "closing scope cancels authored queued work");
+    Check(service.BindSlot(91,competitor), "closing releases actor binding for a fresh scope");
+    service.StopAll();
+
     std::vector<std::uint64_t> handles;
     for (std::size_t i = 0; i < 4096; ++i) handles.push_back(service.CreateChannel());
     Check(handles.back() != 0 && service.CreateChannel() == 0, "channel ownership is bounded");

@@ -235,6 +235,9 @@ namespace OSF::API::EngineServices
 			},
 			[](std::uint64_t channel) {
 				try { return Audio::SoundService::GetSingleton().CloseChannel(channel); } catch (...) { return false; }
+			},
+			[](RE::Actor* actor, std::uint64_t channel) {
+				try { return actor && Audio::SoundService::GetSingleton().BindSlot((1ull << 62) | actor->GetFormID(), channel); } catch (...) { return false; }
 			}
 		};
 	}

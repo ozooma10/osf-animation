@@ -573,13 +573,22 @@ revokes every channel; consumers must forget the old handles. Nothing is persist
 
 Playback currently uses the listener emitter and existing Wwise dialogue bus. This API does not
 promise actor-positioned emitters, separate mixer buses, pool selection, subtitles or prewarming.
+
+Services **3.7** add `BindActorSoundChannel(actor, channel)` for consumers that must give authored
+sound lanes/actions and generated playback the same lifetime. Call in game context before entry
+sounds (native `NODE_ENTER` runs first). The live owned channel receives subsequent sounds for
+that actor after normal pool resolution. Another live binding cannot be stolen. Closing the
+channel stops its current sound, cancels its queued work and removes the binding; world reset
+also clears bindings. Actorless sounds and other actors retain their existing behavior. Binding
+opts all role-authored sounds for that actor into this scope; use separate owned channels for
+independent contact/effects. The caller still owns and closes the channel. No content policy is inferred.
 Legacy sound lanes keep their normal scene-stop tail policy, while gaining the same final
 world/sequence check before submission. Consumers should call the service directly from native
 beat callbacks; posting another frame command would introduce an unnecessary queue hop.
 
 ## Optional engine services
 
-The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.6
+The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.7
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay

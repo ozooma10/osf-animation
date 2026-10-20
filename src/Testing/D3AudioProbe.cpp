@@ -24,7 +24,7 @@ namespace OSF::Testing::D3AudioProbe
         std::array<std::uint64_t,3> testChannels{};
         std::uint64_t gateId{}, callback{}, pending{}, resetCount{};
         std::int32_t scene{};
-        std::string trial, gatePoint;
+        std::string trial, gatePoint, gatePath;
         std::vector<Json> samples;
         Json events = Json::array();
         std::chrono::steady_clock::time_point deadline;
@@ -127,14 +127,16 @@ namespace OSF::Testing::D3AudioProbe
         std::lock_guard lock(mutex);
         if (!active || !path.starts_with("OSF/D3/")) return 0;
         auto id = current;
-        if (!id) {
+        if (!id || samples.at(id-1).contains("enqueueNs")) {
             if (samples.size() >= 512) return 0;
+            const auto parent=id;
             id = samples.size() + 1;
             samples.push_back({{"id",id},{"auxiliary",true}});
+            if (parent) samples.back()["parentMark"]=parent;
         }
         auto& sample = samples.at(id - 1);
         sample["path"] = path; sample["slot"] = slot; sample["enqueueNs"] = NowNs();
-        if (!gateId && !gatePoint.empty() && !sample.value("auxiliary",false)) gateId = id;
+        if (!gateId && !gatePoint.empty() && (gatePath.empty() ? !sample.value("auxiliary",false) : path==gatePath)) gateId = id;
         ++pending;
         return id;
     }
@@ -192,6 +194,25 @@ namespace OSF::Testing::D3AudioProbe
     Json Command(const std::string& command, const Json& args)
     {
         if (command == "d3-status") return Snapshot();
+        if (command == "d3-observe") {
+            if (!api) api=API::RequestSceneAPI();
+            if (!callback) callback=api->RegisterSceneEventCallback(OnScene,nullptr);
+            {
+                std::lock_guard lock(mutex);
+                if (pending || waiting || voiceChannel) throw std::runtime_error("D3 audio still in flight");
+                active=true; scoped=false; released=false; timedOut=false; testChannels={};
+                scene=args.value("scene",0); trial=args.value("trial",std::string("intimacy-provider"));
+                gatePoint=args.value("gate",std::string{}); gateId=0; resetCount=0;
+                gatePath=args.value("gatePath",std::string{});
+                samples.clear(); events=Json::array();
+                deadline=std::chrono::steady_clock::now()+std::chrono::minutes(10);
+            }
+            return Snapshot();
+        }
+        if (command == "d3-watch") {
+            { std::lock_guard lock(mutex); scene=args.at("scene").get<std::int32_t>(); }
+            return Snapshot();
+        }
         if (command == "d3-release") {
             { std::lock_guard lock(mutex); released = true; }
             Event("release"); gate.notify_all(); return Snapshot();
@@ -255,7 +276,7 @@ namespace OSF::Testing::D3AudioProbe
                 std::lock_guard lock(mutex);
                 active = true; released = false; waiting = false; timedOut = false;
                 scoped = args.value("scoped",false); testChannels = {};
-                trial = args.at("trial"); gatePoint = point; gateId = 0; resetCount = 0;
+                trial = args.at("trial"); gatePoint = point; gatePath.clear(); gateId = 0; resetCount = 0;
                 samples.clear(); events = Json::array(); scene = 0;
                 deadline = std::chrono::steady_clock::now() + std::chrono::seconds(180);
             }

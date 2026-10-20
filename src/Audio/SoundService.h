@@ -30,6 +30,7 @@ namespace OSF::Audio
 		std::uint64_t CreateChannel();
 		bool PlayChannel(std::uint64_t a_channel, const std::string& a_spec);
 		bool CloseChannel(std::uint64_t a_channel);
+		bool BindSlot(std::uint64_t a_slot, std::uint64_t a_channel);
 #ifdef OSF_AUDIO_TEST
 		bool WaitIdleForTest();
 #endif
@@ -71,7 +72,7 @@ namespace OSF::Audio
 			std::uint64_t sequence = 0;
 		};
 
-		[[nodiscard]] PlayTicket BeginPlay(std::uint64_t a_channel);
+		[[nodiscard]] PlayTicket BeginPlay(std::uint64_t a_slot, std::uint64_t& a_channel);
 		// Caller holds lock for these helpers. Commit holds it through post AND publication.
 		[[nodiscard]] bool TicketCurrent(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket) const;
 		void PublishVoice(std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket);
@@ -82,6 +83,7 @@ namespace OSF::Audio
 		std::mutex lock;
 		std::unordered_map<std::uint64_t, SlotVoice> slots;
 		std::unordered_map<std::uint64_t, SlotVoice> channels;
+		std::unordered_map<std::uint64_t, std::uint64_t> bindings;
 		std::deque<SlotOrderEntry> slotOrder;
 		std::deque<std::uint32_t> unslottedVoices;           // stopped on world teardown
 		std::uint64_t teardownEpoch = 1;
