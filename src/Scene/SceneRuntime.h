@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Equipment/EquipmentService.h"
+#include "ActorState/Service.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputTypes.h"
 #include "Matchmaking/Matchmaker.h"
@@ -205,7 +205,7 @@ namespace OSF::Scene
 			// One transition at a time: ApplyTransition runs outside _lock, and overlapping triggers
 			// (Papyrus advance vs auto-end) orphaned a graph and froze the player. Claimed under _lock.
 			bool                    transitioning = false;
-			bool                    equipmentSuspended = false;  // baseline is worn during serialization
+			ActorState::Handle      equipmentScope{};
 			TerminationCause        terminationCause = TerminationCause::kCompleted;
 			std::string             id;
 			std::string             node;
@@ -229,11 +229,6 @@ namespace OSF::Scene
 			bool                    singleStage = false;
 			bool                    cameraOverridden = false;  // authored node cameras stand down
 			std::vector<Mechanism>  ledger;  // at most one entry per Mechanism
-			// Per-mechanism state lives here so the ledger stays a plain ordered list.
-			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenEquip;
-			// Separate so osf.equipment.restore stays apparel-only.
-			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenHeldEquip;
-			std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equippedItems;
 			std::vector<RE::Actor*> sheathedWeapon;
 			// Destroyed before SCENE_END dispatch.
 			std::vector<ActiveProp> props;
@@ -325,14 +320,10 @@ namespace OSF::Scene
 		// Empty role = first participant. nullptr if the handle is dead or the role is unknown.
 		RE::Actor* ResolveRoleActor(std::int32_t a_handle, std::string_view a_role);
 
-		// Record* helpers take _lock themselves; call them outside it.
-		void RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
-
-		// Cleanup-only, so authored apparel restore can't re-equip held props.
-		void RecordHiddenHeldEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
-		void RecordEquippedItem(std::int32_t a_handle, RE::Actor* a_actor, Equipment::EquippedItem a_item);
-		std::vector<RE::TESBoundObject*> OwnedEquipment(std::int32_t a_handle, RE::Actor* a_actor);
-		bool OwnsEquipment(std::int32_t a_handle, RE::Actor* a_actor, RE::TESBoundObject* a_item);
+		ActorState::Handle EquipmentScope(std::int32_t a_handle);
+		bool ApplyEquippedItem(std::int32_t a_handle, RE::Actor* actor, RE::TESBoundObject* object, bool gear = false);
+		std::size_t ApplyHiddenEquipment(std::int32_t a_handle, RE::Actor* actor, std::uint32_t slots, bool held,
+			std::span<RE::TESBoundObject* const> keep = {});
 
 		void RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor);
 
@@ -367,7 +358,7 @@ namespace OSF::Scene
 		// a_participants. Game thread.
 		std::vector<std::vector<Equipment::Gear::Pick>> BuildGearPicks(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants);
 
-		// Already-worn picks were strip-exempted instead; nothing to equip or undo.
+		// Worn and newly equipped gear both hold claims; only owned changes are undone.
 		void EquipGearItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
 			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
 

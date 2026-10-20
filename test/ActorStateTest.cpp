@@ -159,4 +159,3 @@ int main()
 	}
 	return OSF::Test::Finish("actor-state");
 }
-

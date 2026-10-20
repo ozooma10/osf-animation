@@ -83,4 +83,3 @@ namespace OSF::ActorState
 		std::map<Actor, std::map<Object, Record>> _records;
 	};
 }
-

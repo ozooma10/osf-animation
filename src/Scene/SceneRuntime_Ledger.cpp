@@ -1,8 +1,6 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Camera/CameraService.h"
-#include "Equipment/EquipmentService.h"
-#include "Equipment/SceneEquipmentState.h"
 #include "Input/InputService.h"
 #include "Player/PlayerInputLockService.h"
 #include "Props/PropService.h"
@@ -46,12 +44,9 @@ namespace OSF::Scene
 
 	void SceneRuntime::UndoMechanism(std::int32_t a_handle, Mechanism a_mech)
 	{
-		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;
-		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> heldEquip;
-		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;
+		ActorState::Handle scope{};
 		std::vector<RE::Actor*> weapon;
 		std::vector<ActiveProp> props;
-		bool equipmentSuspended = false;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
@@ -63,14 +58,8 @@ namespace OSF::Scene
 				return;
 			}
 			s->ledger.erase(it);
-			equipmentSuspended = s->equipmentSuspended;
-			if (a_mech == Mechanism::kEquipment) {
-				equip.swap(s->hiddenEquip);
-			} else if (a_mech == Mechanism::kHeldEquipment) {
-				heldEquip.swap(s->hiddenHeldEquip);
-			} else if (a_mech == Mechanism::kEquipItem) {
-				equipItems.swap(s->equippedItems);
-			} else if (a_mech == Mechanism::kWeapon) {
+			scope = s->equipmentScope;
+			if (a_mech == Mechanism::kWeapon) {
 				weapon.swap(s->sheathedWeapon);
 			} else if (a_mech == Mechanism::kProps) {
 				props.swap(s->props);
@@ -79,10 +68,6 @@ namespace OSF::Scene
 				++s->grantRevision;
 			}
 		}
-		// Save begin already reversed these entries. Still consume them above when a scene ends;
-		// in particular, do not remove a transient item twice.
-		if (equipmentSuspended && (a_mech == Mechanism::kEquipment ||
-			a_mech == Mechanism::kHeldEquipment || a_mech == Mechanism::kEquipItem)) return;
 		// Reverse outside _lock: services enter the VM, post UI messages, or take the inventory lock.
 		switch (a_mech) {
 		case Mechanism::kPlayerInputLock:
@@ -95,22 +80,13 @@ namespace OSF::Scene
 			UI::FadeService::GetSingleton().FadeFromBlack(0.5f);
 			break;
 		case Mechanism::kEquipment:
-			REX::TRACE("[Scene] scene {:#010x} equipment undo — restoring {} actor(s)", a_handle, equip.size());
-			Equipment::UndoNewestFirst(equip, [](auto* actor, const auto& snap) {
-				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
-			});
+			ActorState::Report(ActorState::Get().ReleaseGroup(scope, ActorState::Apparel), "release apparel");
 			break;
 		case Mechanism::kHeldEquipment:
-			REX::TRACE("[Scene] scene {:#010x} held-equipment undo — restoring {} actor(s)", a_handle, heldEquip.size());
-			Equipment::UndoNewestFirst(heldEquip, [](auto* actor, const auto& snap) {
-				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
-			});
+			ActorState::Report(ActorState::Get().ReleaseGroup(scope, ActorState::Held), "release held items");
 			break;
 		case Mechanism::kEquipItem:
-			REX::TRACE("[Scene] scene {:#010x} equip-item undo — removing {} item(s)", a_handle, equipItems.size());
-			Equipment::UndoNewestFirst(equipItems, [](auto* actor, const auto& item) {
-				Equipment::EquipmentService::GetSingleton().UnequipItem(actor, item);
-			});
+			ActorState::Report(ActorState::Get().ReleaseGroup(scope, ActorState::Authored), "release authored items");
 			break;
 		case Mechanism::kCamera:
 			REX::TRACE("[Scene] scene {:#010x} camera undo — releasing the camera hold", a_handle);
@@ -154,7 +130,7 @@ namespace OSF::Scene
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
-			if (!s || s->ledger.empty()) {
+			if (!s) {
 				return;
 			}
 			reversed.assign(s->ledger.rbegin(), s->ledger.rend());
@@ -162,6 +138,7 @@ namespace OSF::Scene
 		for (auto m : reversed) {
 			UndoMechanism(a_handle, m);
 		}
+		ActorState::Report(ActorState::Get().CloseSession(static_cast<std::uint32_t>(a_handle)), "end session");
 	}
 
 	bool SceneRuntime::HideEquipment(std::int32_t a_handle, RE::Actor* a_actor, std::uint32_t a_slotMask)
@@ -173,14 +150,7 @@ namespace OSF::Scene
 			REX::DEBUG("[Scene] scene {:#010x} HideEquipment: actor {:X} is not a participant", a_handle, a_actor->formID);
 			return false;
 		}
-		auto snap = Equipment::EquipmentService::GetSingleton().Hide(a_actor, a_slotMask);
-		REX::DEBUG("[Scene] scene {:#010x} HideEquipment: actor {:X}, mask {:#010x}, hid {} item(s)",
-			a_handle, a_actor->formID, a_slotMask, snap.hiddenItems.size());
-		if (snap.Empty()) {
-			return false;
-		}
-		RecordHiddenEquip(a_handle, a_actor, std::move(snap));
-		return true;
+		return ApplyHiddenEquipment(a_handle, a_actor, a_slotMask, false) != 0;
 	}
 
 	bool SceneRuntime::RestoreHiddenEquipment(std::int32_t a_handle)
@@ -195,62 +165,33 @@ namespace OSF::Scene
 		return true;
 	}
 
-	void SceneRuntime::RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot)
+	ActorState::Handle SceneRuntime::EquipmentScope(std::int32_t a_handle)
 	{
 		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_handle);
-		if (!s) {
-			return;
-		}
-		Equipment::AppendHidden(s->hiddenEquip, a_actor, std::move(a_snapshot), s->hiddenHeldEquip);
-		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipment) == s->ledger.end()) {
-			s->ledger.push_back(Mechanism::kEquipment);
-		}
+		auto* slot = Resolve(a_handle);
+		if (!slot) return 0;
+		if (!ActorState::Get().HasScope(slot->equipmentScope))
+			slot->equipmentScope = ActorState::Get().CreateScope("osf.animation.scene", ActorState::Lifetime::Session,
+				static_cast<std::uint32_t>(a_handle));
+		return slot->equipmentScope;
 	}
 
-	void SceneRuntime::RecordHiddenHeldEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot)
+	std::size_t SceneRuntime::ApplyHiddenEquipment(std::int32_t a_handle, RE::Actor* actor,
+		std::uint32_t slots, bool held, std::span<RE::TESBoundObject* const> keep)
 	{
-		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_handle);
-		if (!s) {
-			return;
-		}
-		Equipment::AppendHidden(s->hiddenHeldEquip, a_actor, std::move(a_snapshot), s->hiddenEquip);
-		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kHeldEquipment) == s->ledger.end()) {
-			s->ledger.push_back(Mechanism::kHeldEquipment);
-		}
+		const auto scope = EquipmentScope(a_handle);
+		const auto count = ActorState::Hide(scope, actor, slots, held, keep);
+		if (count) RecordMechanism(a_handle, held ? Mechanism::kHeldEquipment : Mechanism::kEquipment);
+		return count;
 	}
 
-	void SceneRuntime::RecordEquippedItem(std::int32_t a_handle, RE::Actor* a_actor, Equipment::EquippedItem a_item)
+	bool SceneRuntime::ApplyEquippedItem(std::int32_t a_handle, RE::Actor* actor, RE::TESBoundObject* object, bool gear)
 	{
-		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_handle);
-		if (!s) {
-			return;
-		}
-		if (!Equipment::OwnsItem(s->equippedItems, a_actor, a_item.object))
-			s->equippedItems.emplace_back(a_actor, std::move(a_item));
-		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipItem) == s->ledger.end()) {
-			s->ledger.push_back(Mechanism::kEquipItem);
-		}
-	}
-
-	std::vector<RE::TESBoundObject*> SceneRuntime::OwnedEquipment(std::int32_t a_handle, RE::Actor* a_actor)
-	{
-		std::vector<RE::TESBoundObject*> items;
-		std::lock_guard l{ _lock };
-		if (const auto* s = Resolve(a_handle)) {
-			for (const auto& [actor, item] : s->equippedItems)
-				if (actor == a_actor && item.object) items.push_back(item.object);
-		}
-		return items;
-	}
-
-	bool SceneRuntime::OwnsEquipment(std::int32_t a_handle, RE::Actor* a_actor, RE::TESBoundObject* a_item)
-	{
-		std::lock_guard l{ _lock };
-		const auto* s = Resolve(a_handle);
-		return s && Equipment::OwnsItem(s->equippedItems, a_actor, a_item);
+		const auto scope = EquipmentScope(a_handle);
+		const auto result = ActorState::Acquire(scope, actor, object, ActorState::Operation::Equip,
+			gear ? ActorState::Gear : ActorState::Authored, !gear, !gear);
+		if (result) RecordMechanism(a_handle, Mechanism::kEquipItem);
+		return static_cast<bool>(result);
 	}
 
 	void SceneRuntime::RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor)

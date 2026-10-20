@@ -280,6 +280,7 @@ namespace OSF::Scene
 
 	void SceneRuntime::ReleaseSlot(std::int32_t a_handle)
 	{
+		ActorState::Report(ActorState::Get().CloseSession(static_cast<std::uint32_t>(a_handle)), "release session");
 		std::lock_guard l{ _lock };
 		if (Slot* s = Resolve(a_handle)) {
 			// Keep only the roster, for async SCENE_END consumers; bounded FIFO.
@@ -468,6 +469,7 @@ namespace OSF::Scene
 
 	void SceneRuntime::Clear()
 	{
+		ActorState::Get().Reset(); // no old-world inventory operations
 		std::vector<ActiveProp> props;
 		{
 			std::lock_guard l{ _lock };

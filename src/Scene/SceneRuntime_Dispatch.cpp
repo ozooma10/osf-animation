@@ -3,7 +3,6 @@
 
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
-#include "Equipment/EquipmentService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
 #include "Registry/SoundRegistry.h"
@@ -294,12 +293,7 @@ namespace OSF::Scene
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kFade);
 		} else if (a_action.kind == Registry::ActionKind::kEquipmentHide) {
 			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
-				auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor);
-				REX::DEBUG("[Scene] scene {:#010x} osf.equipment.hide (role '{}') — hid {} item(s)",
-					a_handle, a_action.role, snap.hiddenItems.size());
-				if (!snap.Empty()) {
-					GetSingleton().RecordHiddenEquip(a_handle, actor, std::move(snap));
-				}
+				GetSingleton().ApplyHiddenEquipment(a_handle, actor, 0xFFFFFFFFu, false);
 			} else {
 				REX::DEBUG("[Scene] scene {:#010x} osf.equipment.hide — role '{}' resolved no actor, skipped",
 					a_handle, a_action.role);
@@ -314,14 +308,8 @@ namespace OSF::Scene
 				a_handle, a_action.role, a_action.item);
 			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
 				if (auto* object = Util::ResolveBoundObject(a_action.item)) {
-					auto record = Equipment::EquipmentService::GetSingleton().EquipItem(actor, object);
-					if (record.object) {
-						REX::DEBUG("[Scene] scene {:#010x} osf.equipment.equip (role '{}', item '{}')",
-							a_handle, a_action.role, a_action.item);
-						GetSingleton().RecordEquippedItem(a_handle, actor, std::move(record));
-					} else {
-						REX::DEBUG("[Scene] scene {:#010x} osf.equipment.equip — unavailable on this build, skipped", a_handle);
-					}
+					if (!GetSingleton().ApplyEquippedItem(a_handle, actor, object))
+						REX::WARN("[Scene] scene {:#010x} authored equip '{}' could not acquire ownership", a_handle, a_action.item);
 				} else {
 					REX::WARN("[Scene] scene {:#010x} osf.equipment.equip — item '{}' did not resolve to a loaded form, skipped",
 						a_handle, a_action.item);

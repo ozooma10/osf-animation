@@ -268,4 +268,3 @@ namespace OSF::ActorState
 		// Never reset _next: old-world tokens remain invalid even if form/session IDs recur.
 	}
 }
-

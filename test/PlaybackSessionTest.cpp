@@ -3,7 +3,6 @@
 #include "Animation/Scene.h"
 #include "Scene/SceneFoundation.h"
 #include "Scene/AlignmentState.h"
-#include "Equipment/SceneEquipmentState.h"
 #include "Matchmaking/RoleBinding.h"
 
 #include <array>
@@ -130,31 +129,6 @@ int main()
 			"inversion rejects anything but a permutation");
 		Check(RoleNamesUnique({ "top", "bottom", "" }) && !RoleNamesUnique({ "", "" }) && !RoleNamesUnique({ "Top", "top" }),
 			"one anonymous role binds by name; repeated names are ambiguous");
-	});
-	Run("incremental equipment ownership and reverse restore", [] {
-		using namespace OSF::Equipment;
-		auto* a = reinterpret_cast<RE::Actor*>(1);
-		auto* b = reinterpret_cast<RE::Actor*>(2);
-		auto* shirt = reinterpret_cast<RE::TESBoundObject*>(3);
-		auto* boots = reinterpret_cast<RE::TESBoundObject*>(4);
-		HiddenState state;
-		AppendHidden(state, a, { { { shirt, {} } } });
-		AppendHidden(state, a, { { { shirt, {} }, { boots, {} }, { boots, {} } } });
-		AppendHidden(state, a, { { { shirt, {} } } });
-		AppendHidden(state, b, { { { shirt, {} } } });
-		Check(state.size() == 3 && state[1].second.hiddenItems.size() == 1, "first actor/item snapshot wins and only new items append");
-		HiddenState held;
-		AppendHidden(held, a, { { { boots, {} } } }, state);
-		Check(held.empty(), "held/apparel ownership shares the same actor/item deduplication boundary");
-		std::vector<std::pair<RE::Actor*, RE::TESBoundObject*>> restored;
-		UndoNewestFirst(state, [&](auto* actor, const auto& snapshot) {
-			for (const auto& item : snapshot.hiddenItems) restored.emplace_back(actor, item.object);
-		});
-		Check(restored == std::vector<std::pair<RE::Actor*, RE::TESBoundObject*>>{ { b, shirt }, { a, boots }, { a, shirt } },
-			"restore replays increments newest first, once per actor/item");
-		EquippedState equipped{ { a, { shirt, true, true } } };
-		Check(OwnsItem(equipped, a, shirt) && !OwnsItem(equipped, b, shirt) && !OwnsItem(equipped, a, boots),
-			"equip ownership deduplicates only the same actor/item");
 	});
 	Run("handoff anchor offsets compose from the original base", [] {
 		const OSF::Scene::WorldAnchor base{ true, { 100, 200, 300 }, 0 };

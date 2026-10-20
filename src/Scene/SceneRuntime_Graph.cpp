@@ -1,7 +1,6 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Animation/GraphManager.h"
-#include "Equipment/EquipmentService.h"
 #include "Input/InputService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
@@ -361,7 +360,7 @@ namespace OSF::Scene
 			if (!actor) {
 				continue;
 			}
-			auto keep = OwnedEquipment(a_handle, actor);
+			std::vector<RE::TESBoundObject*> keep;
 			if (i < a_gearPicks.size()) {
 				for (const auto& pick : a_gearPicks[i]) {
 					if (pick.worn && pick.object) {
@@ -369,11 +368,7 @@ namespace OSF::Scene
 					}
 				}
 			}
-			auto snap = Equipment::EquipmentService::GetSingleton().HideHeld(actor, keep);
-			if (!snap.Empty()) {
-				cleared += snap.hiddenItems.size();
-				RecordHiddenHeldEquip(a_handle, actor, std::move(snap));
-			}
+			cleared += ApplyHiddenEquipment(a_handle, actor, 0, true, keep);
 		}
 		REX::DEBUG("[Scene] scene {:#010x} held-item clear: {} item(s) across {} participant(s)",
 			a_handle, cleared, a_participants.size());
@@ -391,7 +386,7 @@ namespace OSF::Scene
 			if (!actor) {
 				continue;
 			}
-			auto keep = OwnedEquipment(a_handle, actor);
+			std::vector<RE::TESBoundObject*> keep;
 			if (i < a_gearPicks.size()) {
 				for (const auto& pick : a_gearPicks[i]) {
 					if (pick.worn && pick.object) {
@@ -399,10 +394,7 @@ namespace OSF::Scene
 					}
 				}
 			}
-			auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor, 0xFFFFFFFFu, keep);
-			if (!snap.Empty()) {
-				RecordHiddenEquip(a_handle, actor, std::move(snap));
-			}
+			ApplyHiddenEquipment(a_handle, actor, 0xFFFFFFFFu, false, keep);
 		}
 		REX::DEBUG("[Scene] scene {:#010x} default apparel hide applied to {} participant(s)", a_handle, a_participants.size());
 	}
@@ -421,7 +413,7 @@ namespace OSF::Scene
 			if (!actor) {
 				continue;
 			}
-			// Authored role `equip` claims its gear slot; unregistered items still win since EquipRoleItems runs after.
+			// Authored role equip reserves its registered gear slot; physical conflicts are checked by actor state.
 			std::vector<std::string> taken;
 			if (def && i < def->roles.size() && !def->roles[i].equip.Empty()) {
 				const std::string  gender = Matchmaking::ActorGenderTag(actor);
@@ -442,31 +434,10 @@ namespace OSF::Scene
 	void SceneRuntime::EquipGearItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
 		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
 	{
-		auto& svc = Equipment::EquipmentService::GetSingleton();
-		for (std::size_t i = 0; i < a_participants.size() && i < a_gearPicks.size(); i++) {
-			RE::Actor* actor = a_participants[i];
-			if (!actor) {
-				continue;
-			}
+		for (std::size_t i = 0; i < a_participants.size() && i < a_gearPicks.size(); ++i) {
 			for (const auto& pick : a_gearPicks[i]) {
-				if (!pick.object) {
-					continue;
-				}
-				if (pick.worn) {
-					REX::DEBUG("[Scene] scene {:#010x} actor {:08X} gear '{}' (slot '{}') kept on — worn before the scene",
-						a_handle, actor->formID, pick.ref, pick.slot);
-					continue;
-				}
-				if (OwnsEquipment(a_handle, actor, pick.object)) continue;
-				auto record = svc.EquipItem(actor, pick.object);
-				if (record.object) {
-					REX::DEBUG("[Scene] scene {:#010x} actor {:08X} gear '{}' (slot '{}') equipped (added={})",
-						a_handle, actor->formID, pick.ref, pick.slot, record.addedToInventory);
-					RecordEquippedItem(a_handle, actor, std::move(record));
-				} else {
-					REX::WARN("[Scene] scene {:#010x} actor {:08X} gear '{}' — EquipItem did nothing (feature unavailable on this build?)",
-						a_handle, actor->formID, pick.ref);
-				}
+				if (pick.object && !ApplyEquippedItem(a_handle, a_participants[i], pick.object, true))
+					REX::WARN("[Scene] scene {:#010x} gear '{}' could not acquire ownership", a_handle, pick.ref);
 			}
 		}
 	}
@@ -482,7 +453,6 @@ namespace OSF::Scene
 		if (!def) {
 			return;
 		}
-		auto& svc = Equipment::EquipmentService::GetSingleton();
 		for (std::size_t i = 0; i < def->roles.size() && i < a_participants.size(); i++) {
 			const auto& role = def->roles[i];
 			if (role.equip.Empty()) {
@@ -522,16 +492,8 @@ namespace OSF::Scene
 				}
 				continue;
 			}
-			if (OwnsEquipment(a_handle, actor, object)) continue;
-			auto record = svc.EquipItem(actor, object);
-			if (record.object) {
-				REX::DEBUG("[Scene] scene {:#010x} role '{}' equipped '{}' (added={}, equipped={})",
-					a_handle, role.name, ref, record.addedToInventory, record.equipped);
-				RecordEquippedItem(a_handle, actor, std::move(record));
-			} else {
-				REX::WARN("[Scene] scene {:#010x} role '{}' equip '{}' — EquipItem did nothing (feature unavailable on this build?)",
-					a_handle, role.name, ref);
-			}
+			if (!ApplyEquippedItem(a_handle, actor, object))
+				REX::WARN("[Scene] scene {:#010x} role '{}' equip '{}' could not acquire ownership", a_handle, role.name, ref);
 		}
 	}
 
