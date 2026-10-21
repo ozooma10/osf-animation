@@ -1,6 +1,7 @@
 #include "Testing/D3AudioProbe.h"
 #include "Testing/D3WwiseTrace.h"
 #include "Testing/D3OutputBuffers.h"
+#include "Testing/D3Qualification.h"
 
 #ifdef OSF_ANIMATION_SMOKE
 #include "API/OSFSceneAPI.h"
@@ -222,6 +223,7 @@ namespace OSF::Testing::D3AudioProbe
     }
     void Tick()
     {
+        D3Qualification::Tick();
         bool expired = false;
         {
             std::lock_guard lock(mutex);
@@ -232,6 +234,7 @@ namespace OSF::Testing::D3AudioProbe
     }
     Json Command(const std::string& command, const Json& args)
     {
+        if (command == "d3-qualification") return D3Qualification::Command(args);
         if (command == "d3-status") return Snapshot();
         if (command == "d3-stall") {
             const auto ms=args.at("milliseconds").get<std::uint32_t>();
@@ -249,7 +252,7 @@ namespace OSF::Testing::D3AudioProbe
             {
                 std::lock_guard lock(mutex);
                 if (pending || waiting || voiceChannel) throw std::runtime_error("D3 audio still in flight");
-                D3WwiseTrace::Configure(args.value("wwiseTrace",false),args.value("stopTransitionMs",0u));
+                D3WwiseTrace::Configure(args.value("wwiseTrace",false),args.value("stopTransitionMs",0u),args.value("mixStride",1u));
                 active=true; scoped=false; released=false; timedOut=false; testChannels={};
                 scene=args.value("scene",0); trial=args.value("trial",std::string("intimacy-provider"));
                 gatePoint=args.value("gate",std::string{}); gateId=0; resetCount=0;

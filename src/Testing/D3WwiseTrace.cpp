@@ -21,6 +21,8 @@ namespace OSF::Testing::D3WwiseTrace
         std::array<Record,32768> records;
         std::atomic<std::uint32_t> next{}, generation{}, transition{};
         std::atomic<bool> enabled{};
+        std::atomic<std::uint32_t> mixStride{1}, mixSerial{};
+        std::array<std::atomic<std::uint64_t>,4096> seenMix{};
         static_assert(std::atomic<std::uint32_t>::is_always_lock_free);
         static_assert(std::atomic<bool>::is_always_lock_free);
         // Wwise x64 AkEventCallbackInfo prefix. Live-checked on 1.16.244:
@@ -42,10 +44,12 @@ namespace OSF::Testing::D3WwiseTrace
             r.ready.store(true,std::memory_order_release);
         }
     }
-    void Configure(bool enable, std::uint32_t stopTransitionMs)
+    void Configure(bool enable, std::uint32_t stopTransitionMs, std::uint32_t stride)
     {
         enabled.store(false);
         if (stopTransitionMs>500) throw std::runtime_error("D3 stop transition exceeds 500 ms");
+        if (!stride || stride>256) throw std::runtime_error("D3 mixer trace stride outside 1..256");
+        mixStride.store(stride);
         ++generation; transition.store(stopTransitionMs); enabled.store(enable);
     }
     void* Cookie(std::uint64_t sample)
@@ -57,6 +61,14 @@ namespace OSF::Testing::D3WwiseTrace
     {
         if (!data || (type!=1 && type!=8 && type!=16)) return;
         EventInfo info; std::memcpy(&info,data,sizeof(info));
+        if (type==16 && mixStride.load()>1) {
+            const auto cookie=reinterpret_cast<std::uintptr_t>(info.cookie),sample=cookie&0xFFFFFFFF;
+            if (!sample || sample>4096) return;
+            const auto previous=seenMix[sample-1].exchange(cookie);
+            // Always preserve the first mix for each voice; sample subsequent mixes
+            // to keep sustained-load traces bounded. No lock/allocation on audio thread.
+            if (previous==cookie && mixSerial.fetch_add(1)%mixStride.load()!=0) return;
+        }
         float duration{}, estimated{};
         if (type==8) {
             std::memcpy(&duration,static_cast<const char*>(data)+24,sizeof(float));
@@ -94,7 +106,7 @@ namespace OSF::Testing::D3WwiseTrace
                 {"durationMs",r.duration},{"estimatedMs",r.estimated}});
         }
         return {{"enabled",enabled.load()},{"generation",gen},{"stopTransitionMs",transition.load()},
-            {"overflow",count>records.size()},{"records",entries}};
+            {"mixStride",mixStride.load()},{"overflow",count>records.size()},{"records",entries}};
     }
 }
 #endif
