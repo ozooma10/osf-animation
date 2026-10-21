@@ -23,7 +23,10 @@ namespace OSF::Testing::D3WwiseTrace
         std::atomic<bool> enabled{};
         static_assert(std::atomic<std::uint32_t>::is_always_lock_free);
         static_assert(std::atomic<bool>::is_always_lock_free);
-        // Wwise x64 AkEventCallbackInfo prefix. Read only copied scalars;
+        // Wwise x64 AkEventCallbackInfo prefix. Live-checked on 1.16.244:
+        // 92 matching IDs/objects/events and exact known media durations;
+        // canonical proof: OSF RE systems.audio_wwise, D3 output/stop note.
+        // Read only copied scalars;
         // never retain a callback-info pointer after returning to the engine.
         struct EventInfo { void* cookie; std::uint64_t object; std::uint32_t playing, event; };
         static_assert(sizeof(EventInfo)==24 && offsetof(EventInfo,playing)==16);

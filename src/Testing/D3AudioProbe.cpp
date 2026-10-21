@@ -276,6 +276,7 @@ namespace OSF::Testing::D3AudioProbe
                 {
                     std::lock_guard lock(mutex);
                     if (pending || waiting || voiceChannel) throw std::runtime_error("D3 audio still in flight");
+                    D3WwiseTrace::Configure(false,0);
                     active = true; scoped = false; scene = 0; trial = "independent-channels";
                     holdWorkers=false; workerDelayMs=0; peakPending=maxFrameGapNs=0;
                     gatePoint.clear(); gateId = 0; timedOut = false; resetCount = 0;
@@ -327,6 +328,7 @@ namespace OSF::Testing::D3AudioProbe
             if (!callback) throw std::runtime_error("D3 callback registration failed");
             {
                 std::lock_guard lock(mutex);
+                D3WwiseTrace::Configure(false,0);
                 active = true; released = false; waiting = false; timedOut = false;
                 scoped = args.value("scoped",false); testChannels = {};
                 holdWorkers=false; workerDelayMs=0; peakPending=maxFrameGapNs=0;
