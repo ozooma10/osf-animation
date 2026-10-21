@@ -1,5 +1,6 @@
 #include "Testing/D3AudioProbe.h"
 #include "Testing/D3WwiseTrace.h"
+#include "Testing/D3OutputBuffers.h"
 
 #ifdef OSF_ANIMATION_SMOKE
 #include "API/OSFSceneAPI.h"
@@ -87,6 +88,7 @@ namespace OSF::Testing::D3AudioProbe
             }
             auto* player = RE::PlayerCharacter::GetSingleton();
             result["wwiseTrace"] = D3WwiseTrace::Snapshot();
+            result["audioBuffers"] = D3OutputBuffers::Snapshot();
             result["playerPlaying"] = api && player && api->IsPlaying(player);
             result["channels"] = Json::array();
             for (const auto channel : channels)

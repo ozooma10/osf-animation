@@ -1,4 +1,5 @@
 #include "Scene/AlignmentStore.h"
+#include "Testing/D3OutputBuffers.h"
 #include "API/Health.h"
 #include "API/MinimumVersion.h"
 #include "API/SceneAPIControl.h"
@@ -70,6 +71,10 @@ SFSE_PLUGIN_PRELOAD(const SFSE::PreLoadInterface* a_sfse)
 	OSF::Util::CrashHandler::Install();
 
 	SFSE::Init(a_sfse, { .trampoline = true, .trampolineSize = kTrampolineBytes });
+
+#ifdef OSF_ANIMATION_SMOKE
+	OSF::Testing::D3OutputBuffers::Install(a_sfse->RuntimeVersion());
+#endif
 
 	return true;
 }
