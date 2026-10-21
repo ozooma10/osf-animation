@@ -527,11 +527,14 @@ int main()
 		const auto tick = empty.Advance(&owner, 1);
 		Check(tick.time == 0 && tick.stage == 0 && !empty.ended && Drain(empty).empty(), "empty session is safe to tick");
 	});
-    Run("prepared stages cannot bypass the frame admission gate", [] {
+	Run("prepared stages cannot bypass the frame admission gate", [] {
         for (bool held : {false,true}) {
             PlaybackSession session;
             auto first = Segment(2, 1);
-            if (held) { first.hold=1; first.timer=1; }
+            if (held) {
+				first.hold = 1;
+				first.timer = 1;
+			}
             session.stages={first,Segment(3)};
             Check(session.SetSegment(0), "initial clip admitted");
             session.prepareStages=true;
@@ -545,6 +548,27 @@ int main()
             Check(session.RequestSegment(0) && !session.RequestSegment(1), "manual stage requests serialize");
             Check(session.Advance(&owner,100).stage==1, "manual request holds source");
         }
-    });
+	});
+	Run("preparation preserves the sampled pose and cannot revive completed motion", [] {
+		PlaybackSession session;
+		session.stages = { Segment(2, 1), Segment(3) };
+		Check(session.SetSegment(0), "initialize pending-pose test");
+		session.prepareStages = true;
+		int owner = 0;
+		Near(session.Advance(&owner, 1.5f).SampleTime(1), 0.5f, "short participant wraps before preparation");
+		Check(session.HoldForPreparation(true), "hold admitted source");
+		session.speed = 0;
+		Near(session.Advance(&owner, 100).SampleTime(1), 0.5f, "preparation preserves the displayed short-clip pose");
+		Check(session.HoldForPreparation(false), "resume still-compatible source");
+		Near(session.Advance(&owner, 100).time, 1.5f, "preparation does not clear the user's pause");
+		session.speed = 1;
+		const auto boundary = session.Advance(&owner, 0.5f);
+		Check(boundary.holdEnd && session.pendingSegment == 1, "loop-end preparation clamps final pose");
+		Check(!session.HoldForPreparation(false), "pending automatic destination cannot be silently resumed");
+		Check(session.SetSegment(1, true), "commit required destination");
+		Check(session.HoldForPreparation(false), "committed stage can release the hold");
+		session.ended = true;
+		Check(!session.HoldForPreparation(false), "ended motion cannot be resumed after refusal");
+	});
 	return OSF::Test::Finish("Playback session");
 }

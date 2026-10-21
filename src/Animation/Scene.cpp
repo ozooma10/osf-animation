@@ -148,8 +148,9 @@ namespace OSF::Animation
 			}
 		}
 
-		const bool holdEnd = preparationHeld.load(std::memory_order_relaxed) || pendingSegment.load(std::memory_order_relaxed) >= 0 ||
-            (ended.load(std::memory_order_relaxed) && endReason.load(std::memory_order_relaxed) == PlaybackEndReason::kLoopComplete);
+		// Mid-clip preparation freezes time without changing a shorter participant's wrapping.
+		// Only an actual loop-end boundary clamps to the final pose.
+		const bool holdEnd = (pendingSegment.load(std::memory_order_relaxed) >= 0 && duration > 0 && clock.time >= duration) || (ended.load(std::memory_order_relaxed) && endReason.load(std::memory_order_relaxed) == PlaybackEndReason::kLoopComplete);
 		const bool holding = currentSegment < stages.size() && stages[currentSegment].hold >= 0.0f;
 		return { clock.time, currentSegment, holdEnd, holding };
 	}
@@ -160,7 +161,16 @@ namespace OSF::Animation
         else ApplySegmentLocked(segment);
     }
 
-    bool PlaybackSession::RequestSegment(int32_t segment)
+	bool PlaybackSession::HoldForPreparation(bool hold)
+	{
+		std::scoped_lock l{ lock };
+		if (!hold && (ended.load(std::memory_order_relaxed) || pendingSegment.load(std::memory_order_relaxed) >= 0))
+			return false;
+		preparationHeld.store(hold, std::memory_order_relaxed);
+		return true;
+	}
+
+	bool PlaybackSession::RequestSegment(int32_t segment)
     {
         std::scoped_lock l{lock};
         if (!prepareStages || segment < 0 || static_cast<size_t>(segment) >= stages.size() ||

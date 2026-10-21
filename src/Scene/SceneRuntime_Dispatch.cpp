@@ -63,6 +63,8 @@ namespace OSF::Scene
 				if (a_event == Event::kSceneEnd) e.cause = static_cast<std::int32_t>(s->terminationCause);
 			}
 		}
+		if (a_event == Event::kSceneEnd)
+			REX::INFO("[Scene] end id='{}' handle={:#010x} cause={}", e.sceneId, a_handle, TerminationCauseName(static_cast<TerminationCause>(e.cause)));
 		e.node = std::string(a_node);
 		e.edge = std::string(a_edge);
 		e.trackPosition = std::string(a_trackPosition);

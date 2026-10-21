@@ -122,6 +122,8 @@ namespace OSF::Scene
 		}
 		auto& gm = Animation::GraphManager::GetSingleton();
 		if (p->old.playbackId && !gm.HoldForPreparation(p->old.participants.front(), p->old.playbackId, true)) {
+			p->interrupted = true;
+			p->cancelled = true;
 			FinishPreparation(p, Outcome::Failed, false);
 			return;
 		}
@@ -432,6 +434,7 @@ namespace OSF::Scene
 		REX::WARN("[Scene] preparation {} for scene {:#010x} ended with outcome {}", p->context.attempt, p->context.scene, static_cast<unsigned>(outcome));
 		if (!p->failureReason.empty())
 			REX::WARN("[Scene] preparation refusal: {}", p->failureReason);
+		const bool resumed = p->context.kind != Kind::Start && !p->automatic && !p->cancelled && !applied && !p->exitFired && restored == ActorState::Status::Ok && Animation::GraphManager::GetSingleton().HoldForPreparation(p->old.participants.front(), p->old.playbackId, false);
 		// Preflight refusal preserves a still-valid old motion. Once application or exit effects
 		// have begun, interrupt conservatively; arbitrary provider side effects cannot be proven restored.
 		if (p->context.kind == Kind::Start) {
@@ -444,7 +447,7 @@ namespace OSF::Scene
 			// even though no SCENE_BEGIN/NODE_ENTER was published.
 			Fire(p->context.scene, Event::kSceneEnd, p->context.toNode, "");
 			ReleaseSlot(p->context.scene);
-		} else if (p->automatic || p->cancelled || applied || p->exitFired || restored != ActorState::Status::Ok) {
+		} else if (!resumed) {
 			{
 				std::lock_guard l{ _lock };
 				if (auto* s = Resolve(p->context.scene)) {
@@ -459,7 +462,6 @@ namespace OSF::Scene
 			Fire(p->context.scene, Event::kSceneEnd, p->old.node, "");
 			ReleaseSlot(p->context.scene);
 		} else {
-			Animation::GraphManager::GetSingleton().HoldForPreparation(p->old.participants.front(), p->old.playbackId, false);
 			EndTransition(p->context.scene);
 		}
 	}

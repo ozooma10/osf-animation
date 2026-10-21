@@ -309,7 +309,8 @@ namespace OSF::Animation
 		// Also sets the initial stage. Resets the stage clock; false if out of range.
 		bool SetSegment(int32_t a_segment, bool a_prepared = false);
         bool RequestSegment(int32_t a_segment);
-        // Runtime-owned sessions gate all internal stage changes before the next clip is sampled.
+		bool HoldForPreparation(bool hold);
+		// Runtime-owned sessions gate all internal stage changes before the next clip is sampled.
         bool prepareStages = false; // immutable after publication
         std::atomic<int32_t> pendingSegment{-1};
         std::atomic<bool> stageQueued{false};

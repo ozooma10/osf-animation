@@ -677,9 +677,8 @@ namespace OSF::Animation
         std::scoped_lock gl{it->second->stateLock};
         auto* session = it->second->playbackSession;
         if (!session || session->playbackId != expected) return false;
-        session->preparationHeld.store(hold, std::memory_order_relaxed);
-        return true;
-    }
+		return session->HoldForPreparation(hold);
+	}
 
 	bool GraphManager::SetSceneAutoAdvance(RE::Actor* a_actor, bool a_enabled, PlaybackId a_expectedPlayback)
 	{
