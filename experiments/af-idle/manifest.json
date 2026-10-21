@@ -1,0 +1,116 @@
+{
+  "sourceCommit": "5ff884b0a82c00713af32c01bd47a041915b0e4c",
+  "files": [
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/osf_testclip.af",
+      "gitBlob": "ba45c3bfdecf95e0a780071db8e58234a243029b",
+      "sha256": "a2f30cd47852875796e6429f6f13b5d7aa29c760a9b40ed3a40d63a16f803345"
+    },
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/osf_testclip.afx",
+      "gitBlob": "08d4c2efe90faa4af17ccd74c2e969ac10a5ecbe",
+      "sha256": "9254e68c334574627704da6de1d927645fbbb7295d33a6ce094cfc6298cd43ed"
+    },
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/StandCover01.af",
+      "gitBlob": "b5ce665b5d5f73436722031f2e4ffa0618fb9b3b",
+      "sha256": "4d22fdca90d82cb47fc7f82663bf8a83e355981e1dad042307fa1805e964310b"
+    },
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/StandCover01.afx",
+      "gitBlob": "12d63a5fa5c2b9cf4de3a2b1ef72cca81c4637a6",
+      "sha256": "ead8e6830c3c99050fb4d13cb13b33fa657a15391e2c512d9b2974d6585650d0"
+    },
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/StandSurrender01.af",
+      "gitBlob": "4841f02dad993828622909e75d5fb3e0dd74e37b",
+      "sha256": "ea25682407dc2d9727a78eec060d650da3cee34dd347d860192688de0b433936"
+    },
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/StandSurrender01.afx",
+      "gitBlob": "892b312f6afbbf269d420ffbc6520fae7c9097ce",
+      "sha256": "8a6bed55811c2ee2ec8c63cb345ff05b03289fade416ceafb0a05481b3444fd6"
+    },
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/TestSway01.af",
+      "gitBlob": "4d1acb87b92d1bbef82ed38e5ad57f993b18c3e6",
+      "sha256": "689664e8e632b51b4c6293813c47820c3a6f959ca328302581654ec136c03944"
+    },
+    {
+      "path": "dist/meshes/actors/human/animations/osf_test/TestSway01.afx",
+      "gitBlob": "1476e8523e261dc8bc93533d68c046b487a77c32",
+      "sha256": "9199a380c18c8b5a4e3fd8d1c291604f150b4bc236cb93a98dc4fe7d7dcb750f"
+    },
+    {
+      "path": "dist/OSF.esm",
+      "gitBlob": "620c2de1ad60777a6e7f7c8c42891533ec811749",
+      "sha256": "a4c9b1a3ef3cd2a8b04927ddd49ced0509185dd05ebac5be83214220af347eef"
+    },
+    {
+      "path": "dist/Scripts/OSF.pex",
+      "gitBlob": "46ad03dee00e47f7aeb788877d7d5133b325d958",
+      "sha256": "fde8a2dddd4cc5b0378fabbaf78554b6df23d9b734ef90a33bd6b3620fa20dba"
+    },
+    {
+      "path": "dist/Scripts/OSFCompat.pex",
+      "gitBlob": "ba2e7e3b41cab0a20decc03f9c6ad865ef687a75",
+      "sha256": "c8263f7d1e5cfc72aeb3af8384160755f46987fa0fbf40888792cf1158296b8a"
+    },
+    {
+      "path": "dist/Scripts/OSFEvent.pex",
+      "gitBlob": "1cff8d0de7be5f48554fb67024c595be87d430ab",
+      "sha256": "40d8a950f1b66f9b4e40ac9ebf2f1a3cf20388507a71877514e4ee848a7f0687"
+    },
+    {
+      "path": "dist/Scripts/OSFTest.pex",
+      "gitBlob": "91ce85f2cb0cbe5120a29f5174a6f3cd7fc59337",
+      "sha256": "2b95df91f312b15c457d204d946834ac025b7e27079274e74518ee5bb65e14dd"
+    },
+    {
+      "path": "dist/Scripts/Source/OSF.psc",
+      "gitBlob": "28e05f44d65eadd40d7b9e1aadc2d83a262e72cb",
+      "sha256": "592e0c1f3e75d90418db76929ed6ed794e0895680a00ae2c98083a20d1404ef1"
+    },
+    {
+      "path": "dist/Scripts/Source/OSFCompat.psc",
+      "gitBlob": "669434f1dd85f74789e97fc3a14e79ff2619eb88",
+      "sha256": "e23fa538ea51cdda784603808abdbd68363646dac3e9d183a0932fb1661d9118"
+    },
+    {
+      "path": "dist/Scripts/Source/OSFEvent.psc",
+      "gitBlob": "7f17d1a47ecd71373af69753cff9461aabba4835",
+      "sha256": "e0ed3cb1268dc38750c493f339030334e393217f51f60145de1165ab535cdb07"
+    },
+    {
+      "path": "dist/Scripts/Source/OSFTest.psc",
+      "gitBlob": "50b7ee75b1a810e21fd87282dd02185e9b7ea24a",
+      "sha256": "8baeac6c59520baeadc53c2d4910add0bf10a47a83c87886592eef5b81a2ae1a"
+    },
+    {
+      "path": "packaging/generate_template_esm.py",
+      "gitBlob": "3fbb221c9b386a7fc97d2476b8a043507408ba4a",
+      "sha256": "f0877deb4ffd7d03c9585820e08d4206e023a88a1aff0bb9f5cd68d3cceaaddd"
+    },
+    {
+      "path": "src/Animation/AfxStubber.cpp",
+      "gitBlob": "70479427033bf94014d8264e904b9e1bf43146cb",
+      "sha256": "3af21e0cbf3a500c4a307f526e669ac07e9abb1e18b7476f4839544bc16438fa"
+    },
+    {
+      "path": "src/Animation/AfxStubber.h",
+      "gitBlob": "32b14a9f3f4e4ef6b8026a7dd0f564a5cc6a0da3",
+      "sha256": "d7602a728f8778b611c5e9ecc89d29d3418a0d2713ae9c06908f94e057387fb5"
+    },
+    {
+      "path": "src/Animation/IdlePlayer.cpp",
+      "gitBlob": "a54459ca64c19b10118c553be8722d903233b56c",
+      "sha256": "785a2d08becd0c4744518bf7c958c906fed79e8079f6c1a8672b2c749e320f48"
+    },
+    {
+      "path": "src/Animation/IdlePlayer.h",
+      "gitBlob": "3c7604dfadf73e8d6e6842fd3a1d73855350b059",
+      "sha256": "bf1a19a85e131d4d97bc3b1dac0222fe567ecce34b65e6b89d4af64375c7bbc2"
+    }
+  ],
+  "patchSha256": "e839dc05292a2bc7c261b156a9e2febde77a4904b22d2cb7bb70dd39fac9b511"
+}

@@ -1,0 +1,3 @@
+# Preserve the historical snapshot byte-for-byte, including original line endings.
+* -text
+branch.patch -diff
