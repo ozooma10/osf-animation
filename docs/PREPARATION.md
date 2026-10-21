@@ -67,7 +67,8 @@ snapshots.
 
 After all Plan callbacks approve, the host previews the combined ownership plan without backend
 writes. It then emits the old node's exit observations (where applicable), applies the H2 edit,
-runs Apply/Ready/Validate, reconciles inventory and actor 3D once more, and commits playback.
+runs Apply/Ready/Validate, reconciles inventory and actor 3D once more, acquires commit guards,
+checks the cast's H2 revisions, and commits playback.
 Callbacks run outside runtime/manager locks; scene identity and cancellation are checked after
 each callback. Work queued by a callback waits for a later finite frame batch.
 
@@ -149,3 +150,32 @@ an unrelated persistent owner, and stage gating/pose/pause behavior. The product
 both DLLs compile; the Browser boundary check verifies public-header separation. These are not
 in-game acceptance. Fresh start/handoff/node/internal-stage scenarios, actual item/attachment
 readiness, visible poses, save/load and consumer integration remain live gates. A7 stays open.
+
+## Final commit guard (services 3.13)
+
+Animation captures each participant's H2 world/ownership/equipment revision after Ready's
+reconciliation, before Validate. After every provider has validated, it reconciles again,
+acquires the optional consumer guards, then compares those revisions immediately before
+calling playback. Any observed change, including an ownership change reversed before commit,
+refuses with `actor-state-changed-after-validate`. Changes to unrelated actors do not veto.
+H3's own application precedes this baseline, so ordinary preparation remains valid.
+
+From its Validate callback, a provider may call `GuardPreparationCommit(attempt, provider,
+&guard)` once. The host copies the descriptor; callback/context storage must survive through
+release/finish. Acquire runs once, in Validate order, after final inventory reconciliation.
+Return false to refuse; optionally call `SetPreparationFailure` for a copied diagnostic.
+Acquire must be short and must not mutate gameplay. Consumers can atomically check their
+validated revision and lease metadata publication through playback. Queue incoming metadata
+until release; never hold a consumer mutex across engine calls or wait for a writer thread.
+
+Every entered acquire gets one release, even after false, exceptions, cancellation, world reset,
+provider withdrawal, or playback failure. Unentered guards receive no release. Releases run
+in reverse order before provider finish, H2 rollback and scene event publication. Failed acquire
+must make its release harmless. Nested registration, duplicate guards and registration outside
+the provider's Validate callback are refused. All four transition kinds share this path.
+
+This protects managed state and observed equipment. It is not an inventory hook or a global
+freeze of third-party engine writes. Unobserved external mutations still require observation
+and active-playback incompatibility handling. The coordinator tests cover late provider,
+reconciliation and guard changes plus failure cleanup; live qualification is recorded by the
+paired Intimacy guard fixture.

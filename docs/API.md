@@ -617,7 +617,7 @@ starts age at entry. These are submission limits, not audible-onset or sound-dur
 Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
 continues without coalescing or expiry, including its existing failed-replacement behavior.
 
-The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.12
+The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.13
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, shared camera/input mechanisms, and actor-state scopes. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
@@ -678,3 +678,6 @@ are never removed or re-signatured within a major version (minor versions only *
 `OSFTypes:SceneEvent` struct member set is part of the ABI — new fields append at the end, so old
 callbacks keep working. The native C++ API follows the same additive rule: minor versions append
 vmethods or POD fields, while a major version is required for an incompatible layout change.
+
+Services 3.13 adds `GuardPreparationCommit`, a per-attempt final validation lease after all
+Validate callbacks and final reconciliation. See [shared preparation](PREPARATION.md).
