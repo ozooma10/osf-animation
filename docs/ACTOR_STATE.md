@@ -7,8 +7,8 @@ is built into Animation.
 
 This is H2's equipment implementation and common scope contract. Services 3.10 builds
 [H3 preparation](PREPARATION.md) on it, with transactional destination requirements and resource
-reservations. Pose layers, bone holds, attachment backends and versioned snapshots remain future
-work. Success here confirms inventory state, not mesh readiness or playback admission.
+reservations. Services 3.12 adds the revision feed below. Pose layers, bone holds and
+attachment backends remain future work. Success here confirms inventory state, not mesh readiness or playback admission.
 
 ## Read-only equipment observations (services 3.11)
 
@@ -21,6 +21,40 @@ excluded from conflicts using the same overlap rule as claims. A valid absent it
 This does not acquire claims, reconcile, mutate inventory, prove mesh readiness or provide
 an exact-instance/versioned snapshot. Providers can combine it with their own item geometry
 checks without copying engine offsets or walking inventory independently.
+
+## Per-actor revisions and notifications (services 3.12)
+
+`ReadActorStateRevision(actorFormID, &revision)` returns the current world generation plus
+separate ownership and equipment counters. `ReadActorStateChanges(cursor, &changes)` copies
+up to 256 retained notifications into caller-owned storage. Both require the verified frame
+drain, read memory only, and write the size-tagged output only on `Ok`. No consumer callback
+runs inside an ownership or inventory operation. Poll from `Post` or a preparation callback.
+
+Start with cursor zero and retain each successful result's cursor. Equal cursors return an
+empty batch. A cursor older than retained history or ahead of the store returns
+`resnapshot=1`, an empty batch and the current cursor: discard cached snapshots and recapture.
+World reset advances `world`, clears actor counters/observations, and emits a `Reset` event
+with actor zero without touching inventory. The journal sequence never restarts during the
+process; old actor IDs/counters cannot validate a new world. Never persist these values.
+
+Ownership advances for claim admission, replacement, release, scope/session cleanup,
+selective rollback and suspension/resumption of session demands during saving. Empty scopes,
+exact duplicates, unchanged rollback and rejected handle operations do not advance it.
+Failed application can advance ownership twice as provisional claims are installed and
+removed. Preview edits never publish revisions or write inventory.
+
+Equipment advances when H2 observes a different canonical inventory or availability state,
+after establishing its first baseline, and before each attempted add/remove/wear operation. Failed
+operations and lost readback therefore invalidate cached evidence too. Observation covers
+all returned forms, ignores ordering and zero-count entries, and includes changes observed
+through `ReadActorEquipment`. Revisions are invalidation counters, not operation counts or
+proof that an operation succeeded. Unchanged reconciliation and reads are quiet.
+
+This is an H2 observation feed, not a global game inventory hook. A third-party inventory
+change becomes visible only when H2 reads that actor again; memory-only revision reads do not
+scan the game. Mesh readiness, device capabilities and exact inventory-instance identity
+remain separate evidence. A consumer rechecks compatibility after a notification rather
+than treating every ownership change as an incompatibility.
 
 ## Lifetime and authority
 

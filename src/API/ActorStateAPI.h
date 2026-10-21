@@ -9,5 +9,7 @@ namespace OSF::API::ActorStateAPI
 	ActorStateStatus ReleaseGroup(std::uint64_t, std::uint32_t);
 	ActorStateStatus CloseScope(std::uint64_t);
 	ActorStateStatus Reconcile(RE::Actor*);
+	ActorStateStatus ReadRevision(std::uint32_t, ActorStateRevision*);
+	ActorStateStatus ReadChanges(std::uint64_t, ActorStateChanges*);
 	ActorStateStatus ReadEquipment(RE::Actor*, RE::TESBoundObject*, ActorEquipmentState*);
 }

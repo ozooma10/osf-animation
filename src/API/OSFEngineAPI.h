@@ -8,7 +8,7 @@
 namespace OSF::API
 {
 	// Services 3.11 appends read-only equipment observations from the shared H2 backend.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000B;
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000C;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -194,6 +194,13 @@ namespace OSF::API
 		// Conflicts exclude this base form and default skins, using H2's slot policy.
 		// Output is written only on Ok. No mesh, exact-instance, or snapshot-version guarantee.
 		ActorStateStatus (*ReadActorEquipment)(RE::Actor*, RE::TESBoundObject*, ActorEquipmentState*);
+		// 3.12. Verified-frame context only. Memory-only reads; no callbacks or inventory scans.
+		// actor is a nonzero world-local form ID; an unseen actor has zero counters in this world.
+		ActorStateStatus (*ReadActorStateRevision)(std::uint32_t actor, ActorStateRevision*);
+		// Start at cursor=0. Each successful read returns the current cursor; unchanged reads are empty.
+		// resnapshot=1 means history was lost or the cursor is ahead: discard cached snapshots.
+		// Reset changes world and emits actor=0. Do not persist cursors/revisions across processes.
+		ActorStateStatus (*ReadActorStateChanges)(std::uint64_t cursor, ActorStateChanges*);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

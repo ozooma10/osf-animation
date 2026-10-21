@@ -332,5 +332,91 @@ int main()
 		CHECK(store.FinishEdit(edit, true) == Status::Ok && store.PendingActorCount() == 0);
 		CHECK(f.Get(10, 1).worn && !f.Get(10, 2).count);
 	}
+	// Revision delivery is independent of consumers and engine events.
+	{
+		Fake f; f.Seed(10,1); Store s(f);
+		const auto initial=s.ReadRevision(10);
+		CHECK(initial.world && !initial.ownership && !initial.equipment && s.Since(0).events.empty());
+		auto a=s.CreateScope("one",Lifetime::Persistent), b=s.CreateScope("two",Lifetime::Persistent);
+		CHECK(s.ReadRevision(10)==initial);
+		CHECK(s.InspectEquipment(10,1));
+		auto observed=s.ReadRevision(10); auto cursor=s.Since(0).cursor;
+		CHECK(!observed.equipment && !observed.ownership && f.writes==0);
+		auto x=s.Acquire(a,Preserve(1)); CHECK(x);
+		auto owned=s.ReadRevision(10);
+		CHECK(owned.ownership==1 && owned.equipment==observed.equipment);
+		auto changes=s.Since(cursor);
+		CHECK(changes.events.size()==1 && changes.events[0].actor==10 && changes.events[0].cause==RevisionCause::Ownership && changes.events[0].revision==owned);
+		cursor=changes.cursor;
+		CHECK(s.Acquire(a,Preserve(1)).handle==x.handle && s.ReadRevision(10)==owned);
+		CHECK(s.Release(b,x.handle)==Status::Invalid && s.ReleaseGroup(a,99)==Status::Ok && s.Since(cursor).events.empty());
+		CHECK(s.Acquire(b,Preserve(1)) && s.ReadRevision(10).ownership==2 && f.writes==0);
+		CHECK(s.CloseScope(a)==Status::Ok && s.ReadRevision(10).ownership==3 && f.Get(10,1).worn);
+		CHECK(s.ReadRevision(20)==initial);
+		f.Seed(20,3); CHECK(s.Acquire(b,{20,3,Operation::Preserve}));
+		CHECK(s.ReadRevision(10).ownership==3 && s.ReadRevision(20).ownership==1);
+		f.unavailable=true; cursor=s.Since(0).cursor;
+		CHECK(s.CloseScope(b)==Status::Unavailable && s.ReadRevision(10).ownership==4 && s.ReadRevision(20).ownership==2);
+		changes=s.Since(cursor);
+		CHECK(std::any_of(changes.events.begin(),changes.events.end(),[](auto& e){return e.actor==10 && e.cause==RevisionCause::Ownership;}));
+		f.unavailable=false; CHECK(s.Reconcile(10)==Status::Ok);
+	}
+	{
+		Fake f; f.Seed(10,1); f.Seed(10,3); Store s(f);
+		CHECK(s.InspectEquipment(10,1)); auto revision=s.ReadRevision(10);
+		std::reverse(f.actors[10].begin(),f.actors[10].end());
+		CHECK(s.InspectEquipment(10,1) && s.ReadRevision(10)==revision);
+		f.Get(10,3).worn=false; // includes other forms in this actor's observed inventory
+		CHECK(s.InspectEquipment(10,1) && s.ReadRevision(10).equipment>revision.equipment && f.writes==0);
+		revision=s.ReadRevision(10); f.unavailable=true;
+		CHECK(!s.InspectEquipment(10,1) && s.ReadRevision(10).equipment>revision.equipment);
+		revision=s.ReadRevision(10);
+		CHECK(!s.InspectEquipment(10,1) && s.ReadRevision(10)==revision);
+		f.unavailable=false;
+		CHECK(s.InspectEquipment(10,1) && s.ReadRevision(10).equipment>revision.equipment);
+	}
+	{
+		Fake f; f.Seed(10,1); Store s(f);
+		auto scene=s.CreateScope("session",Lifetime::Session,1), persistent=s.CreateScope("device",Lifetime::Persistent);
+		CHECK(s.Acquire(scene,Preserve(1)) && s.Acquire(persistent,Preserve(1)));
+		auto revision=s.ReadRevision(10); auto cursor=s.Since(0).cursor;
+		CHECK(s.PreviewPlan({{scene,Equip(2),false,true}})==Status::Conflict);
+		CHECK(s.PreviewPlan({{scene,Equip(3),false,true}})==Status::Ok);
+		CHECK(s.ReadRevision(10)==revision && s.Since(cursor).events.empty() && f.writes==0);
+		CHECK(s.SetSaveWindow(true)==Status::Ok && s.ReadRevision(10).ownership==revision.ownership+1 && f.writes==0);
+		revision=s.ReadRevision(10);
+		CHECK(s.SetSaveWindow(true)==Status::Ok && s.ReadRevision(10)==revision);
+		CHECK(s.SetSaveWindow(false)==Status::Ok && s.ReadRevision(10).ownership==revision.ownership+1);
+		auto edit=s.BeginEdit({scene}); revision=s.ReadRevision(10);
+		CHECK(s.FinishEdit(edit,false)==Status::Ok && s.ReadRevision(10)==revision);
+		edit=s.BeginEdit({scene}); CHECK(s.Acquire(scene,Equip(3))); revision=s.ReadRevision(10);
+		CHECK(s.FinishEdit(edit,false)==Status::Ok && s.ReadRevision(10).ownership>revision.ownership && s.ReadRevision(10).equipment>revision.equipment);
+		CHECK(s.HasScope(persistent) && f.Get(10,1).worn);
+		CHECK(s.CloseSession(1)==Status::Ok && s.HasScope(persistent));
+		revision=s.ReadRevision(10);
+		CHECK(s.SetSaveWindow(true)==Status::Ok && s.SetSaveWindow(false)==Status::Ok && s.ReadRevision(10)==revision);
+		const auto writes=f.writes; cursor=s.Since(0).cursor; s.Reset();
+		CHECK(s.ReadRevision(10).world!=revision.world && !s.ReadRevision(10).ownership && !s.ReadRevision(10).equipment && f.writes==writes);
+		auto events=s.Since(cursor);
+		CHECK(events.events.size()==1 && !events.events[0].actor && events.events[0].cause==RevisionCause::Reset && events.world==s.ReadRevision(10).world);
+	}
+	for (int lost : {1,2,3}) {
+		Fake f; f.Seed(10,1); Store s(f); CHECK(s.InspectEquipment(10,1));
+		auto revision=s.ReadRevision(10); auto scope=s.CreateScope("failed",Lifetime::Persistent);
+		f.loseReadAfterWrite=lost;
+		CHECK(!s.Acquire(scope,Equip(2)) && !s.ClaimCount());
+		CHECK(s.ReadRevision(10).ownership>revision.ownership && s.ReadRevision(10).equipment>revision.equipment);
+		f.unavailable=false; revision=s.ReadRevision(10);
+		CHECK(s.Reconcile(10)==Status::Ok && s.ReadRevision(10).equipment>revision.equipment);
+	}
+	{
+		Fake f; f.Seed(10,1); Store s(f); CHECK(s.InspectEquipment(10,1));
+		const auto cursor=s.Since(0).cursor;
+		for (std::size_t i=0;i<kNotificationLimit+1;++i) { f.Get(10,1).worn=!f.Get(10,1).worn; CHECK(s.InspectEquipment(10,1)); }
+		const auto latest=s.Since(cursor);
+		CHECK(latest.resnapshot && latest.events.empty());
+		CHECK(s.Since(latest.cursor+1).resnapshot && s.Since(latest.cursor).events.empty());
+		CHECK(!s.Since(latest.cursor-kNotificationLimit).resnapshot && s.Since(latest.cursor-kNotificationLimit).events.size()==kNotificationLimit);
+	}
 	return OSF::Test::Finish("actor-state");
 }

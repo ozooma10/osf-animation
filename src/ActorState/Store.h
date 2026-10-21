@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <compare>
+#include <deque>
 #include <map>
 #include <optional>
 #include <string>
@@ -21,6 +23,7 @@ namespace OSF::ActorState
 		std::uint32_t count{};
 		std::uint64_t slots{};
 		bool worn{}, skin{}, armor{}, weapon{};
+		auto operator<=>(const Item&) const = default;
 	};
 	struct Request {
 		Actor actor{};
@@ -43,6 +46,12 @@ namespace OSF::ActorState
 
 	struct EquipmentObservation { Item item; std::uint64_t conflictingWornSlots{}; };
 	std::optional<EquipmentObservation> ReadEquipment(Backend& backend, Actor actor, Object object);
+
+	struct Revision { std::uint64_t world{}, ownership{}, equipment{}; auto operator<=>(const Revision&) const = default; };
+	enum class RevisionCause : std::uint32_t { Ownership, Equipment, Reset };
+	struct Notification { std::uint64_t sequence{}; Actor actor{}; RevisionCause cause{}; Revision revision; };
+	struct Notifications { std::uint64_t cursor{}, world{}; bool resnapshot{}; std::vector<Notification> events; };
+	inline constexpr std::size_t kNotificationLimit = 256;
 
 	// Serial game-context service, deliberately without locks around engine/backend calls.
 	// Scopes and claims share a never-recycled token space. Owner strings are diagnostic identity,
@@ -72,6 +81,10 @@ namespace OSF::ActorState
 		Status SetSaveWindow(bool saving);
 		Status Reconcile(Actor actor);
 		void Reset();
+		// Memory-only reads. Journal delivery never calls consumers during an inventory operation.
+		Revision ReadRevision(Actor actor) const;
+		Notifications Since(std::uint64_t cursor) const;
+		std::optional<EquipmentObservation> InspectEquipment(Actor actor, Object object);
 		bool HasScope(Handle scope) const { return _scopes.contains(scope); }
 		std::optional<std::uint64_t> SessionOf(Handle scope) const {
 			const auto it = _scopes.find(scope);
@@ -93,6 +106,8 @@ namespace OSF::ActorState
 			bool baselineWorn{}, changed{}, added{};
 			Pending pending{Pending::None};
 		};
+		void Changed(Actor actor, RevisionCause cause);
+		std::optional<std::vector<Item>> ReadInventory(Actor actor);
 		Handle Next();
 		bool Active(const Claim& claim) const;
 		enum class Displacement { None, CapturedBaseline, Any };
@@ -103,7 +118,10 @@ namespace OSF::ActorState
 		Handle _next{1};
 		bool _saving{}, _preview{};
         std::map<Handle, Edit> _edits;
-		std::uint64_t _externalChanges{};
+		std::uint64_t _externalChanges{}, _world{1}, _sequence{};
+		std::map<Actor, Revision> _revisions;
+		std::map<Actor, std::optional<std::vector<Item>>> _observations;
+		std::deque<Notification> _notifications;
 		std::map<Handle, Scope> _scopes;
 		std::map<Handle, Claim> _claims;
 		std::map<Actor, std::map<Object, Record>> _records;

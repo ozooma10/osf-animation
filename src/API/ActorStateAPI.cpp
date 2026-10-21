@@ -56,9 +56,34 @@ namespace OSF::API::ActorStateAPI
 	{
 		if (!actor || !object || !out || out->size < sizeof(ActorEquipmentState) || !Util::NativeMainThreadQueue::IsDraining()) return ActorStateStatus::Invalid;
 		try {
-			const auto state = ActorState::ReadEquipment(Equipment::EquipmentService::GetSingleton(), actor->GetFormID(), object->GetFormID());
+			const auto state = ActorState::Get().InspectEquipment(actor->GetFormID(), object->GetFormID());
 			if (!state) return ActorStateStatus::Unavailable;
 			*out = {sizeof(ActorEquipmentState), state->item.count, state->item.slots, state->conflictingWornSlots, state->item.worn ? 1u : 0u};
+			return ActorStateStatus::Ok;
+		} catch (...) { return ActorStateStatus::Failed; }
+	}
+	ActorStateStatus ReadRevision(std::uint32_t actor, ActorStateRevision* out)
+	{
+		if (!actor || !out || out->size < sizeof(ActorStateRevision) || !Util::NativeMainThreadQueue::IsDraining()) return ActorStateStatus::Invalid;
+		try {
+			const auto revision = ActorState::Get().ReadRevision(actor);
+			*out = {sizeof(ActorStateRevision), revision.world, revision.ownership, revision.equipment};
+			return ActorStateStatus::Ok;
+		} catch (...) { return ActorStateStatus::Failed; }
+	}
+	ActorStateStatus ReadChanges(std::uint64_t cursor, ActorStateChanges* out)
+	{
+		if (!out || out->size < sizeof(ActorStateChanges) || !Util::NativeMainThreadQueue::IsDraining()) return ActorStateStatus::Invalid;
+		try {
+			static_assert(ActorState::kNotificationLimit == kActorStateChangeLimit);
+			static_assert(static_cast<unsigned>(ActorState::RevisionCause::Reset) == static_cast<unsigned>(ActorStateChangeCause::Reset));
+			const auto changes = ActorState::Get().Since(cursor);
+			ActorStateChanges result;
+			result.world = changes.world; result.cursor = changes.cursor; result.resnapshot = changes.resnapshot ? 1u : 0u;
+			for (const auto& event : changes.events) result.events[result.count++] = {
+				event.sequence, event.actor, static_cast<ActorStateChangeCause>(event.cause),
+				{sizeof(ActorStateRevision), event.revision.world, event.revision.ownership, event.revision.equipment}};
+			*out = result;
 			return ActorStateStatus::Ok;
 		} catch (...) { return ActorStateStatus::Failed; }
 	}

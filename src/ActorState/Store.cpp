@@ -30,6 +30,61 @@ namespace OSF::ActorState
 		return out;
 	}
 
+	Revision Store::ReadRevision(Actor actor) const
+	{
+		const auto it = _revisions.find(actor);
+		return it == _revisions.end() ? Revision{_world} : it->second;
+	}
+	void Store::Changed(Actor actor, RevisionCause cause)
+	{
+		if (_preview) return;
+		if (actor) {
+			auto& revision = _revisions[actor]; revision.world = _world;
+			if (cause == RevisionCause::Ownership) ++revision.ownership;
+			else ++revision.equipment;
+		}
+		_notifications.push_back({++_sequence, actor, cause, ReadRevision(actor)});
+		if (_notifications.size() > kNotificationLimit) _notifications.pop_front();
+	}
+	Notifications Store::Since(std::uint64_t cursor) const
+	{
+		Notifications out{_sequence, _world, cursor > _sequence ||
+			(!_notifications.empty() && cursor < _notifications.front().sequence - 1)};
+		if (!out.resnapshot) for (const auto& event : _notifications)
+			if (event.sequence > cursor) out.events.push_back(event);
+		return out;
+	}
+	std::optional<std::vector<Item>> Store::ReadInventory(Actor actor)
+	{
+		auto inventory = _backend.Read(actor);
+		if (!_preview) {
+			auto canonical = inventory;
+			if (canonical) {
+				std::erase_if(*canonical, [](const Item& i) { return !i.count; });
+				std::sort(canonical->begin(), canonical->end());
+			}
+			const auto it = _observations.find(actor);
+			if (it == _observations.end()) _observations.emplace(actor, std::move(canonical));
+			else if (it->second != canonical) {
+				it->second = std::move(canonical);
+				Changed(actor, RevisionCause::Equipment);
+			}
+		}
+		return inventory;
+	}
+	std::optional<EquipmentObservation> Store::InspectEquipment(Actor actor, Object object)
+	{
+		if (!actor || !object) return {};
+		const auto description = _backend.Describe(object);
+		if (!description) return {};
+		const auto inventory = ReadInventory(actor);
+		if (!inventory) return {};
+		EquipmentObservation out{Find(*inventory, object, *description)};
+		for (const auto& item : *inventory)
+			if (item.worn && Overlap(out.item, item)) out.conflictingWornSlots |= out.item.slots & item.slots;
+		return out;
+	}
+
 	Handle Store::Next()
 	{
 		if (!_next || _next == std::numeric_limits<Handle>::max()) return 0;
@@ -77,7 +132,7 @@ namespace OSF::ActorState
 			(request.allowAdd && request.operation != Operation::Equip)) return {};
 		if (_saving && _scopes.at(scope).lifetime == Lifetime::Session) return {Status::Unavailable};
 		const auto described = _backend.Describe(request.object);
-		const auto inventory = _backend.Read(request.actor);
+		const auto inventory = ReadInventory(request.actor);
 		if (!described || !inventory) return {Status::Unavailable};
 		const auto item = Find(*inventory, request.object, *described);
 		if (item.skin && !Positive(request.operation)) return {Status::Conflict};
@@ -109,10 +164,12 @@ namespace OSF::ActorState
 		_records[request.actor].try_emplace(item.object, Record{item, item.worn});
 		for (const auto& [old, c] : replaced) _claims.erase(old);
 		_claims.emplace(id, Claim{scope, request}); // ownership precedes all engine mutation
+		Changed(request.actor, RevisionCause::Ownership);
 		const auto status = _preview ? Status::Ok : Apply(request.actor, Displacement::Any);
 		if (status != Status::Ok) {
 			_claims.erase(id);
 			for (const auto& [old, c] : replaced) _claims.emplace(old, c);
+			Changed(request.actor, RevisionCause::Ownership);
 			Apply(request.actor); // retained records allow a later Reconcile to retry failed cleanup
 			return {status};
 		}
@@ -149,7 +206,7 @@ namespace OSF::ActorState
 
 	Status Store::Apply(Actor actor, Displacement displace)
 	{
-		auto read = _backend.Read(actor);
+		auto read = ReadInventory(actor);
 		if (!read) return Status::Unavailable;
 		auto& records = _records[actor];
 		Observe(records, *read);
@@ -167,7 +224,7 @@ namespace OSF::ActorState
 
 		// Refresh expected observations after our own writes, never treating them as external edits.
 		auto refresh = [&]() {
-			auto next = _backend.Read(actor);
+			auto next = ReadInventory(actor);
 			if (!next) return false;
 			read = std::move(next);
 			Observe(records, *read);
@@ -179,6 +236,7 @@ namespace OSF::ActorState
 			if (item.worn == worn) return true;
 			records.at(object).changed = true;
 			records.at(object).pending = worn ? Pending::Worn : Pending::Unworn;
+			Changed(actor, RevisionCause::Equipment); // attempts invalidate even when readback is lost
 			const bool submitted = _backend.SetWorn(actor, object, worn);
 			const bool observed = refresh();
 			return submitted && observed && Find(*read, object).worn == worn;
@@ -199,6 +257,7 @@ namespace OSF::ActorState
 				// We add one only when absent. A different observed count relinquishes this right above.
 				if (r.expected.count == 1) {
 					r.pending = Pending::Remove;
+					Changed(actor, RevisionCause::Equipment);
 					const bool removed = _backend.Remove(actor, object);
 					const bool observed = refresh();
 					if (!removed || !observed || records.at(object).expected.count) return Status::Failed;
@@ -212,6 +271,7 @@ namespace OSF::ActorState
 			if (!r.expected.count) {
 				if (!d.allowAdd) return Status::Missing;
 				r.pending = Pending::Add;
+				Changed(actor, RevisionCause::Equipment);
 				const bool added = _backend.Add(actor, object);
 				const bool observed = refresh();
 				if (!added || !observed || r.expected.count != 1) return Status::Failed;
@@ -264,7 +324,8 @@ namespace OSF::ActorState
 		if (!HasScope(scope) || it == _claims.end() || it->second.scope != scope) return Status::Invalid;
 		const auto actor = it->second.request.actor;
 		_claims.erase(it);
-		return Apply(actor);
+		Changed(actor, RevisionCause::Ownership);
+		return _preview ? Status::Ok : Apply(actor);
 	}
 	Status Store::ReleaseGroup(Handle scope, std::uint32_t group)
 	{
@@ -274,6 +335,9 @@ namespace OSF::ActorState
 			if (entry.second.scope != scope || entry.second.request.group != group) return false;
 			actors.push_back(entry.second.request.actor); return true;
 		});
+		std::sort(actors.begin(), actors.end());
+		actors.erase(std::unique(actors.begin(), actors.end()), actors.end());
+		for (auto actor : actors) Changed(actor, RevisionCause::Ownership);
 		return _preview ? Status::Ok : ReconcileAll(actors);
 	}
 	Status Store::CloseScope(Handle scope)
@@ -285,6 +349,9 @@ namespace OSF::ActorState
 			actors.push_back(entry.second.request.actor); return true;
 		});
 		_scopes.erase(scope);
+		std::sort(actors.begin(), actors.end());
+		actors.erase(std::unique(actors.begin(), actors.end()), actors.end());
+		for (auto actor : actors) Changed(actor, RevisionCause::Ownership);
 		return _preview ? Status::Ok : ReconcileAll(actors);
 	}
 	Status Store::CloseSession(std::uint64_t session)
@@ -301,6 +368,12 @@ namespace OSF::ActorState
 	{
 		if (_saving == saving) return Status::Ok;
 		_saving = saving;
+		std::vector<Actor> suspended;
+		for (const auto& [id, claim] : _claims)
+			if (_scopes.at(claim.scope).lifetime == Lifetime::Session) suspended.push_back(claim.request.actor);
+		std::sort(suspended.begin(), suspended.end());
+		suspended.erase(std::unique(suspended.begin(), suspended.end()), suspended.end());
+		for (auto actor : suspended) Changed(actor, RevisionCause::Ownership);
 		std::vector<Actor> actors;
 		for (const auto& [actor, records] : _records) actors.push_back(actor);
 		Status result = Status::Ok;
@@ -355,10 +428,11 @@ namespace OSF::ActorState
 		std::vector<Actor> actors;
         std::erase_if(_claims, [&](const auto& e) {
             if (std::find(edit.scopes.begin(), edit.scopes.end(), e.second.scope) == edit.scopes.end()) return false;
-            actors.push_back(e.second.request.actor); return true;
+            if (!edit.claims.contains(e.first)) Changed(e.second.request.actor, RevisionCause::Ownership);
+            actors.push_back(e.second.request.actor); return !edit.claims.contains(e.first);
         });
         for (const auto& [claim, c] : edit.claims) {
-            if (HasScope(c.scope)) _claims.emplace(claim, c);
+            if (HasScope(c.scope) && _claims.emplace(claim, c).second) Changed(c.request.actor, RevisionCause::Ownership);
             actors.push_back(c.request.actor);
         }
         std::sort(actors.begin(), actors.end());
@@ -370,6 +444,7 @@ namespace OSF::ActorState
 	void Store::Reset()
 	{
 		_claims.clear(); _scopes.clear(); _records.clear(); _edits.clear(); _saving = false;
+		_revisions.clear(); _observations.clear(); ++_world; Changed(0, RevisionCause::Reset);
 		// Never reset _next: old-world tokens remain invalid even if form/session IDs recur.
 	}
 }
