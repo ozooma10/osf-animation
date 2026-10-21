@@ -168,8 +168,12 @@ Failure is reported and records remain retryable. Closing a session during the s
 cannot resurrect its items when saving ends. Reset drops all records, claims, and scopes
 without backend writes; the next registration starts from the new world's actual state.
 
-This uses the existing synchronous save hooks. Native tests do not establish their runtime
-thread affinity, real save serialization ordering, or mesh timing.
+SaveLoadEvent begins cover event-producing saves. The normal `Game.RequestSave()` path
+has no begin event, so a byte-checked main-request-pump hook also opens this same window
+around its synchronous dispatch. A return guard closes the window even when the engine
+refuses the request. Persistent demands remain active in either path. See
+[PERSISTENCE_API.md](PERSISTENCE_API.md) for the native compatibility boundary.
+Native tests do not establish runtime thread affinity, serialization ordering, or mesh timing.
 
 ## Validation
 

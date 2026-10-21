@@ -121,11 +121,16 @@ The load reader bounds every read to the current record and client block. Callin
 
 OSF Animation registers itself through the same broker as `OSFA`. Its current internal persistence responsibility is the pre-load scene/graph teardown previously performed by `SaveSafety`; there is no privileged parallel record path.
 
-The separate game-thread `SaveLoadEvent` sink temporarily reverses live scenes' equipment
-changes and enables OSF's input-disable layer before the vanilla save serializes, then
-reapplies both at the terminal save event. This covers event-producing manual, quick, auto
-and exit saves; the engine's silent/debug save path does not emit these events.
-This preserves the original worn apparel/held equipment and excludes scene-added items in
+The separate game-thread `SaveLoadEvent` sink temporarily suspends session equipment
+claims and enables controls disabled by OSF before the vanilla save serializes, then
+reapplies both at the terminal save event. Persistent equipment claims remain active.
+This covers event-producing manual, quick, auto and exit saves. `Game.RequestSave()`
+uses a request-pump path without a begin event; a byte-checked hook brackets its synchronous
+save dispatch with the same suspension and resumes on return, including refused saves.
+The hook runs in the main request pump, never in the persistence writer's worker callback.
+An incompatible dispatch logs `Requested-Save Safety Hook UNAVAILABLE` and leaves that
+path unprotected; the other event-based paths remain available.
+This preserves the original worn apparel/held equipment and excludes session-added items in
 the save without ending the live scene or consuming its undo ledger. Ended or cleared scenes
 are not reapplied. Loading a save made during a scene discards playback, releases controls,
 and recovers an orphaned scene camera to vanilla third person; it does not resume the scene.
