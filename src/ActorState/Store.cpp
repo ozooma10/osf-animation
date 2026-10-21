@@ -416,13 +416,22 @@ namespace OSF::ActorState
         if (it == _edits.end()) return Status::Invalid;
         auto edit = std::move(it->second); _edits.erase(it);
 		if (commit) {
-			// Applying a release already reconciled its actor. Only the temporary edit kept
-			// these now-unclaimed records alive; committing must not retain them indefinitely.
-			std::erase_if(_records, [&](const auto& record) {
-				const auto actor = record.first;
-				return std::none_of(_claims.begin(), _claims.end(), [&](const auto& c) { return c.second.request.actor == actor; }) &&
-				       std::none_of(_edits.begin(), _edits.end(), [&](const auto& e) { return std::any_of(e.second.claims.begin(), e.second.claims.end(), [&](const auto& c) { return c.second.request.actor == actor; }); });
-			});
+			// Only this edit can have retained already-restored records. Failed cleanup,
+			// including another actor's pending cleanup, must remain retryable.
+			for (const auto& [claim, c] : edit.claims) {
+				const auto actor = c.request.actor;
+				const auto record = _records.find(actor);
+				if (record == _records.end()) continue;
+				const bool restored = std::all_of(record->second.begin(), record->second.end(), [](const auto& entry) {
+					const auto& r = entry.second;
+					return r.pending == Pending::None && !r.added &&
+						(!r.changed || !r.expected.count || r.expected.worn == r.baselineWorn);
+				});
+				if (restored &&
+					std::none_of(_claims.begin(), _claims.end(), [&](const auto& current) { return current.second.request.actor == actor; }) &&
+					std::none_of(_edits.begin(), _edits.end(), [&](const auto& current) { return std::any_of(current.second.claims.begin(), current.second.claims.end(), [&](const auto& saved) { return saved.second.request.actor == actor; }); }))
+					_records.erase(record);
+			}
 			return Status::Ok;
 		}
 		std::vector<Actor> actors;

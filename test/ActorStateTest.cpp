@@ -332,6 +332,37 @@ int main()
 		CHECK(store.FinishEdit(edit, true) == Status::Ok && store.PendingActorCount() == 0);
 		CHECK(f.Get(10, 1).worn && !f.Get(10, 2).count);
 	}
+	for (bool sameActor : { false, true }) {
+		Fake f;
+		f.Seed(10, 1);
+		Store store(f);
+		const auto owner = store.CreateScope("cleanup", Lifetime::Persistent);
+		CHECK(store.Acquire(owner, Equip(2)));
+		const auto unrelated = store.CreateScope("unrelated", Lifetime::Session, 2);
+		const auto edit = store.BeginEdit({ sameActor ? owner : unrelated });
+		CHECK(edit);
+		f.failWrite = f.writes + 1;
+		CHECK(store.CloseScope(owner) == Status::Failed && store.PendingActorCount() == 1);
+		const auto writes = f.writes;
+		CHECK(store.FinishEdit(edit, true) == Status::Ok && store.PendingActorCount() == 1);
+		CHECK(f.writes == writes); // committing does not mutate equipment after validation
+		CHECK(store.Reconcile(10) == Status::Ok && store.PendingActorCount() == 0);
+		CHECK(f.Get(10, 1).worn && !f.Get(10, 2).count);
+	}
+	{
+		Fake f;
+		f.Seed(10, 1);
+		Store store(f);
+		const auto owner = store.CreateScope("readback-cleanup", Lifetime::Persistent);
+		CHECK(store.Acquire(owner, Equip(2)));
+		const auto edit = store.BeginEdit({ owner });
+		f.loseReadAfterWrite = f.writes + 1;
+		CHECK(store.CloseScope(owner) == Status::Failed);
+		CHECK(store.FinishEdit(edit, true) == Status::Ok && store.PendingActorCount() == 1);
+		f.unavailable = false;
+		CHECK(store.Reconcile(10) == Status::Ok && store.PendingActorCount() == 0);
+		CHECK(f.Get(10, 1).worn && !f.Get(10, 2).count);
+	}
 	// Revision delivery is independent of consumers and engine events.
 	{
 		Fake f; f.Seed(10,1); Store s(f);
