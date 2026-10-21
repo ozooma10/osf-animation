@@ -15,7 +15,8 @@ namespace OSF::Animation
 		// Any participant is a heartbeat; FrameClock re-elects a stale owner.
 		lastAdvanceMs.store(nowMs, std::memory_order_relaxed);
 
-		if (!ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token, nowMs)) {
+		if (!preparationHeld.load(std::memory_order_relaxed) && pendingSegment.load(std::memory_order_relaxed) < 0 &&
+            !ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token, nowMs)) {
 			float remaining = a_deltaTime * speed.load(std::memory_order_relaxed);
 			if (!std::isfinite(remaining) || remaining <= 0.0f) {
 				remaining = 0.0f;
@@ -52,10 +53,10 @@ namespace OSF::Animation
 						break;
 					}
 					if (currentSegment + 1 < stages.size()) {
-						ApplySegmentLocked(currentSegment + 1);
+						AdvanceSegmentLocked(currentSegment + 1);
 						REX::DEBUG("[Anim] held playback segment timer expired — advanced to segment {}/{}", currentSegment + 1, stages.size());
 					} else if (loopWhole) {
-						ApplySegmentLocked(0);
+						AdvanceSegmentLocked(0);
 						REX::DEBUG("[Anim] final held playback segment timer expired — looping to segment 0");
 					} else {
 						endReason.store(PlaybackEndReason::kTimerComplete, std::memory_order_relaxed);
@@ -119,7 +120,7 @@ namespace OSF::Animation
 					// One-shot final segment done: park at the clip end so the cast holds the last pose until the
 					// deferred stop lands.
 					const bool finishing = autoAdvance && stage.loops > 0 && stageLoops >= stage.loops &&
-					                       currentSegment + 1 >= stages.size() && !loopWhole;
+					                       (prepareStages || (currentSegment + 1 >= stages.size() && !loopWhole));
 					clock.time = finishing ? duration : 0.0f;
 				}
 
@@ -131,10 +132,10 @@ namespace OSF::Animation
 
 				const char* why = timerExpired ? "timer" : "loop target";
 				if (currentSegment + 1 < stages.size()) {
-					ApplySegmentLocked(currentSegment + 1);
+					AdvanceSegmentLocked(currentSegment + 1);
 					REX::DEBUG("[Anim] playback segment {} expired — advanced to segment {}/{}", why, currentSegment + 1, stages.size());
 				} else if (loopWhole) {
-					ApplySegmentLocked(0);
+					AdvanceSegmentLocked(0);
 					REX::DEBUG("[Anim] final playback segment {} expired — looping to segment 0", why);
 				} else {
 					endReason.store(timerExpired ? PlaybackEndReason::kTimerComplete : PlaybackEndReason::kLoopComplete,
@@ -147,19 +148,37 @@ namespace OSF::Animation
 			}
 		}
 
-		const bool holdEnd = ended.load(std::memory_order_relaxed) &&
-		                     endReason.load(std::memory_order_relaxed) == PlaybackEndReason::kLoopComplete;
+		const bool holdEnd = preparationHeld.load(std::memory_order_relaxed) || pendingSegment.load(std::memory_order_relaxed) >= 0 ||
+            (ended.load(std::memory_order_relaxed) && endReason.load(std::memory_order_relaxed) == PlaybackEndReason::kLoopComplete);
 		const bool holding = currentSegment < stages.size() && stages[currentSegment].hold >= 0.0f;
 		return { clock.time, currentSegment, holdEnd, holding };
 	}
 
-	bool PlaybackSession::SetSegment(int32_t a_segment)
+	void PlaybackSession::AdvanceSegmentLocked(uint32_t segment)
+    {
+        if (prepareStages) pendingSegment.store(static_cast<int32_t>(segment), std::memory_order_relaxed);
+        else ApplySegmentLocked(segment);
+    }
+
+    bool PlaybackSession::RequestSegment(int32_t segment)
+    {
+        std::scoped_lock l{lock};
+        if (!prepareStages || segment < 0 || static_cast<size_t>(segment) >= stages.size() ||
+            pendingSegment.load(std::memory_order_relaxed) >= 0) return false;
+        pendingSegment.store(segment, std::memory_order_relaxed);
+        stageQueued.store(false, std::memory_order_relaxed);
+        return true;
+    }
+
+    bool PlaybackSession::SetSegment(int32_t a_segment, bool a_prepared)
 	{
 		std::scoped_lock l{ lock };
-		if (a_segment < 0 || static_cast<size_t>(a_segment) >= stages.size()) {
+		if ((prepareStages && !a_prepared) || a_segment < 0 || static_cast<size_t>(a_segment) >= stages.size()) {
 			return false;
 		}
 		ApplySegmentLocked(static_cast<uint32_t>(a_segment));
+        pendingSegment.store(-1, std::memory_order_relaxed);
+        stageQueued.store(false, std::memory_order_relaxed);
 		ended.store(false, std::memory_order_relaxed);  // a manual jump revives an ended playback session
 		endQueued.store(false, std::memory_order_relaxed);
 		return true;

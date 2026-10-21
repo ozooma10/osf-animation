@@ -307,7 +307,13 @@ namespace OSF::Animation
 		Tick Advance(const void* a_token, float a_deltaTime);
 
 		// Also sets the initial stage. Resets the stage clock; false if out of range.
-		bool SetSegment(int32_t a_segment);
+		bool SetSegment(int32_t a_segment, bool a_prepared = false);
+        bool RequestSegment(int32_t a_segment);
+        // Runtime-owned sessions gate all internal stage changes before the next clip is sampled.
+        bool prepareStages = false; // immutable after publication
+        std::atomic<int32_t> pendingSegment{-1};
+        std::atomic<bool> stageQueued{false};
+        std::atomic<bool> preparationHeld{false};
 
 		// Refuses an already-ended session. Re-enabling starts a fresh completion budget, without replaying cues.
 		bool SetAutoAdvance(bool a_enabled);
@@ -323,6 +329,7 @@ namespace OSF::Animation
 		void DrainFiredMarks(std::vector<FiredMark>& a_out);
 
 	private:
+		void AdvanceSegmentLocked(uint32_t a_segment);
 		void ApplySegmentLocked(uint32_t a_segment);  // caller holds `lock`
 
 		bool autoAdvance = true;  // protected by lock

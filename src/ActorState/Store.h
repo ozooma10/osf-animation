@@ -45,7 +45,19 @@ namespace OSF::ActorState
 	// Scopes and claims share a never-recycled token space. Owner strings are diagnostic identity,
 	// not security credentials; possession of the scope is the authority to release its claims.
 	class Store {
-	public:
+    public:
+        struct Change {
+            Handle scope{};
+            Request request;
+            bool releaseGroup{}, replaceGroup{}, optional{};
+            std::optional<std::uint32_t> replaceFallbackGroup;
+        };
+        // Frame-context preparation transactions retain only selected scopes' claims.
+        // Rollback never rewinds another owner's state or copies old inventory snapshots.
+        Status PreviewPlan(const std::vector<Change>& changes);
+        Status ApplyPlan(const std::vector<Change>& changes);
+        Handle BeginEdit(const std::vector<Handle>& scopes);
+        Status FinishEdit(Handle edit, bool commit);
 		explicit Store(Backend& backend) : _backend(backend) {}
 		Handle CreateScope(std::string_view owner, Lifetime lifetime, std::uint64_t session = 0);
 		Result Acquire(Handle scope, const Request& request, bool replaceGroup = false,
@@ -71,6 +83,7 @@ namespace OSF::ActorState
 	private:
 		struct Scope { std::string owner; Lifetime lifetime; std::uint64_t session; };
 		struct Claim { Handle scope; Request request; };
+        struct Edit { std::vector<Handle> scopes; std::map<Handle, Claim> claims; };
 		enum class Pending { None, Worn, Unworn, Add, Remove };
 		struct Record {
 			Item expected;
@@ -85,7 +98,8 @@ namespace OSF::ActorState
 		Status ReconcileAll(const std::vector<Actor>& actors);
 		Backend& _backend;
 		Handle _next{1};
-		bool _saving{};
+		bool _saving{}, _preview{};
+        std::map<Handle, Edit> _edits;
 		std::uint64_t _externalChanges{};
 		std::map<Handle, Scope> _scopes;
 		std::map<Handle, Claim> _claims;

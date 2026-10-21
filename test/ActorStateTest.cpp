@@ -210,5 +210,20 @@ int main()
 		CHECK(s.ReleaseGroup(scope,1)==Status::Ok && f.Get(10,3).worn && f.Get(10,1).worn);
 		CHECK(s.CloseScope(scope)==Status::Ok && !f.Get(10,3).count);
 	}
+    {
+        Fake f;f.Seed(10,1);Store s(f);
+        auto scene=s.CreateScope("scene",Lifetime::Session,1), device=s.CreateScope("device",Lifetime::Persistent);
+        CHECK(s.Acquire(scene,Equip(2)));
+        std::vector<Store::Change> plan{{scene,Equip(1),false,true,false,{}}};
+        const auto writes=f.writes;
+        CHECK(s.PreviewPlan(plan)==Status::Ok && f.writes==writes && f.Get(10,2).worn);
+        auto edit=s.BeginEdit({scene});CHECK(edit && !s.BeginEdit({scene}));
+        CHECK(s.ApplyPlan(plan)==Status::Ok && f.Get(10,1).worn);
+        CHECK(s.Acquire(device,Equip(3)));
+        CHECK(s.FinishEdit(edit,false)==Status::Ok && f.Get(10,2).worn && f.Get(10,3).worn);
+        CHECK(s.CloseScope(scene)==Status::Ok && f.Get(10,1).worn && f.Get(10,3).worn);
+        CHECK(s.FinishEdit(edit,false)==Status::Invalid);
+        CHECK(s.CloseScope(device)==Status::Ok);
+    }
 	return OSF::Test::Finish("actor-state");
 }

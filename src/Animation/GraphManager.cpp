@@ -470,6 +470,7 @@ namespace OSF::Animation
 		}
 		scene->worldEpoch = _worldEpoch.load(std::memory_order_acquire);
 		scene->playbackSinkId = a_sinkId;
+        if (const auto sink = GetPlaybackSink(a_sinkId)) scene->prepareStages = static_cast<bool>(sink->prepareStage);
 
 		const auto startSegment = static_cast<uint32_t>(a_startSegment);
 		std::vector<std::function<void()>> deferred;
@@ -643,13 +644,42 @@ namespace OSF::Animation
 			REX::WARN("[Anim] SetSceneStage refused: playback ownership does not match");
 			return false;
 		}
-		if (!scene->SetSegment(a_stage)) {
+		if (scene->prepareStages) {
+            const auto id = scene->playbackId;
+            const auto sink = GetPlaybackSink(scene->playbackSinkId);
+            l.unlock();
+            return sink && sink->prepareStage && sink->prepareStage(id, a_stage, false);
+        }
+        if (!scene->SetSegment(a_stage)) {
 			REX::WARN("[Anim] SetSceneStage: segment {} out of range ({} segments)", a_stage, scene->stages.size());
 			return false;
 		}
 		REX::DEBUG("[Anim] playback session jumped to segment {}", a_stage);
 		return true;
 	}
+
+    bool GraphManager::CommitSceneStage(RE::Actor* actor, int32_t stage, PlaybackId expected)
+    {
+        if (!actor || !expected) return false;
+        std::shared_lock l{stateLock};
+        const auto it = graphs.find(actor);
+        if (it == graphs.end()) return false;
+        std::scoped_lock gl{it->second->stateLock};
+        auto* session = it->second->playbackSession;
+        return session && session->playbackId == expected && session->SetSegment(stage, true);
+    }
+    bool GraphManager::HoldForPreparation(RE::Actor* actor, PlaybackId expected, bool hold)
+    {
+        if (!actor || !expected) return false;
+        std::shared_lock l{stateLock};
+        const auto it = graphs.find(actor);
+        if (it == graphs.end()) return false;
+        std::scoped_lock gl{it->second->stateLock};
+        auto* session = it->second->playbackSession;
+        if (!session || session->playbackId != expected) return false;
+        session->preparationHeld.store(hold, std::memory_order_relaxed);
+        return true;
+    }
 
 	bool GraphManager::SetSceneAutoAdvance(RE::Actor* a_actor, bool a_enabled, PlaybackId a_expectedPlayback)
 	{
@@ -1262,6 +1292,24 @@ namespace OSF::Animation
 
 	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
+        // Sampling only requests a stage. Preparers and the eventual commit run in the frame drain.
+        auto* pending = a_graph.playbackSession;
+        if (pending && pending->pendingSegment.load(std::memory_order_relaxed) >= 0 &&
+            !pending->stageQueued.exchange(true, std::memory_order_relaxed)) {
+            for (const auto& session : playbackSessions) {
+                if (session.get() != pending) continue;
+                const auto stage = pending->pendingSegment.load(std::memory_order_relaxed);
+                a_deferred.emplace_back([session, stage] {
+                    auto& gm = GetSingleton();
+                    if (gm._worldEpoch.load(std::memory_order_acquire) != session->worldEpoch ||
+                        session->pendingSegment.load(std::memory_order_relaxed) != stage) return;
+                    const auto sink = gm.GetPlaybackSink(session->playbackSinkId);
+                    if (!sink || !sink->prepareStage || !sink->prepareStage(session->playbackId, stage, true))
+                        gm.StopPlaybackByPtr(session.get());
+                });
+                break;
+            }
+        }
 		// Deferred: StopScene needs stateLock unique (the hook holds it shared). The once-only gate is the
 		// exchange in QueuePlaybackEndDeferred; the shared_ptr keeps the session alive.
 		if (!a_graph.playbackSession || !a_graph.playbackSession->ended.load(std::memory_order_relaxed) ||

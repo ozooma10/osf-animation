@@ -29,6 +29,7 @@ namespace OSF::Animation
 			PlaybackTimedMarkHandler timedMarks;
 			PlaybackClearHandler clear;
 			std::function<bool(PlaybackId, float)> setSpeed;
+            std::function<bool(PlaybackId, int32_t, bool)> prepareStage; // true = automatic completion
 		};
 
 		PlaybackSinkId RegisterPlaybackSink(PlaybackSink a_sink);
@@ -71,6 +72,9 @@ namespace OSF::Animation
 			PlaybackSinkId a_sinkId = 0);
 
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
+        // SceneRuntime preparation commit only. No public SDK surface bypasses the gate.
+        bool CommitSceneStage(RE::Actor*, int32_t, PlaybackId);
+        bool HoldForPreparation(RE::Actor*, PlaybackId, bool);
 
 		bool SetSceneAutoAdvance(RE::Actor* a_actor, bool a_enabled, PlaybackId a_expectedPlayback);
 

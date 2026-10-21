@@ -75,7 +75,7 @@ namespace OSF::ActorState
 			if (c.request.actor != request.actor) continue;
 			if (c.scope == scope && c.request.object == request.object && c.request.group == request.group &&
 				c.request.operation == request.operation && c.request.allowAdd == request.allowAdd)
-				return {Apply(request.actor), id};
+				return {_preview ? Status::Ok : Apply(request.actor), id};
 			const auto other = _backend.Describe(c.request.object);
 			if (!other) return {Status::Unavailable};
 			const bool positive = Positive(request.operation), otherPositive = Positive(c.request.operation);
@@ -96,7 +96,7 @@ namespace OSF::ActorState
 		_records[request.actor].try_emplace(item.object, Record{item, item.worn});
 		for (const auto& [old, c] : replaced) _claims.erase(old);
 		_claims.emplace(id, Claim{scope, request}); // ownership precedes all engine mutation
-		const auto status = Apply(request.actor, Displacement::Any);
+		const auto status = _preview ? Status::Ok : Apply(request.actor, Displacement::Any);
 		if (status != Status::Ok) {
 			_claims.erase(id);
 			for (const auto& [old, c] : replaced) _claims.emplace(old, c);
@@ -257,7 +257,7 @@ namespace OSF::ActorState
 			if (entry.second.scope != scope || entry.second.request.group != group) return false;
 			actors.push_back(entry.second.request.actor); return true;
 		});
-		return ReconcileAll(actors);
+		return _preview ? Status::Ok : ReconcileAll(actors);
 	}
 	Status Store::CloseScope(Handle scope)
 	{
@@ -268,7 +268,7 @@ namespace OSF::ActorState
 			actors.push_back(entry.second.request.actor); return true;
 		});
 		_scopes.erase(scope);
-		return ReconcileAll(actors);
+		return _preview ? Status::Ok : ReconcileAll(actors);
 	}
 	Status Store::CloseSession(std::uint64_t session)
 	{
@@ -290,9 +290,60 @@ namespace OSF::ActorState
 		for (auto actor : actors) Merge(result, Apply(actor, saving ? Displacement::None : Displacement::CapturedBaseline));
 		return result;
 	}
+    Status Store::PreviewPlan(const std::vector<Change>& changes)
+    {
+        Store preview(*this);
+        preview._preview = true;
+        return preview.ApplyPlan(changes);
+    }
+    Status Store::ApplyPlan(const std::vector<Change>& changes)
+    {
+        for (const auto& c : changes) {
+            const auto result = c.releaseGroup ? ReleaseGroup(c.scope, c.request.group) :
+                Acquire(c.scope, c.request, c.replaceGroup, c.replaceFallbackGroup).status;
+            if (result != Status::Ok && !c.optional) return result;
+        }
+        return Status::Ok;
+    }
+    Handle Store::BeginEdit(const std::vector<Handle>& scopes)
+    {
+        if (scopes.empty() || std::any_of(scopes.begin(), scopes.end(), [&](Handle scope) {
+            return !HasScope(scope) || std::any_of(_edits.begin(), _edits.end(), [&](const auto& e) {
+                return std::find(e.second.scopes.begin(), e.second.scopes.end(), scope) != e.second.scopes.end();
+            });
+        })) return 0;
+        const auto id = Next();
+        if (!id) return 0;
+        Edit edit; edit.scopes = scopes;
+        for (const auto& [claim, c] : _claims)
+            if (std::find(scopes.begin(), scopes.end(), c.scope) != scopes.end()) edit.claims.emplace(claim, c);
+        _edits.emplace(id, std::move(edit));
+        return id;
+    }
+    Status Store::FinishEdit(Handle id, bool commit)
+    {
+        const auto it = _edits.find(id);
+        if (it == _edits.end()) return Status::Invalid;
+        auto edit = std::move(it->second); _edits.erase(it);
+        if (commit) return Status::Ok;
+        std::vector<Actor> actors;
+        std::erase_if(_claims, [&](const auto& e) {
+            if (std::find(edit.scopes.begin(), edit.scopes.end(), e.second.scope) == edit.scopes.end()) return false;
+            actors.push_back(e.second.request.actor); return true;
+        });
+        for (const auto& [claim, c] : edit.claims) {
+            if (HasScope(c.scope)) _claims.emplace(claim, c);
+            actors.push_back(c.request.actor);
+        }
+        std::sort(actors.begin(), actors.end());
+        actors.erase(std::unique(actors.begin(), actors.end()), actors.end());
+        Status result = Status::Ok;
+        for (auto actor : actors) Merge(result, Apply(actor, Displacement::CapturedBaseline));
+        return result;
+    }
 	void Store::Reset()
 	{
-		_claims.clear(); _scopes.clear(); _records.clear(); _saving = false;
+		_claims.clear(); _scopes.clear(); _records.clear(); _edits.clear(); _saving = false;
 		// Never reset _next: old-world tokens remain invalid even if form/session IDs recur.
 	}
 }

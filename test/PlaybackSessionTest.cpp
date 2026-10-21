@@ -527,5 +527,24 @@ int main()
 		const auto tick = empty.Advance(&owner, 1);
 		Check(tick.time == 0 && tick.stage == 0 && !empty.ended && Drain(empty).empty(), "empty session is safe to tick");
 	});
+    Run("prepared stages cannot bypass the frame admission gate", [] {
+        for (bool held : {false,true}) {
+            PlaybackSession session;
+            auto first = Segment(2, 1);
+            if (held) { first.hold=1; first.timer=1; }
+            session.stages={first,Segment(3)};
+            Check(session.SetSegment(0), "initial clip admitted");
+            session.prepareStages=true;
+            int owner=0;
+            const auto tick=session.Advance(&owner,3);
+            Check(tick.stage==0 && session.pendingSegment==1 && !session.ended, "automatic boundary requests preparation without sampling destination");
+            Check(session.Advance(&owner,100).stage==0, "pending readiness holds source across updates");
+            Check(!session.SetSegment(1), "ordinary stage setter cannot bypass preparation");
+            Check(session.SetSegment(1,true) && session.pendingSegment==-1, "prepared commit releases stage request");
+            Check(session.Advance(&owner,0.5f).stage==1, "new clip samples only after commit");
+            Check(session.RequestSegment(0) && !session.RequestSegment(1), "manual stage requests serialize");
+            Check(session.Advance(&owner,100).stage==1, "manual request holds source");
+        }
+    });
 	return OSF::Test::Finish("Playback session");
 }
