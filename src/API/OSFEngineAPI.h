@@ -8,7 +8,7 @@
 namespace OSF::API
 {
 	// Services 3.11 appends read-only equipment observations from the shared H2 backend.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000C;
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000D;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -201,6 +201,9 @@ namespace OSF::API
 		// resnapshot=1 means history was lost or the cursor is ahead: discard cached snapshots.
 		// Reset changes world and emits actor=0. Do not persist cursors/revisions across processes.
 		ActorStateStatus (*ReadActorStateChanges)(std::uint64_t cursor, ActorStateChanges*);
+        // 3.13. Verified-frame context; one guard per provider/attempt, only during Validate.
+        // Callback/context lifetime extends through release and finish. See OSFPreparation.h.
+        bool (*GuardPreparationCommit)(std::uint64_t attempt, std::uint64_t provider, const PreparationCommitGuard*);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

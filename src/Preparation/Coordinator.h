@@ -29,6 +29,10 @@ namespace OSF::Preparation
         std::function<Decision(const Context&, Phase)> invoke;
         std::function<void(const Context&, Outcome)> finish;
     };
+    struct CommitGuard {
+        std::function<bool()> acquire;
+        std::function<void()> release; // paired even when acquire refuses or throws
+    };
     struct Hooks {
         std::function<bool()> valid; // identity/generation check after every external callback
         std::function<bool()> preflight; // all collected plans, before any mutation
@@ -37,6 +41,8 @@ namespace OSF::Preparation
         std::function<bool()> commit;
         std::function<void(Outcome, bool)> finish; // bool: application began, so rollback may be needed
 		std::function<Outcome()>           invalidReason;  // optional: distinguish world reset from ordinary cancellation
+        std::function<bool()> beforeCommit; // final reconciliation, before guard acquisition
+        std::function<bool()> checkCommit; // memory-only check after every guard acquired
 	};
 
     // Serial frame-drain coordinator. Callbacks run without internal locks and may cancel,
@@ -49,6 +55,7 @@ namespace OSF::Preparation
         void Tick(std::uint64_t nowMs);
         bool Cancel(Token attempt, Outcome reason = Outcome::Cancelled);
         void Reset();
+        bool Guard(Token attempt, Token provider, CommitGuard guard);
         bool Contains(Token attempt) const { return _attempts.contains(attempt); }
         std::size_t PendingCount() const { return _attempts.size(); }
 		std::optional<Token> CurrentProvider(Token attempt, std::optional<Phase> phase = {}) const;
@@ -67,6 +74,9 @@ namespace OSF::Preparation
             std::optional<Outcome> cancelled;
             bool applied{}, pumping{}, finishing{};
             Token calling{};
+            struct GuardEntry { Token provider; CommitGuard guard; bool entered{}; };
+            std::vector<GuardEntry> guards;
+            bool sealing{};
         };
         Token Next();
         bool Valid(const std::shared_ptr<Attempt>&);

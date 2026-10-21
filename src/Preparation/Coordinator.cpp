@@ -63,6 +63,14 @@ namespace OSF::Preparation
 			return {};
 		return it->second->calling;
     }
+    bool Coordinator::Guard(Token attempt, Token provider, CommitGuard guard)
+    {
+        if (!provider || !guard.acquire || !guard.release || CurrentProvider(attempt, Phase::Validate) != provider) return false;
+        auto& a = *_attempts.at(attempt);
+        if (a.sealing || std::any_of(a.guards.begin(), a.guards.end(), [&](const auto& g) { return g.provider == provider; })) return false;
+        a.guards.push_back({provider, std::move(guard)});
+        return true;
+    }
 	std::vector<Token> Coordinator::Providers(Token attempt) const
 	{
 		std::vector<Token> out;
@@ -76,6 +84,12 @@ namespace OSF::Preparation
         if (a->finishing) return;
         a->finishing = true;
         _attempts.erase(a->context.attempt); // callbacks cannot cancel/re-publish this attempt
+        // End publication leases before provider finalizers, rollback, and scene events.
+        for (auto it = a->guards.rbegin(); it != a->guards.rend(); ++it) {
+            if (!it->entered) continue;
+            it->entered = false;
+            try { it->guard.release(); } catch (...) {}
+        }
         for (std::size_t i = a->providers.size(); i-- > 0;) {
             if (!a->entered[i]) continue;
 			if (!a->hooks.valid())
@@ -142,6 +156,21 @@ namespace OSF::Preparation
                     if (ready != Decision::Approve) { a->cancelled = Outcome::Failed; break; }
                     a->phase = Phase::Validate; a->index = 0;
                 } else {
+                    a->sealing = true;
+                    const bool reconciled = !a->hooks.beforeCommit || a->hooks.beforeCommit();
+                    if (!Valid(a)) break;
+                    if (!reconciled) { a->cancelled = Outcome::Failed; break; }
+                    for (auto& entry : a->guards) {
+                        entry.entered = true; a->calling = entry.provider;
+                        const bool acquired = entry.guard.acquire();
+                        a->calling = 0;
+                        if (!Valid(a)) break;
+                        if (!acquired) { a->cancelled = Outcome::Failed; break; }
+                    }
+                    if (!Valid(a)) break;
+                    const bool current = !a->hooks.checkCommit || a->hooks.checkCommit();
+                    if (!Valid(a)) break;
+                    if (!current) { a->cancelled = Outcome::Failed; break; }
                     const bool committed = a->hooks.commit();
                     if (!Valid(a)) break;
                     if (!committed) { a->cancelled = Outcome::Failed; break; }

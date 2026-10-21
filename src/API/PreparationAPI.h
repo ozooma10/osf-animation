@@ -7,5 +7,6 @@ namespace OSF::API::PreparationAPI
 	bool          Equipment(std::uint64_t, std::uint64_t, const ActorEquipmentRequest*);
 	bool          Resource(std::uint64_t, std::uint64_t, const char*);
 	bool          Failure(std::uint64_t, std::uint64_t, const char*);
+    bool          Guard(std::uint64_t, std::uint64_t, const PreparationCommitGuard*);
 	bool          Read(std::int32_t, TextCallback, void*);
 }

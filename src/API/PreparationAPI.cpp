@@ -83,6 +83,16 @@ namespace OSF::API::PreparationAPI
 			return false;
 		}
 	}
+    bool Guard(std::uint64_t attempt, std::uint64_t provider, const PreparationCommitGuard* options)
+    {
+        if (!options || options->size < sizeof(PreparationCommitGuard) || options->version != kPreparationVersion || !options->acquire || !options->release) return false;
+        try {
+            const auto copied = *options;
+            return Scene::SceneRuntime::GetSingleton().GuardPreparation(attempt, provider,
+                [copied, provider](const Preparation::Context& c) { const auto view=View(c,provider); return copied.acquire(&view,copied.context); },
+                [copied, provider](const Preparation::Context& c) { const auto view=View(c,provider); copied.release(&view,copied.context); });
+        } catch (...) { return false; }
+    }
 	bool Read(std::int32_t scene, TextCallback callback, void* context)
 	{
 		if (!callback || !Util::NativeMainThreadQueue::IsDraining())

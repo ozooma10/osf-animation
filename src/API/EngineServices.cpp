@@ -322,7 +322,7 @@ namespace OSF::API::EngineServices
 			},
 			&ActorStateAPI::CreateScope, &ActorStateAPI::AcquireEquipment, &ActorStateAPI::ReleaseClaim, &ActorStateAPI::ReleaseGroup, &ActorStateAPI::CloseScope, &ActorStateAPI::Reconcile, &PreparationAPI::Register, &PreparationAPI::Unregister, &PreparationAPI::Equipment,
 			&PreparationAPI::Resource, &PreparationAPI::Failure, &PreparationAPI::Read, &ActorStateAPI::ReadEquipment,
-			&ActorStateAPI::ReadRevision, &ActorStateAPI::ReadChanges };
+			&ActorStateAPI::ReadRevision, &ActorStateAPI::ReadChanges, &PreparationAPI::Guard };
 	}
 	void WorldReset() { ActorState::Get().Reset(); g_state.ResetWorld(); }
 	void ContentReloaded() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::ContentReloaded)); }

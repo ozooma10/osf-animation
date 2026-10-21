@@ -174,5 +174,59 @@ int main()
 		CHECK(commits == 2 && !c.PendingCount());
 		CHECK(!c.Register({ 0, 5001, [](const Context&, Phase) { return Decision::Approve; }, [](const Context&, Outcome) {} }));
 	}
+
+    // Final validation is a barrier for all four entry paths. The production coordinator
+    // must never publish after a later provider, reconciliation, or guard changes state.
+    for (auto kind : {Kind::Start,Kind::Handoff,Kind::Node,Kind::Stage}) for (int fault=0;fault<13;++fault) {
+        Coordinator c; Token provider{}; int revision=1, validated{}, leases{}, commits{}, releases{}, finishes{};
+        Outcome result=Outcome::Committed; std::vector<int> order;
+        provider=c.Register({100,5000,[&](const Context& ctx,Phase phase) {
+            if (phase!=Phase::Validate) {
+                CHECK(!c.Guard(ctx.attempt,provider,{[]{return true;},[]{}}));
+                return Decision::Approve;
+            }
+            validated=revision;
+            CHECK(!c.Guard(ctx.attempt,provider+999,{[]{return true;},[]{}}));
+            CHECK(c.Guard(ctx.attempt,provider,{[&,id=ctx.attempt] {
+                ++leases; order.push_back(1);
+                CHECK(!c.Guard(id,provider,{[]{return true;},[]{}}));
+                if(fault==3) ++revision;
+                if(fault==4) return false;
+                if(fault==5) throw std::runtime_error("guard");
+                if(fault==6) c.Cancel(id);
+                if(fault==7) c.Reset();
+                if(fault==8) c.Unregister(provider);
+                return revision==validated;
+            },[&]{--leases;++releases;order.push_back(4);}}));
+            CHECK(!c.Guard(ctx.attempt,provider,{[]{return true;},[]{}}));
+            return Decision::Approve;
+        },[&](const Context&,Outcome){CHECK(!leases);++finishes;order.push_back(5);}});
+        Token later{};
+        later=c.Register({200,5000,[&](const Context& ctx,Phase phase) {
+            if(phase==Phase::Validate) {
+                if(fault==1) ++revision;
+                CHECK(c.Guard(ctx.attempt,later,{[&]{++leases;order.push_back(2);if(fault==12)++revision;return fault!=11;},
+                    [&]{--leases;++releases;order.push_back(3);}}));
+            }
+            return Decision::Approve;
+        },[&](const Context&,Outcome){CHECK(!leases);++finishes;}});
+        Context ctx;ctx.scene=1;ctx.actors={20};ctx.kind=kind;
+        Hooks h{[]{return true;},[]{return true;},[]{return true;},[]{return Decision::Approve;},
+            [&]{CHECK(leases==2);++commits;if(fault==10)throw std::runtime_error("commit");return fault!=9;},
+            [&](Outcome o,bool applied){CHECK(applied && !leases && finishes==2);result=o;}};
+        h.beforeCommit=[&]{CHECK(!leases);if(fault==2)++revision;return true;};
+        h.checkCommit=[&]{CHECK(leases==2);return revision==validated;};
+        const auto id=c.Begin(ctx,h,0);c.Tick(1);
+        CHECK(!c.Contains(id) && !leases && finishes==2);
+        CHECK((result==Outcome::Committed)==(fault==0));
+        CHECK(commits==((fault==0 || fault==9 || fault==10)?1:0));
+        CHECK(releases==((fault==0 || fault>=9)?2:1));
+        CHECK(!c.Guard(id,provider,{[]{return true;},[]{}}));
+        if(releases==2) CHECK(order==std::vector<int>({1,2,3,4,5}));
+        else CHECK(order==std::vector<int>({1,4,5}));
+        if(fault==6) CHECK(result==Outcome::Cancelled);
+        if(fault==7) CHECK(result==Outcome::WorldReset);
+        if(fault==8) CHECK(result==Outcome::OwnerWithdrawn);
+    }
 	return OSF::Test::Finish("preparation");
 }

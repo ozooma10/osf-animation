@@ -29,6 +29,14 @@ namespace OSF::Scene
 		for (auto scene : scenes) Stop(scene);
 		return true;
 	}
+    bool SceneRuntime::GuardPreparation(Token attempt, Token provider, std::function<bool(const Context&)> acquire, std::function<void(const Context&)> release)
+    {
+        if (!Util::NativeMainThreadQueue::IsDraining()) return false;
+        const auto it = _preparations.find(attempt);
+        if (it == _preparations.end()) return false;
+        const auto p = it->second;
+        return _preparers.Guard(attempt,provider,{[p,acquire=std::move(acquire)] { return acquire(p->context); },[p,release=std::move(release)] { release(p->context); }});
+    }
 	bool SceneRuntime::PlanEquipment(Token attempt, Token provider, const ActorState::Request& request)
 	{
 		if (!Util::NativeMainThreadQueue::IsDraining() || _preparers.CurrentProvider(attempt, Phase::Plan) != provider)
@@ -160,8 +168,25 @@ namespace OSF::Scene
 				if (ActorState::Get().Reconcile(actor->GetFormID()) != ActorState::Status::Ok)
 					return Decision::Veto;
 			}
+            p->validatedRevisions.clear();
+            for (auto id : p->context.actors) p->validatedRevisions.emplace(id, ActorState::Get().ReadRevision(id));
 			return Decision::Approve;
 		};
+        hooks.beforeCommit = [p] {
+            for (auto* actor : p->cast) {
+                {
+                    const auto loaded = actor->loadedData.LockRead();
+                    if (!*loaded || !(*loaded)->data3D) { p->failureReason="actor-unloaded-before-commit"; return false; }
+                }
+                if (ActorState::Get().Reconcile(actor->GetFormID()) != ActorState::Status::Ok) { p->failureReason="equipment-reconcile-before-commit-failed"; return false; }
+            }
+            return true;
+        };
+        hooks.checkCommit = [p] {
+            for (const auto& [id, revision] : p->validatedRevisions)
+                if (ActorState::Get().ReadRevision(id) != revision) { p->failureReason="actor-state-changed-after-validate"; return false; }
+            return p->validatedRevisions.size() == p->cast.size();
+        };
 		hooks.commit = [this, p] { return CommitPreparation(p); };
 		hooks.finish = [this, p](Outcome outcome, bool applied) { FinishPreparation(p, outcome, applied); };
 		const auto id = _preparers.Begin(p->context, std::move(hooks), NowMs());
@@ -310,16 +335,6 @@ namespace OSF::Scene
 	{
 		if (!PreparationValid(p))
 			return false;
-		// Final live reconciliation follows all provider Validate callbacks.
-		for (auto* actor : p->cast) {
-			{
-				const auto loaded = actor->loadedData.LockRead();
-				if (!*loaded || !(*loaded)->data3D)
-					return false;
-			}
-			if (ActorState::Get().Reconcile(actor->GetFormID()) != ActorState::Status::Ok)
-				return false;
-		}
 		const auto handle = p->context.scene;
 		if (p->context.kind == Kind::Stage) {
 			if (!Animation::GraphManager::GetSingleton().CommitSceneStage(p->cast.front(), p->context.toStage, p->old.playbackId))

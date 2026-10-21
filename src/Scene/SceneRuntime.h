@@ -45,6 +45,7 @@ namespace OSF::Scene
 		};
 
 		void               RegisterWithGraphManager();
+        bool GuardPreparation(Preparation::Token, Preparation::Token, std::function<bool(const Preparation::Context&)>, std::function<void(const Preparation::Context&)>);
 		Preparation::Token RegisterPreparer(Preparation::Provider);
 		bool               UnregisterPreparer(Preparation::Token);
 		bool               PlanEquipment(Preparation::Token attempt, Preparation::Token provider, const ActorState::Request&);
@@ -276,6 +277,7 @@ namespace OSF::Scene
 			bool                                                           playerInputLock{ true }, hideApparel{ true }, clearHeldItems{ true }, fade{};
 			Animation::PlaybackId                                          published{};
 			ActorState::Handle                                             edit{};
+            std::map<std::uint32_t, ActorState::Revision> validatedRevisions;
 			std::vector<ActorState::Store::Change>                         changes;
 			std::map<Preparation::Token, std::vector<ActorState::Request>> requests;
 			std::map<Preparation::Token, ActorState::Handle>               scopes;
