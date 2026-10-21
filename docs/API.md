@@ -74,10 +74,18 @@ different cast sizes and failed role filters are refused before the old node exi
 Handoff retains speed/pause, loop scale, placement, the camera override, the original actor-owned
 restore baselines and mechanism ownership. Unsaved alignment is discarded and the new scene's
 alignment rows load on entry. The existing replacement path blends poses; changed positions snap.
-The runtime adds no fade or blanket control/equipment restore. Authored exit equipment and target
+These existing calls add no fade or blanket control/equipment restore. Authored exit equipment and target
 defaults/entry equipment are preflighted and applied through the shared ownership transaction.
 Other exit effects precede target application; non-equipment entry effects follow playback commit.
 Conflicts with another owner refuse preparation; cleanup releases only owned demands.
+
+Services **3.14** appends `ReplaceSceneRolesCovered(handle, id, roleNames, roleCount)` for an
+opt-in covered handoff with the same role and placement rules. It takes exclusive OSF fade
+ownership, covers preparation and the destination's fully stamped pose blend, and reveals
+independently of clip time/speed. It refuses while another OSF fade is held. A true result is
+admission, not completion; `SCENE_HANDOFF` reports playback commit while
+`ReadScenePreparation.pending` remains true until reveal finishes. See
+[covered handoffs](PREPARATION.md#covered-handoffs-services-314) for timing and failure behavior.
 
 Papyrus replacement options read only `Anchor`, `HeadingDeg` and `Stage`; all other fields,
 including `FadeMode`, `InPlaceMode`, `LockPlayerMode`, `Speed`, `Camera`, `LoopScale`, `StripMode`,
@@ -617,7 +625,7 @@ starts age at entry. These are submission limits, not audible-onset or sound-dur
 Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
 continues without coalescing or expiry, including its existing failed-replacement behavior.
 
-The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.13
+The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.14
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, shared camera/input mechanisms, and actor-state scopes. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
@@ -679,5 +687,10 @@ are never removed or re-signatured within a major version (minor versions only *
 callbacks keep working. The native C++ API follows the same additive rule: minor versions append
 vmethods or POD fields, while a major version is required for an incompatible layout change.
 
-Services 3.13 adds `GuardPreparationCommit`, a per-attempt final validation lease after all
+Services 3.14 adds `GuardPreparationCommit`, a per-attempt final validation lease after all
 Validate callbacks and final reconciliation. See [shared preparation](PREPARATION.md).
+
+The combined 3.14 table retains the guard slot before the covered-handoff slot. Two private
+3.13 branches assigned incompatible functions to that same slot, so requests for 3.13 are
+rejected. Rebuild those consumers against 3.14 and update the provider and consumer together.
+Requests for the stable 3.0 through 3.12 prefixes remain supported.

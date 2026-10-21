@@ -99,6 +99,7 @@ namespace OSF::Animation
 		};
 
 		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
+		bool SceneBlendComplete(const std::vector<RE::Actor*>& actors, PlaybackId playback);
 #ifdef OSF_ANIMATION_SMOKE
 		struct AnimationPlayback
 		{

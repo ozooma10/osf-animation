@@ -7,8 +7,8 @@
 
 namespace OSF::API
 {
-	// Services 3.11 appends read-only equipment observations from the shared H2 backend.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000D;
+	// Services 3.14 combines preparation commit guards and covered handoffs.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000E;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -18,7 +18,10 @@ namespace OSF::API
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
-		return (requested >> 16) == (provided >> 16) && (requested & 0xFFFF) <= (provided & 0xFFFF);
+		// Two private 3.13 branches used the same slot for incompatible functions.
+		// Reject that ambiguous request; consumers must rebuild against 3.14.
+		return requested != 0x0003000D && (requested >> 16) == (provided >> 16) &&
+			(requested & 0xFFFF) <= (provided & 0xFFFF);
 	}
 	inline constexpr bool EngineTableSupported(std::uint32_t requested, std::uint32_t provided,
 		std::uint32_t size, std::size_t requiredSize) noexcept
@@ -201,9 +204,15 @@ namespace OSF::API
 		// resnapshot=1 means history was lost or the cursor is ahead: discard cached snapshots.
 		// Reset changes world and emits actor=0. Do not persist cursors/revisions across processes.
 		ActorStateStatus (*ReadActorStateChanges)(std::uint64_t cursor, ActorStateChanges*);
-        // 3.13. Verified-frame context; one guard per provider/attempt, only during Validate.
+        // 3.14. Verified-frame context; one guard per provider/attempt, only during Validate.
         // Callback/context lifetime extends through release and finish. See OSFPreparation.h.
         bool (*GuardPreparationCommit)(std::uint64_t attempt, std::uint64_t provider, const PreparationCommitGuard*);
+		// 3.14. Verified-frame context only. Opt-in covered handoff with the same role/anchor rules.
+		// false: no handoff accepted; true: asynchronous preparation, not a commit guarantee.
+		// Exclusive fade ownership; refuses an existing OSF fade. Cover preparation and actual stamped
+		// pose blending, independent of clip speed. Five-second deadline cancels; stop/reset unwinds.
+		// ReadScenePreparation.pending includes cover/reveal; optional cover reports phase/token/startedMs.
+		bool (*ReplaceSceneRolesCovered)(std::int32_t, const char* sceneId, const char* const* roles, std::uint32_t count);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

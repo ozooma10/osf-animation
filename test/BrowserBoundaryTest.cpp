@@ -278,6 +278,11 @@ int main()
 	Check(EngineRequestSupported(0x00030000, kOSFEngineAPIVersion) &&
 		!EngineRequestSupported(kOSFEngineAPIVersion + 1, kOSFEngineAPIVersion) &&
 		!EngineRequestSupported(0x00020000, kOSFEngineAPIVersion), "host accepts older minor only within its major");
+	Check(!EngineRequestSupported(0x0003000D, kOSFEngineAPIVersion), "ambiguous private 3.13 request is refused");
+	Check(EngineRequestSupported(0x0003000C, kOSFEngineAPIVersion) &&
+		EngineRequestSupported(0x0003000E, kOSFEngineAPIVersion), "stable prefix and combined 3.14 request are supported");
+	Check(!EngineTableSupported(kOSFEngineAPIVersion, 0x0003000D, sizeof(api), sizeof(api)),
+		"combined client refuses either old 3.13 provider even with sufficient bytes");
 	api.version=kOSFEngineAPIVersion; api.size=8;
 	Check(!EngineClient::Connect(&api), "truncated table refused before use");
 	api.size=sizeof(api); api.ReadCatalog=ReadCatalog;

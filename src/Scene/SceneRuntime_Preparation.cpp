@@ -7,6 +7,7 @@
 #include "Util/MonotonicClock.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "Util/StringUtil.h"
+#include "UI/FadeService.h"
 
 namespace OSF::Scene
 {
@@ -89,6 +90,9 @@ namespace OSF::Scene
 		nlohmann::json result = { { "scene", scene }, { "status", s->preparationResult }, { "reason", s->preparationError }, { "pending", static_cast<bool>(s->preparation) }, { "playing", !s->ended && s->playbackId != 0 } };
 		if (s->preparation)
 			result["attempt"] = s->preparation->context.attempt;
+		result["pending"] = static_cast<bool>(s->preparation || s->cover);
+		result["cover"] = s->cover ? nlohmann::json{{"phase",s->cover->coverState.Name()},
+			{"token",s->cover->coverToken},{"startedMs",s->cover->coverState.started}} : nlohmann::json(nullptr);
 		return result.dump();
 	}
 	bool SceneRuntime::PreparedEquipmentAction(Registry::ActionKind kind)
@@ -113,20 +117,31 @@ namespace OSF::Scene
 		{
 			std::lock_guard l{ _lock };
 			auto*           s = Resolve(p->context.scene);
-			if (!s || s->preparation)
+			if (!s || s->preparation || s->cover)
 				return false;
+			if (p->covered) {
+				p->coverToken = UI::FadeService::GetSingleton().BeginTransition();
+				if (!p->coverToken) return false;
+				p->coverState.started = NowMs();
+				s->cover = p;
+			}
 			s->transitioning = true;
 			s->preparation = p;
 			s->preparationResult = "pending";
 			s->preparationError.clear();
 		}
 		Util::NativeMainThreadQueue::Post([this, p] { StartPreparation(p); });
+		if (p->covered) PollCover(p);
 		return true;
 	}
 	void SceneRuntime::StartPreparation(const std::shared_ptr<PreparedTransition>& p)
 	{
 		if (!PreparationValid(p)) {
-			FinishPreparation(p, p->reset ? Outcome::WorldReset : Outcome::Cancelled, false);
+			FinishPreparation(p, p->reset ? Outcome::WorldReset : p->failureReason == "transition-cover-timeout" ? Outcome::TimedOut : Outcome::Cancelled, false);
+			return;
+		}
+		if (p->covered && !p->coverState.PreparationReady(NowMs())) {
+			Util::NativeMainThreadQueue::Post([this,p] { StartPreparation(p); });
 			return;
 		}
 		auto& gm = Animation::GraphManager::GetSingleton();
@@ -138,7 +153,10 @@ namespace OSF::Scene
 		}
 		Hooks hooks;
 		hooks.valid = [this, p] { return PreparationValid(p); };
-		hooks.invalidReason = [p] { return p->reset ? Outcome::WorldReset : p->interrupted ? Outcome::Failed : Outcome::Cancelled; };
+		hooks.invalidReason = [p] {
+			return p->reset ? Outcome::WorldReset : p->failureReason == "transition-cover-timeout" ? Outcome::TimedOut :
+				p->interrupted ? Outcome::Failed : Outcome::Cancelled;
+		};
 		hooks.preflight = [this, p] { return BuildPreparationPlan(p); };
 		hooks.apply = [this, p] {
 			// Exit effects precede entry equipment. A callback can cancel/reset before any target mutation.
@@ -341,6 +359,10 @@ namespace OSF::Scene
 	{
 		if (!PreparationValid(p))
 			return false;
+		if (p->covered && (p->coverState.Expired(NowMs()) || !UI::FadeService::GetSingleton().OwnsTransition(p->coverToken))) {
+			p->failureReason = "transition-cover-expired";
+			return false;
+		}
 		const auto handle = p->context.scene;
 		if (p->context.kind == Kind::Stage) {
 			if (!Animation::GraphManager::GetSingleton().CommitSceneStage(p->cast.front(), p->context.toStage, p->old.playbackId))
@@ -391,6 +413,7 @@ namespace OSF::Scene
 	void SceneRuntime::FinishPreparation(const std::shared_ptr<PreparedTransition>& p, Outcome outcome, bool applied)
 	{
 		_preparations.erase(p->context.attempt);
+		if (p->covered && (p->reset || outcome != Outcome::Committed)) ReleaseCover(p);
 		if (p->reset || outcome == Outcome::WorldReset)
 			return;  // H2 reset already revoked edits; never mutate old actors
 		bool live = false;
@@ -400,6 +423,7 @@ namespace OSF::Scene
 			live = s && s->preparation == p;
 		}
 		const bool success = live && outcome == Outcome::Committed && p->committed;
+		if (p->covered && !success) ReleaseCover(p);
 		if (!success && p->committed)
 			StopGraph(p->cast, p->published);
 		const auto restored = p->edit ? ActorState::Get().FinishEdit(p->edit, success) : ActorState::Status::Ok;
@@ -425,14 +449,16 @@ namespace OSF::Scene
 			s->preparationError = p->failureReason;
 			if (success) {
 				s->preparedScopes = p->scopes;
-				s->transitioning = false;
+				s->transitioning = p->covered;
 				for (auto mechanism : { Mechanism::kEquipment, Mechanism::kHeldEquipment, Mechanism::kEquipItem })
 					if (std::find(s->ledger.begin(), s->ledger.end(), mechanism) == s->ledger.end())
 						s->ledger.push_back(mechanism);
 			}
 		}
 		if (success) {
-			Animation::GraphManager::GetSingleton().HoldForPreparation(p->cast.front(), p->published, false);
+			if (p->covered) p->coverState.Committed();
+			// Pose blending advances independently; hold automatic clip/stage progression until reveal completes.
+			Animation::GraphManager::GetSingleton().HoldForPreparation(p->cast.front(), p->published, p->covered);
 			if (p->context.kind == Kind::Start) {
 				CompleteStart(p->context.scene, p->context.toScene, p->context.toNode, p->cast, p->playerInputLock, p->hideApparel, p->clearHeldItems, p->fade, p->overrides);
 			} else if (p->context.kind != Kind::Stage) {
@@ -520,11 +546,13 @@ namespace OSF::Scene
 		std::vector<std::shared_ptr<PreparedTransition>> pending;
 		{
 			std::lock_guard l{ _lock };
-			for (auto& s : _slots)
+			for (auto& s : _slots) {
+				if (s.cover) s.cover->reset = true;
 				if (s.preparation) {
 					s.preparation->reset = true;
 					pending.push_back(s.preparation);
 				}
+			}
 		}
 		_resources.clear();
 		_preparationSaving = false;

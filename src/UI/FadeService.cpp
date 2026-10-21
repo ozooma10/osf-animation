@@ -88,6 +88,8 @@ namespace OSF::UI
 			return false;
 		}
 		const float fadeSecs = std::clamp(a_fadeSecs, 0.05f, 5.0f);
+		std::lock_guard guard{transitionLock};
+		if (transitionOwner) return false;
 		// The cap keeps a missed fade.in from leaving the screen black or carrying the latch into a save-load (crash).
 		const float holdSecs = std::clamp(a_holdMaxSecs, 0.0f, 10.0f);
 		PostFade(/*fadingOut*/ true, fadeSecs, /*stayFaded*/ true);
@@ -100,6 +102,8 @@ namespace OSF::UI
 		if (!Available()) {
 			return false;
 		}
+		std::lock_guard guard{transitionLock};
+		if (transitionOwner) return false;
 		releaseAtMs.store(0, std::memory_order_relaxed);
 		// The engine never refuses a fade-in, even mid-fade-out.
 		PostFade(/*fadingOut*/ false, std::clamp(a_fadeSecs, 0.05f, 5.0f), /*stayFaded*/ false);
@@ -108,8 +112,10 @@ namespace OSF::UI
 
 	void FadeService::OnStopAll()
 	{
+		std::lock_guard guard{transitionLock};
+		const bool owned = std::exchange(transitionOwner, 0) != 0;
 		// The load path crashes on a held stay-faded latch; posting only enqueues, so it's safe pre-load.
-		if (releaseAtMs.exchange(0, std::memory_order_relaxed) != 0 && Available()) {
+		if ((releaseAtMs.exchange(0, std::memory_order_relaxed) != 0 || owned) && Available()) {
 			PostFade(/*fadingOut*/ false, 0.3f, /*stayFaded*/ false);
 			REX::DEBUG("[UI] held screen fade released for save-load teardown");
 		}
@@ -117,6 +123,7 @@ namespace OSF::UI
 
 	void FadeService::Tick()
 	{
+		std::lock_guard guard{transitionLock};
 		int64_t deadline = releaseAtMs.load(std::memory_order_relaxed);
 		if (deadline == 0 || NowMs() < deadline) {
 			return;
@@ -125,5 +132,37 @@ namespace OSF::UI
 			return;
 		}
 		PostFade(/*fadingOut*/ false, 0.5f, /*stayFaded*/ false);
+		transitionOwner = 0;
+	}
+	std::uint64_t FadeService::BeginTransition()
+	{
+		if (!Available()) return 0;
+		std::lock_guard guard{transitionLock};
+		if (transitionOwner || releaseAtMs.load() || nextTransition == UINT64_MAX) return 0;
+		transitionOwner = ++nextTransition;
+		PostFade(true, 0.25f, true);
+		// Independent safety net; the handoff cancels at five seconds before this six-second cap.
+		releaseAtMs.store(NowMs() + 6000);
+		return transitionOwner;
+	}
+	bool FadeService::OwnsTransition(std::uint64_t token)
+	{
+		std::lock_guard guard{transitionLock};
+		return token && token == transitionOwner;
+	}
+	bool FadeService::RevealTransition(std::uint64_t token)
+	{
+		std::lock_guard guard{transitionLock};
+		if (!token || token != transitionOwner) return false;
+		releaseAtMs.store(0);
+		PostFade(false, 0.5f, false);
+		return true;
+	}
+	void FadeService::EndTransition(std::uint64_t token)
+	{
+		std::lock_guard guard{transitionLock};
+		if (!token || token != transitionOwner) return;
+		transitionOwner = 0;
+		if (releaseAtMs.exchange(0)) PostFade(false, 0.5f, false);
 	}
 }

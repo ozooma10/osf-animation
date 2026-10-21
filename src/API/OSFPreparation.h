@@ -48,7 +48,7 @@ namespace OSF::API
 		const std::uint32_t* actors{};  // exact destination role order, world-local form IDs
 		std::uint32_t        actorCount{};
 	};
-    // Services 3.13: register once from this provider's Validate callback.
+    // Services 3.14: register once from this provider's Validate callback.
     // acquire runs after every Validate and final H2 reconciliation; false refuses playback.
     // release is called once for each entered acquire (including false/throw), in reverse order,
     // before finish/rollback/events. Unentered guards receive no release. No pending/polling.

@@ -31,6 +31,32 @@ Before the first drain, a pending attempt ID can be zero. Playing reports a publ
 playback identity; it is not renderer evidence. Terminal results are retained with the bounded
 ended-roster cache, and disappear on world replacement or handle retirement.
 
+## Covered handoffs (services 3.14)
+
+`ReplaceSceneRolesCovered` is opt-in and uses the same handoff admission, roles, scopes and
+failure policy. Null roles with zero count retain positional order. It does not broaden matching
+or change existing replacement calls. Invoke it on the verified `Post` drain.
+
+The runtime acquires one exclusive screen-fade token, posts a 250 ms fade-out, and waits
+300 ms before preparing the destination. It holds source motion during preparation and holds
+destination clip/stage progression through reveal. Pose blending still advances at speed zero.
+Once every participant graph has stamped the full destination pose, it posts a 500 ms fade-in,
+then releases the hold and token. A five-second wall-clock deadline from acceptance bounds
+preparation and blending; the fade service has a separate six-second held-fade safety cap.
+These deadlines are checked on engine frames, not by a timer that runs during a stopped game
+thread. A long stall cannot authorize a late commit on resume.
+
+`ReadScenePreparation` additionally returns `cover: null` or `{phase,token,startedMs}`, with
+phases `closing`, `preparing`, `blending`, `revealing`. `pending` includes the cover lifetime;
+`status: committed` and `SCENE_HANDOFF` can precede reveal completion. New handoffs are refused
+until release. Authored OSF fade actions cannot override the token. Another held OSF fade refuses
+admission; direct game/third-party fades outside this service are not arbitrated.
+
+Cancellation, veto, timeout and lost ownership release cover and use the normal conservative
+stop/rollback policy. World replacement revokes the token and clears the held engine fade latch
+before loading; old callbacks cannot release a newer token or commit into the new world.
+The coordinator does not add camera restoration, pool selection or content-specific pose policy.
+
 ## Native registration and callback lifetime
 
 Copy `OSFEngineAPI.h`, `OSFSceneAPI.h`, `OSFActorState.h` and `OSFPreparation.h`.
@@ -165,7 +191,7 @@ both DLLs compile; the Browser boundary check verifies public-header separation.
 in-game acceptance. Fresh start/handoff/node/internal-stage scenarios, actual item/attachment
 readiness, visible poses, save/load and consumer integration remain live gates. A7 stays open.
 
-## Final commit guard (services 3.13)
+## Final commit guard (services 3.14)
 
 Animation captures each participant's H2 world/ownership/equipment revision after Ready's
 reconciliation, before Validate. After every provider has validated, it reconciles again,
