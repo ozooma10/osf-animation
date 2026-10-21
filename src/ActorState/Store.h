@@ -48,7 +48,8 @@ namespace OSF::ActorState
 	public:
 		explicit Store(Backend& backend) : _backend(backend) {}
 		Handle CreateScope(std::string_view owner, Lifetime lifetime, std::uint64_t session = 0);
-		Result Acquire(Handle scope, const Request& request, bool replaceGroup = false);
+		Result Acquire(Handle scope, const Request& request, bool replaceGroup = false,
+			std::optional<std::uint32_t> replaceFallbackGroup = std::nullopt);
 		Status Release(Handle scope, Handle claim);
 		Status ReleaseGroup(Handle scope, std::uint32_t group);
 		Status CloseScope(Handle scope);
@@ -57,6 +58,10 @@ namespace OSF::ActorState
 		Status Reconcile(Actor actor);
 		void Reset();
 		bool HasScope(Handle scope) const { return _scopes.contains(scope); }
+		std::optional<std::uint64_t> SessionOf(Handle scope) const {
+			const auto it = _scopes.find(scope);
+			return it == _scopes.end() ? std::nullopt : std::optional{it->second.session};
+		}
 		bool Owns(Handle scope, Actor actor, Object object, std::uint32_t group) const;
 		std::vector<Object> Kept(Actor actor) const;
 		std::vector<Object> Hidden(Actor actor) const;
@@ -66,13 +71,17 @@ namespace OSF::ActorState
 	private:
 		struct Scope { std::string owner; Lifetime lifetime; std::uint64_t session; };
 		struct Claim { Handle scope; Request request; };
+		enum class Pending { None, Worn, Unworn, Add, Remove };
 		struct Record {
 			Item expected;
 			bool baselineWorn{}, changed{}, added{};
+			Pending pending{Pending::None};
 		};
 		Handle Next();
 		bool Active(const Claim& claim) const;
-		Status Apply(Actor actor, bool displace);
+		enum class Displacement { None, CapturedBaseline, Any };
+		Status Apply(Actor actor, Displacement displace = Displacement::None);
+		void Observe(std::map<Object, Record>& records, const std::vector<Item>& inventory);
 		Status ReconcileAll(const std::vector<Actor>& actors);
 		Backend& _backend;
 		Handle _next{1};

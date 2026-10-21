@@ -942,7 +942,8 @@ author `osf.control.lock`. The lock is ledger-tracked, so it auto-releases on ev
 
 At scene start the runtime hides **every participant's** worn apparel (the base skin/body is always
 kept, so an actor is never made invisible) — you do **not** need to author `osf.equipment.hide`. It is
-ledger-tracked, so each actor is re-dressed on every termination path.
+owned by the scene scope and reconciled on termination. Active equipment/preserve claims
+are kept; restoration respects current inventory and newer equipment.
 
 - Set **`"hideApparel": false`** to keep actors clothed (then author per-role `osf.equipment.hide` for
   selective apparel hiding).
@@ -959,8 +960,8 @@ touch. Players can disable this globally (settings → Scene gear → Auto-equip
 
 At scene start the runtime temporarily unequips each participant's equipped **non-apparel** items —
 weapons, slates, tools, consumables, and similar held props — so they cannot remain welded to a hand
-through an unrelated animation. The exact items are ledger-tracked and re-equipped on every
-termination path.
+through an unrelated animation. Optional hide claims track these items and reconcile them on
+termination, preserving other owners' equipment claims and newer live inventory changes.
 This policy is independent of `hideApparel` (legacy `stripActors`): keeping apparel does not
 implicitly keep held items.
 
@@ -1097,7 +1098,7 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 |---------------|--------|:---:|---|
 | `osf.control.lock` / `osf.control.release` | Player input lock (ref-counted). **On by default when the player participates** — see *Player input lock*; author these only to override. | ✓ | |
 | `osf.equipment.hide` / `osf.equipment.restore` | Hide / restore the role's worn apparel (skin kept). **All participants' apparel is hidden by default** — see *Hide apparel*; author these only to override. | ✓ | |
-| `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A copy is added if the actor doesn't own one and **destroyed on cleanup** (no inventory residue); a form the actor already wears is left untouched both ways. | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
+| `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A missing copy is added and removed on cleanup only while its provenance remains known. Pre-owned items remain in inventory; other owners' claims survive. `unequip` releases authored claims only. See [actor-state ownership](ACTOR_STATE.md). | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
 | `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor attachment node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/attachment node without cloning it again. | ✓ | `prop`; attach also requires `source` and `attachmentNode` (legacy `node`) — inline or inherited from the file-level `props` registry (`use` names a template) — with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |

@@ -57,7 +57,8 @@ namespace OSF::ActorState
 		return out;
 	}
 
-	Result Store::Acquire(Handle scope, const Request& request, bool replaceGroup)
+	Result Store::Acquire(Handle scope, const Request& request, bool replaceGroup,
+		std::optional<std::uint32_t> replaceFallbackGroup)
 	{
 		if (!HasScope(scope) || !request.actor || !request.object || request.operation > Operation::HideOptional ||
 			(request.allowAdd && request.operation != Operation::Equip)) return {};
@@ -74,7 +75,7 @@ namespace OSF::ActorState
 			if (c.request.actor != request.actor) continue;
 			if (c.scope == scope && c.request.object == request.object && c.request.group == request.group &&
 				c.request.operation == request.operation && c.request.allowAdd == request.allowAdd)
-				return {Apply(request.actor, false), id};
+				return {Apply(request.actor), id};
 			const auto other = _backend.Describe(c.request.object);
 			if (!other) return {Status::Unavailable};
 			const bool positive = Positive(request.operation), otherPositive = Positive(c.request.operation);
@@ -82,8 +83,11 @@ namespace OSF::ActorState
 				(request.object == c.request.object && ((positive && c.request.operation == Operation::Hide) ||
 					(otherPositive && request.operation == Operation::Hide)));
 			if (!conflict) continue;
-			// Authored sequential replacements may retire only their own equip lane.
-			if (replaceGroup && c.scope == scope && c.request.group == request.group &&
+			// Replacement may retire only this owner's equip lanes. The scene adapter explicitly
+			// lets authored equipment supersede its own optional gear lane; public callers cannot.
+			const bool replaceLane = (replaceGroup && c.request.group == request.group) ||
+				(replaceFallbackGroup && c.request.group == *replaceFallbackGroup);
+			if (replaceLane && c.scope == scope &&
 				request.operation == Operation::Equip && c.request.operation == Operation::Equip) replaced.emplace_back(id, c);
 			else return {Status::Conflict};
 		}
@@ -92,32 +96,50 @@ namespace OSF::ActorState
 		_records[request.actor].try_emplace(item.object, Record{item, item.worn});
 		for (const auto& [old, c] : replaced) _claims.erase(old);
 		_claims.emplace(id, Claim{scope, request}); // ownership precedes all engine mutation
-		const auto status = Apply(request.actor, true);
+		const auto status = Apply(request.actor, Displacement::Any);
 		if (status != Status::Ok) {
 			_claims.erase(id);
 			for (const auto& [old, c] : replaced) _claims.emplace(old, c);
-			Apply(request.actor, false); // retained records allow a later Reconcile to retry failed cleanup
+			Apply(request.actor); // retained records allow a later Reconcile to retry failed cleanup
 			return {status};
 		}
 		return {Status::Ok, id};
 	}
 
-	Status Store::Apply(Actor actor, bool displace)
+	void Store::Observe(std::map<Object, Record>& records, const std::vector<Item>& inventory)
+	{
+		for (auto& [object, r] : records) {
+			const auto now = Find(inventory, object, r.expected);
+			auto intended = r.expected;
+			switch (r.pending) {
+			case Pending::Worn: intended.worn = true; break;
+			case Pending::Unworn: intended.worn = false; break;
+			case Pending::Add: ++intended.count; break;
+			case Pending::Remove: if (intended.count) --intended.count; intended.worn = false; break;
+			case Pending::None: break;
+			}
+			const bool completed = now.count == intended.count && now.worn == intended.worn;
+			const bool unchanged = now.count == r.expected.count && now.worn == r.expected.worn;
+			if (completed && r.pending == Pending::Add) r.added = true;
+			if (completed && r.pending == Pending::Remove) r.added = false;
+			if (!completed && !unchanged) {
+				++_externalChanges;
+				// A pending backend operation survives a temporarily unavailable readback. Only a
+				// different observation rebases ownership; an unchanged read is a failed operation.
+				if (now.count != r.expected.count) r.added = false;
+				r.baselineWorn = now.worn; r.changed = false;
+			}
+			r.pending = Pending::None;
+			r.expected = now;
+		}
+	}
+
+	Status Store::Apply(Actor actor, Displacement displace)
 	{
 		auto read = _backend.Read(actor);
 		if (!read) return Status::Unavailable;
 		auto& records = _records[actor];
-		for (auto& [object, r] : records) {
-			const auto now = Find(*read, object, r.expected);
-			if (now.count != r.expected.count || now.worn != r.expected.worn) {
-				++_externalChanges;
-				// No exact instance provenance: relinquish destruction if counts changed externally.
-				if (now.count != r.expected.count) r.added = false;
-				r.baselineWorn = now.worn;
-				r.changed = false;
-			}
-			r.expected = now;
-		}
+		Observe(records, *read);
 		struct Demand { bool worn{}, strictHide{}, allowAdd{}; };
 		std::map<Object, Demand> demands;
 		for (const auto& [id, c] : _claims) {
@@ -135,7 +157,7 @@ namespace OSF::ActorState
 			auto next = _backend.Read(actor);
 			if (!next) return false;
 			read = std::move(next);
-			for (auto& [object, r] : records) r.expected = Find(*read, object, r.expected);
+			Observe(records, *read);
 			return true;
 		};
 		auto wear = [&](Object object, bool worn) {
@@ -143,6 +165,7 @@ namespace OSF::ActorState
 			if (!item.count) return !worn;
 			if (item.worn == worn) return true;
 			records.at(object).changed = true;
+			records.at(object).pending = worn ? Pending::Worn : Pending::Unworn;
 			const bool submitted = _backend.SetWorn(actor, object, worn);
 			const bool observed = refresh();
 			return submitted && observed && Find(*read, object).worn == worn;
@@ -162,6 +185,7 @@ namespace OSF::ActorState
 			if (r.added) {
 				// We add one only when absent. A different observed count relinquishes this right above.
 				if (r.expected.count == 1) {
+					r.pending = Pending::Remove;
 					const bool removed = _backend.Remove(actor, object);
 					const bool observed = refresh();
 					if (!removed || !observed || records.at(object).expected.count) return Status::Failed;
@@ -174,15 +198,19 @@ namespace OSF::ActorState
 			auto& r = records.at(object);
 			if (!r.expected.count) {
 				if (!d.allowAdd) return Status::Missing;
+				r.pending = Pending::Add;
 				const bool added = _backend.Add(actor, object);
 				const bool observed = refresh();
-				if (observed && r.expected.count) r.added = true;
 				if (!added || !observed || r.expected.count != 1) return Status::Failed;
 			}
 			const auto snapshot = *read;
 			for (const auto& other : snapshot) {
 				if (!other.worn || !Overlap(r.expected, other)) continue;
-				if (!displace || (demands.contains(other.object) && demands.at(other.object).worn)) return Status::Conflict;
+				const auto captured = records.find(other.object);
+				const bool restoredBaseline = captured != records.end() && captured->second.changed && captured->second.baselineWorn;
+				if (displace == Displacement::None ||
+					(displace == Displacement::CapturedBaseline && !restoredBaseline) ||
+					(demands.contains(other.object) && demands.at(other.object).worn)) return Status::Conflict;
 				records.try_emplace(other.object, Record{other, other.worn});
 				if (!wear(other.object, false)) return Status::Failed;
 			}
@@ -206,7 +234,7 @@ namespace OSF::ActorState
 		if (!claimed) _records.erase(actor);
 		return Status::Ok;
 	}
-	Status Store::Reconcile(Actor actor) { return _records.contains(actor) ? Apply(actor, false) : Status::Ok; }
+	Status Store::Reconcile(Actor actor) { return _records.contains(actor) ? Apply(actor) : Status::Ok; }
 	Status Store::ReconcileAll(const std::vector<Actor>& actors)
 	{
 		Status result = Status::Ok;
@@ -219,7 +247,7 @@ namespace OSF::ActorState
 		if (!HasScope(scope) || it == _claims.end() || it->second.scope != scope) return Status::Invalid;
 		const auto actor = it->second.request.actor;
 		_claims.erase(it);
-		return Apply(actor, false);
+		return Apply(actor);
 	}
 	Status Store::ReleaseGroup(Handle scope, std::uint32_t group)
 	{
@@ -259,7 +287,7 @@ namespace OSF::ActorState
 		std::vector<Actor> actors;
 		for (const auto& [actor, records] : _records) actors.push_back(actor);
 		Status result = Status::Ok;
-		for (auto actor : actors) Merge(result, Apply(actor, !saving));
+		for (auto actor : actors) Merge(result, Apply(actor, saving ? Displacement::None : Displacement::CapturedBaseline));
 		return result;
 	}
 	void Store::Reset()

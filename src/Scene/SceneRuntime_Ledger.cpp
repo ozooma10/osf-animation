@@ -189,7 +189,8 @@ namespace OSF::Scene
 	{
 		const auto scope = EquipmentScope(a_handle);
 		const auto result = ActorState::Acquire(scope, actor, object, ActorState::Operation::Equip,
-			gear ? ActorState::Gear : ActorState::Authored, !gear, !gear);
+			gear ? ActorState::Gear : ActorState::Authored, !gear, !gear,
+			gear ? std::nullopt : std::optional<std::uint32_t>{ActorState::Gear});
 		if (result) RecordMechanism(a_handle, Mechanism::kEquipItem);
 		return static_cast<bool>(result);
 	}

@@ -8,7 +8,7 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the twelve engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the thirteen engine-free C++ suites (shared actor-state ownership/reconciliation, persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
   synthetic AF/rig/BA2 fixtures, playback session transitions/marks, frame clock/clip specs, clip-duration cache, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
   `test/fixtures`; the scene registry suite also exercises the production catalog builder). Run it after
@@ -165,6 +165,11 @@ Each entry: **system** (`path`) — role.
   public `OSFClipScene.h`). Providers rebuild on registration/reload against base content, publish
   atomically, and never replace authored IDs. Old runtime refs remain pinned. Browser also owns
   front-of-view placement policy (`BrowserPlacement.*`); core exposes world/navmesh queries.
+- **Shared actor state** (`src/ActorState/{Store,Service}.*`, services ABI 3.9) — one ownership store for
+  persistent/session equipment claims, selective cleanup, save suspension and world-reset revocation.
+  Scene apparel/held/authored/gear groups use this store; `EquipmentService` is only its inventory
+  backend. Base-form/count provenance is conservative, not exact-instance ownership. Native failure
+  tests cover the production core. See `docs/ACTOR_STATE.md`; H3 preparation and pose layers are future work.
 - **Owned audio** (`SoundService`, services ABI 3.6) — independent opaque channels, closed by the
   consumer at its scope boundary and revoked on world replacement. Media preparation is separate
   from the synchronized validity-check/post/publication commit. Channel close cannot race a late

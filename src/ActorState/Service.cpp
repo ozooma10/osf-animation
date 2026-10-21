@@ -13,16 +13,17 @@ namespace OSF::ActorState
 	void Report(Status status, std::string_view operation)
 	{
 		if (status != Status::Ok && status != Status::Invalid)
-			REX::WARN("[Equip] actor-state {} failed: status {} (cleanup records retained for reconciliation)",
+			REX::WARN("[Equip] actor-state {} returned status {}; reconcile retained changes when available",
 				operation, static_cast<std::uint32_t>(status));
 	}
 	Result Acquire(Handle scope, RE::Actor* actor, RE::TESBoundObject* object,
-		Operation operation, std::uint32_t group, bool allowAdd, bool replaceGroup)
+		Operation operation, std::uint32_t group, bool allowAdd, bool replaceGroup,
+		std::optional<std::uint32_t> replaceFallbackGroup)
 	{
 		if (!actor || !object) return {};
 		auto& state = Get();
 		const auto externalBefore = state.ExternalChanges();
-		const auto result = state.Acquire(scope, {actor->GetFormID(), object->GetFormID(), operation, group, allowAdd}, replaceGroup);
+		const auto result = state.Acquire(scope, {actor->GetFormID(), object->GetFormID(), operation, group, allowAdd}, replaceGroup, replaceFallbackGroup);
 		Report(result.status, "acquire");
 		if (state.ExternalChanges() != externalBefore)
 			REX::WARN("[Equip] actor {:08X}: external equipment change observed; ambiguous inventory destruction relinquished", actor->GetFormID());

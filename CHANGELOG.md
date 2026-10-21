@@ -26,6 +26,11 @@ for installation, saved preferences, and hotkey changes.
 
 ### Added
 
+- Shared actor-state ownership through engine services 3.9: persistent/session scopes,
+  equipment/preservation/hide claims, selective release, save suspension, and stale-token
+  revocation on world replacement. Authored equipment, automatic gear, apparel stripping
+  and held-item clearing share the service. See [the contract and provenance limits](docs/ACTOR_STATE.md).
+
 - Manual progression through engine services 3.5: `SetSceneAutoAdvance` keeps
   eligible `allowManualHold` nodes playing past their timer/loop budget, while
   `ReadSceneControls` exposes their live navigation choices. Speed, pause and

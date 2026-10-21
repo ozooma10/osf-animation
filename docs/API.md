@@ -358,7 +358,8 @@ linear stage) or stage-major length matching `stageMajorFiles`.
 `HideEquipment(scene, actor, slotMask)` is a ledger-safe ad-hoc **hide-apparel** helper for dynamic
 starts. The actor must be a participant in `scene`; `slotMask` uses Starfield ARMO biped slot bits,
 `-1` hides all apparel, and `0` hides nothing. Hidden items are restored automatically when the scene
-terminates, or early with `RestoreEquipment(scene)`.
+terminates, or early with `RestoreEquipment(scene)`, subject to current inventory and surviving
+owner claims. Equipment/preserve claims are exempt from this optional hiding.
 
 `SceneOptions` carries the optional modifiers (set only the fields you need; each `Start*` reads only
 the ones that apply to it). Its stable Papyrus field names intentionally differ from several preferred
@@ -611,11 +612,20 @@ starts age at entry. These are submission limits, not audible-onset or sound-dur
 Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
 continues without coalescing or expiry, including its existing failed-replacement behavior.
 
-The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.8
+The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.9
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
-playback controls, owned audio channels, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
+playback controls, owned audio channels, shared camera/input mechanisms, and actor-state scopes. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
 consumers need neither OSF Animation Browser nor OSF UI.
+
+## Shared actor-state ownership
+
+Services 3.9 adds persistent and session scopes with equipment, preservation, and required
+or optional hiding claims. Scene role equipment, automatic gear, equipment actions and
+stripping use the same service. Release is selective, save suspension retains persistent
+demands, and world replacement revokes runtime-only tokens. See [ACTOR_STATE.md](ACTOR_STATE.md)
+for the native API, conflicts, cleanup retry, and base-form inventory provenance limits.
+H3 preparation, attachment reservations, and pose-layer composition remain separate work.
 
 ## In-game UI, hotkeys, and the wheel tag contract
 

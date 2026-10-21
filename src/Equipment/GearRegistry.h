@@ -11,7 +11,7 @@ namespace OSF::Equipment::Gear
 	struct Pick
 	{
 		RE::TESBoundObject* object = nullptr;
-		bool                worn = false;  // strip-exempt; nothing to equip or ledger
+		bool                worn = false;  // strip-exempt; still claimed to preserve shared ownership
 		std::string         slot;
 		std::string         ref;  // "<Plugin>|0xLOCAL" as registered, for logging
 	};

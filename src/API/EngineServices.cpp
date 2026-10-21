@@ -2,6 +2,8 @@
 #include "API/OSFEngineAPI.h"
 #include "API/CatalogBuilder.h"
 #include "API/EngineServices.h"
+#include "API/ActorStateAPI.h"
+#include "ActorState/Service.h"
 #include "API/EngineServiceState.h"
 #include "Animation/GraphManager.h"
 #include "Audio/SoundService.h"
@@ -247,10 +249,16 @@ namespace OSF::API::EngineServices
 			&Util::MonotonicNs,
 			[](std::uint64_t channel, const char* spec, std::uint64_t detectedNs) {
 				try { return spec && detectedNs && Audio::SoundService::GetSingleton().PlayChannel(channel, spec, detectedNs); } catch (...) { return false; }
-			}
+			},
+			&ActorStateAPI::CreateScope,
+			&ActorStateAPI::AcquireEquipment,
+			&ActorStateAPI::ReleaseClaim,
+			&ActorStateAPI::ReleaseGroup,
+			&ActorStateAPI::CloseScope,
+			&ActorStateAPI::Reconcile
 		};
 	}
-	void WorldReset() { g_state.ResetWorld(); }
+	void WorldReset() { ActorState::Get().Reset(); g_state.ResetWorld(); }
 	void ContentReloaded() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::ContentReloaded)); }
 	void CatalogChanged() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::CatalogChanged)); }
 	void ScenesChanged() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::ScenesChanged)); }

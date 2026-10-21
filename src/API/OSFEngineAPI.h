@@ -1,12 +1,13 @@
-// Optional engine services. Copy alongside OSFSceneAPI.h; link no Animation library.
+// Optional engine services. Copy with OSFSceneAPI.h and OSFActorState.h; link no Animation library.
 #pragma once
 
 #include "OSFSceneAPI.h"
+#include "OSFActorState.h"
 
 namespace OSF::API
 {
-	// Services 3.8 appends opt-in channel coalescing, expiry and a shared monotonic clock.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030008;
+	// Services 3.9 appends owner-held actor equipment with persistent/session scopes.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030009;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -151,6 +152,26 @@ namespace OSF::API
 		// and immediately before Wwise submission; no completion/audibility deadline is implied.
 		// PlayAudioChannel starts age at call entry. Bindings inherit their channel's options.
 		bool (*PlayAudioChannelAt)(std::uint64_t, const char* spec, std::uint64_t detectedNs);
+		// 3.9. All actor-state calls require game context (use Post from other threads).
+		// Do not reenter during backend inventory events; defer those calls with Post.
+		// Persistent requires scene=0. Session requires a live scene and accepts only its cast.
+		// Session scopes survive handoff and close before scene-end observers; persistent scopes
+		// survive scene end. Owner is copied. Close every owned scope before unloading a provider.
+		// Runtime-only tokens are never recycled or saved; world reset revokes them without undoing
+		// old-world inventory. Re-register device state after load, not in the reset notification.
+		std::uint64_t (*CreateActorStateScope)(const char* owner, ActorStateLifetime, std::int32_t scene);
+		// Exact duplicate requests share a claim. Equip/Preserve share positive ownership; Preserve
+		// never adds an item. Hide is required and conflicts with positive claims; HideOptional
+		// yields to them. Conflicting worn slots refuse, except explicit same-scope/group replacement.
+		// Success verifies inventory state, not 3D readiness. Item identity is a base form, not an
+		// inventory instance. See ACTOR_STATE.md for provenance and external-change limitations.
+		ActorStateStatus (*AcquireActorEquipment)(std::uint64_t scope, const ActorEquipmentRequest*, std::uint64_t* claim);
+		ActorStateStatus (*ReleaseActorStateClaim)(std::uint64_t scope, std::uint64_t claim);
+		ActorStateStatus (*ReleaseActorStateGroup)(std::uint64_t scope, std::uint32_t group);
+		// Release retires claims even if cleanup fails. Failed cleanup records stay in the service;
+		// ReconcileActorState retries when the actor/inventory is available. Invalid handles are harmless.
+		ActorStateStatus (*CloseActorStateScope)(std::uint64_t scope);
+		ActorStateStatus (*ReconcileActorState)(RE::Actor*);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.
