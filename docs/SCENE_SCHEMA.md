@@ -3,6 +3,13 @@
 Terminology in this document follows [OSF domain vocabulary](VOCABULARY.md). Established JSON and
 Papyrus spellings remain valid even where their names predate that vocabulary.
 
+[Shared preparation](PREPARATION.md) gates starts, handoffs and all scene-owned node/segment
+changes. Role equipment and entry equipment actions are prerequisites; an unresolved required
+item or ownership conflict can refuse admission. Exit equipment participates in the same
+transaction. Optional apparel/held-item clearing and automatic gear retain their supported
+defaults. Decorative props remain best effort after entry; required attachments need a native
+preparer with backend readiness checks.
+
 OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()` (the legacy
 Papyrus name for **reload content**). An `*.osf.json` content file may declare authored **scenes**,
 curated **animation entries**, or both; a secondary `*.sounds.json`

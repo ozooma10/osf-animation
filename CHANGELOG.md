@@ -26,6 +26,12 @@ for installation, saved preferences, and hotkey changes.
 
 ### Added
 
+- Shared preparation through engine services 3.10: versioned preparers, equipment plans,
+  exact resource reservations, bounded readiness and rollback before scene starts, handoffs,
+  node changes and internal playback stages. Starts now return reserved handles; lifecycle
+  success follows committed admission. Required attachment readiness is supplied by preparers.
+  See [the contract and remaining live gates](docs/PREPARATION.md).
+
 - Shared actor-state ownership through engine services 3.9: persistent/session scopes,
   equipment/preservation/hide claims, selective release, save suspension, and stale-token
   revocation on world replacement. Authored equipment, automatic gear, apparel stripping

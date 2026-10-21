@@ -2,6 +2,11 @@
 
 Native SFSE plugins that need per-save records should use the [shared persistence C ABI](PERSISTENCE_API.md).
 
+Scene starts and transitions now use [shared preparation](PREPARATION.md). A nonzero start handle
+reserves actors and queues admission; successful begin/enter follows preparation and playback.
+A true transition return means accepted, not completed. Subscribe before starting; rejected
+queued starts emit interrupted/cancelled SCENE_END without begin/enter.
+
 Domain terms in this guide follow [OSF domain vocabulary](VOCABULARY.md). The canonical JSON aliases
 documented in [SCENE_SCHEMA.md](SCENE_SCHEMA.md) do not rename existing Papyrus or native API fields;
 names shown in code remain compatibility spellings.
@@ -69,10 +74,10 @@ different cast sizes and failed role filters are refused before the old node exi
 Handoff retains speed/pause, loop scale, placement, the camera override, the original actor-owned
 restore baselines and mechanism ownership. Unsaved alignment is discarded and the new scene's
 alignment rows load on entry. The existing replacement path blends poses; changed positions snap.
-The runtime adds no fade and performs no intermediate equipment or control restore. Authored exit
-actions still run, then the new defaults and entry actions apply. Equipment additions are owned
-once per actor/item and restored newest first at final termination. Conflicting equipped slots
-remain subject to the game's normal equip rules.
+The runtime adds no fade or blanket control/equipment restore. Authored exit equipment and target
+defaults/entry equipment are preflighted and applied through the shared ownership transaction.
+Other exit effects precede target application; non-equipment entry effects follow playback commit.
+Conflicts with another owner refuse preparation; cleanup releases only owned demands.
 
 Papyrus replacement options read only `Anchor`, `HeadingDeg` and `Stage`; all other fields,
 including `FadeMode`, `InPlaceMode`, `LockPlayerMode`, `Speed`, `Camera`, `LoopScale`, `StripMode`,
@@ -612,7 +617,7 @@ starts age at entry. These are submission limits, not audible-onset or sound-dur
 Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
 continues without coalescing or expiry, including its existing failed-replacement behavior.
 
-The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.9
+The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.10
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, shared camera/input mechanisms, and actor-state scopes. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
@@ -625,7 +630,10 @@ or optional hiding claims. Scene role equipment, automatic gear, equipment actio
 stripping use the same service. Release is selective, save suspension retains persistent
 demands, and world replacement revokes runtime-only tokens. See [ACTOR_STATE.md](ACTOR_STATE.md)
 for the native API, conflicts, cleanup retry, and base-form inventory provenance limits.
-H3 preparation, attachment reservations, and pose-layer composition remain separate work.
+Services 3.10 adds [shared preparation](PREPARATION.md), including versioned preparers,
+equipment plans, exact resource reservations, bounded readiness and selective rollback across
+starts and all runtime transitions. Item-mesh/attachment readiness requires a consumer backend;
+pose-layer composition remains separate work.
 
 ## In-game UI, hotkeys, and the wheel tag contract
 

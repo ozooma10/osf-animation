@@ -5,10 +5,10 @@ equipment, equipment actions, automatic gear, and held-item clearing all use thi
 Gameplay mods can use it outside a scene. No anatomy, device unlocking, or encounter policy
 is built into Animation.
 
-This is H2's equipment implementation and common scope contract. Pose layers, bone holds,
-resource reservations/attachments, versioned snapshots, and H3's vetoable preparation
-boundary remain future work. Success here confirms inventory state, not mesh readiness
-or permission to begin dependent playback.
+This is H2's equipment implementation and common scope contract. Services 3.10 builds
+[H3 preparation](PREPARATION.md) on it, with transactional destination requirements and resource
+reservations. Pose layers, bone holds, attachment backends and versioned snapshots remain future
+work. Success here confirms inventory state, not mesh readiness or playback admission.
 
 ## Lifetime and authority
 
@@ -63,7 +63,7 @@ A typical persistent device registration, executed in game context:
 
 ```cpp
 using namespace OSF::API;
-const auto* api = RequestEngineAPI(); // current header requests 3.9
+const auto* api = RequestEngineAPI(); // current header requests 3.10
 if (!api) return;
 const auto scope = api->CreateActorStateScope(
     "example.device", ActorStateLifetime::Persistent, 0);
@@ -138,8 +138,11 @@ active positive claim.
 
 The ledger now releases groups instead of replaying independent inventory snapshots.
 Final scene cleanup closes the session; the same handle retains ownership across handoff.
-Conflicting legacy equipment requests log refusal and retain existing ownership. They do
-not veto already-started playback: that admission guarantee belongs to H3.
+Required default/entry equipment now participates in H3 preparation before dependent playback;
+conflicts refuse admission. Timed/ordinary equipment requests still log refusal and retain
+existing ownership without rewinding already-started playback. Preparation edits snapshot only
+selected scopes' claims, retain provenance across temporary release, and reconcile rollback
+against live inventory without replacing another owner's claims.
 
 ## Saving and world replacement
 

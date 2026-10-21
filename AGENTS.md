@@ -8,7 +8,7 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the thirteen engine-free C++ suites (shared actor-state ownership/reconciliation, persistence broker,
+- **Tests:** `xmake test` builds and runs the fourteen engine-free C++ suites (shared preparation/rollback, actor-state ownership/reconciliation, persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
   synthetic AF/rig/BA2 fixtures, playback session transitions/marks, frame clock/clip specs, clip-duration cache, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
   `test/fixtures`; the scene registry suite also exercises the production catalog builder). Run it after
@@ -137,9 +137,9 @@ Each entry: **system** (`path`) — role.
 - **SceneRuntime** (`src/Scene/SceneRuntime.*`) - generational handle table, lifecycle (`Fire`), navigation, timed-mark decode (`OnTimedMarks`, lane-ordered action→camera→sound→cue)
   `osf.*` action dispatch (`RunAction`), and the **per-handle undo ledger** (reverses every reversible
   mechanism in reverse order, once, idempotently, on ANY termination). Talks to Layer A only via its public surface, to Layer C via services.
-  **Scene-start defaults** (`EngageDefaultPlayerInputLock` / `HideDefaultApparel`, called once per start in each
-  `Start*` funnel): lock the player's input when they participate (opt out `lockPlayer:false`) and strip
-  every participant's apparel (opt out `stripActors:false`); both ledger-tracked so they auto-reverse on end.
+  **Scene-start defaults**: input lock applies after admission (opt out `lockPlayer:false`).
+  Apparel/held-item clearing, gear and authored equipment are prepared before playback (opt out
+  `stripActors:false`); H2 scopes and the ledger reverse only owned demands on end.
   The caller resolves each opt-out — from the `SceneDef` for a def scene, the `PackPolicy` for a pack — and
   passes the booleans in; a files scene has no field, so both stay on.
 - **SceneEventRelay** (`src/Scene/SceneEventRelay.*`) - synchronous native API callback dispatch at
@@ -169,7 +169,12 @@ Each entry: **system** (`path`) — role.
   persistent/session equipment claims, selective cleanup, save suspension and world-reset revocation.
   Scene apparel/held/authored/gear groups use this store; `EquipmentService` is only its inventory
   backend. Base-form/count provenance is conservative, not exact-instance ownership. Native failure
-  tests cover the production core. See `docs/ACTOR_STATE.md`; H3 preparation and pose layers are future work.
+  tests cover the production core. See `docs/ACTOR_STATE.md`; pose layers remain future work.
+- **Shared preparation** (`src/Preparation/Coordinator.*`, `SceneRuntime_Preparation.cpp`, services ABI 3.10) —
+  reserved starts and all scene-owned handoff/node/segment changes use Plan/Apply/Ready/Validate
+  on the verified frame drain. H2 scope edits, exact resource leases, bounded polling and cancellation
+  precede dependent playback; sampling hooks only request stages. Callbacks run outside locks with
+  generation checks. See `docs/PREPARATION.md` for async admission, provider lifetime and readiness limits.
 - **Owned audio** (`SoundService`, services ABI 3.6) — independent opaque channels, closed by the
   consumer at its scope boundary and revoked on world replacement. Media preparation is separate
   from the synchronized validity-check/post/publication commit. Channel close cannot race a late
