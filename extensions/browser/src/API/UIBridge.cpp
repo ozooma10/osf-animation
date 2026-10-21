@@ -4,6 +4,7 @@
 #include "Serialization/ClipDurationCache.h"
 #include "API/UIBridge.h"
 #include "API/BrowserSession.h"
+#include "API/BrowserLaunchSequence.h"
 #include "API/BrowserJsonTransport.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/UIBridgeWorld.h"
@@ -413,7 +414,9 @@ namespace OSF::API
 		{
 			std::string                              sceneId;
 			bool                                     singleAnimation = false;
+			bool                                     wheel = false;
 			std::vector<RE::Actor*>                  actors;
+			std::vector<RE::NiPointer<RE::TESObjectREFR>> pins;
 			RE::TESObjectREFR*                       furniture = nullptr;
 			OSFStartOptions                          options{};
 			std::string                              locationMode;
@@ -550,7 +553,7 @@ namespace OSF::API
 
 		void ApplyWheelLaunchPosture(BrowserLaunchPlan& a_plan)
 		{
-			if (!g_wheel.active) {
+			if (!a_plan.wheel) {
 				return;
 			}
 			// Wheel emotes are in-world flourishes: no placement pin, input lock, stripping, fade, or scene camera.
@@ -575,25 +578,6 @@ namespace OSF::API
 			return std::nullopt;
 		}
 
-		void SupersedeLaunchActors(const BrowserLaunchPlan& a_plan,
-			IOSFSceneAPI& a_api)
-		{
-			for (RE::Actor* actor : a_plan.actors) {
-				const std::int32_t busy = a_api.GetSceneForActor(actor);
-				if (busy == 0) {
-					continue;
-				}
-				a_api.StopScene(busy);
-				std::erase(g_closeStops, busy);
-				g_resumeSpeeds.erase(busy);
-				if (busy == g_lastHandle) {
-					g_lastHandle = 0;
-				}
-				REX::DEBUG("[UI] osf.animation.launch '{}' superseding live scene {:#010x} (cast busy) — stopped it first",
-					a_plan.sceneId, busy);
-			}
-		}
-
 		std::int32_t StartBrowserLaunch(const BrowserLaunchPlan& a_plan, IOSFSceneAPI& a_api)
 		{
 			if (!a_plan.roleNames.empty()) {
@@ -611,7 +595,7 @@ namespace OSF::API
 		{
 			g_lastHandle = a_handle;
 			// Stage rows and wheel entries play one animation, not the parent collection.
-			if (g_wheel.active || a_plan.singleAnimation) {
+			if (a_plan.wheel || a_plan.singleAnimation) {
 				EngineClient::Get().SetSingleStage(a_handle);
 			}
 
@@ -619,7 +603,7 @@ namespace OSF::API
 			const bool castHasPlayer = player &&
 				std::find(a_plan.actors.begin(), a_plan.actors.end(), static_cast<RE::Actor*>(player)) !=
 					a_plan.actors.end();
-			if (!g_wheel.active && castHasPlayer) {
+			if (!a_plan.wheel && castHasPlayer) {
 				g_closeStops.push_back(a_handle);
 			}
 			return castHasPlayer;
@@ -633,6 +617,7 @@ namespace OSF::API
 			                 ? j["sceneId"].get<std::string>()
 			                 : std::string{};
 			plan.singleAnimation = BoolOr(j, "singleAnimation", false);
+			plan.wheel = g_wheel.active;
 
 			json reply;
 			reply["sceneId"] = plan.sceneId;
@@ -668,21 +653,47 @@ namespace OSF::API
 				return fail("OSF Animation engine is not ready yet");
 			}
 
-			SupersedeLaunchActors(plan, *api);
-			const auto handle = StartBrowserLaunch(plan, *api);
-			if (handle == 0) {
-				return fail(LaunchError(plan.sceneId, plan.actors.size(), plan.furniture != nullptr));
-			}
-
-			const bool castHasPlayer = RecordLaunchSuccess(plan, handle);
-			reply["ok"] = true;
-			reply["handle"] = handle;
-			REX::DEBUG("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})",
-				plan.sceneId, handle, plan.actors.size(),
-				plan.furniture ? ", anchored" : "",
-				castHasPlayer ? "" : ", NPC-only — outlives the browser");
-			SendJson(a_srcView, "osf.animation.launchResult", reply);
-			PushActiveScenes();
+			// Retain both request data and references across deferred scene teardown.
+			for (auto* actor : plan.actors) plan.pins.emplace_back(actor);
+			if (plan.options.anchorRef) plan.pins.emplace_back(plan.options.anchorRef);
+			auto pending = std::make_shared<BrowserLaunchPlan>(std::move(plan));
+			const std::string sourceView = a_srcView ? a_srcView : "";
+			const auto failPending = [pending, sourceView](const char* reason) {
+				REX::WARN("[UI] osf.animation.launch '{}' refused: {}", pending->sceneId, reason);
+				SendJson(sourceView.c_str(), "osf.animation.launchResult",
+					json{ { "sceneId", pending->sceneId }, { "ok", false }, { "handle", 0 }, { "error", reason } });
+			};
+			BrowserLaunchSequence::Begin({
+				.owners = [pending, api] {
+					std::vector<std::int32_t> owners;
+					for (auto* actor : pending->actors) owners.push_back(api->GetSceneForActor(actor));
+					return owners;
+				},
+				.stop = [pending, api](std::int32_t busy) {
+					if (!api->StopScene(busy)) return false;
+					std::erase(g_closeStops, busy);
+					g_resumeSpeeds.erase(busy);
+					if (busy == g_lastHandle) g_lastHandle = 0;
+					REX::DEBUG("[UI] osf.animation.launch '{}' waiting for scene {:#010x} to release its cast", pending->sceneId, busy);
+					return true;
+				},
+				.start = [pending, api, sourceView, failPending] {
+					const auto handle = StartBrowserLaunch(*pending, *api);
+					if (handle == 0) {
+						failPending(LaunchError(pending->sceneId, pending->actors.size(), pending->furniture != nullptr).c_str());
+						return;
+					}
+					const bool castHasPlayer = RecordLaunchSuccess(*pending, handle);
+					REX::DEBUG("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})",
+						pending->sceneId, handle, pending->actors.size(), pending->furniture ? ", anchored" : "",
+						castHasPlayer ? "" : ", NPC-only — outlives the browser");
+					SendJson(sourceView.c_str(), "osf.animation.launchResult",
+						json{ { "sceneId", pending->sceneId }, { "ok", true }, { "handle", handle } });
+					PushActiveScenes();
+				},
+				.fail = failPending,
+				.post = [](std::function<void()> task) { BrowserSession::Post(std::move(task)); }
+			});
 		}
 
 		std::optional<std::int32_t> CommandHandle(const char* a_payload)

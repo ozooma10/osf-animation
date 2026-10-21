@@ -4,6 +4,7 @@ void RunBrowserClipLibraryTests();
 #include "API/EngineClient.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/BrowserSessionQueue.h"
+#include "API/BrowserLaunchSequence.h"
 #include "API/BrowserJsonTransport.h"
 #include "API/EngineServiceState.h"
 #include "API/BrowserForwarder.h"
@@ -36,6 +37,70 @@ namespace
 		callback(text.c_str(),context);
 		return true;
 	}
+
+	void RunBrowserLaunchSequenceTests()
+	{
+		using OSF::Test::Check;
+		using Sequence = OSF::API::BrowserLaunchSequence;
+		namespace Queue = OSF::Util::NativeMainThreadQueue;
+		struct Fixture
+		{
+			OSF::API::BrowserSessionQueue session{ [](auto task) { Queue::Post(std::move(task)); } };
+			std::vector<std::int32_t> owners, stopped;
+			int starts{}, failures{};
+			bool acceptStop = true;
+			Sequence::Clock::time_point now{};
+			Fixture() { session.Visibility(true, [] {}); Queue::Drain(); }
+			void Begin(std::shared_ptr<int> pin = {})
+			{
+				Sequence::Begin({
+					.owners = [this] { return owners; },
+					.stop = [this](auto owner) { stopped.push_back(owner); return acceptStop; },
+					.start = [this, pin] { ++starts; },
+					.fail = [this](const char*) { ++failures; },
+					.post = [this](auto task) { session.Post(std::move(task)); },
+					.now = [this] { return now; }
+				});
+			}
+		};
+		{
+			Fixture f; f.owners = { 0, 0 }; f.Begin();
+			Check(f.starts == 1 && f.stopped.empty() && !f.failures, "free cast starts immediately");
+			Queue::Drain(); Check(f.starts == 1, "immediate launch is not also posted");
+		}
+		{
+			Fixture f; f.owners = { 17, 17, 23 }; f.Begin();
+			Check(f.stopped == std::vector<std::int32_t>{ 17, 23 } && !f.starts, "shared owners stop once and accepted stops do not imply release");
+			Queue::Post([&] { f.owners = { 0, 0, 23 }; });
+			Queue::Drain(); Queue::Drain();
+			Check(!f.starts && !f.failures, "replacement waits multiple finite frame drains for the entire cast");
+			Queue::Post([&] { f.owners = { 0, 0, 0 }; });
+			Queue::Drain(); Check(!f.starts, "release later in the frame does not start from stale ownership");
+			Queue::Drain(); Queue::Drain();
+			Check(f.starts == 1 && !f.failures, "replacement starts once after actual deferred release");
+		}
+		{
+			Fixture f; f.owners = { 17 }; f.acceptStop = false; f.Begin(); Queue::Drain();
+			Check(!f.starts && f.failures == 1, "stop refusal never starts a replacement");
+		}
+		{
+			Fixture f; f.owners = { 17 }; f.Begin(); f.now += std::chrono::seconds(5); Queue::Drain(); Queue::Drain();
+			Check(!f.starts && f.failures == 1, "cast release timeout terminates the pending launch");
+		}
+		{
+			Fixture f; f.owners = { 17 }; f.Begin(); f.owners = { 29 }; Queue::Drain(); Queue::Drain();
+			Check(!f.starts && f.failures == 1 && f.stopped == std::vector<std::int32_t>{ 17 }, "competing launch is neither stopped nor stolen");
+		}
+		for (const bool reset : { false, true }) {
+			Fixture f; f.owners = { 17 };
+			auto pin = std::make_shared<int>(1); std::weak_ptr<int> weak = pin;
+			f.Begin(pin); pin.reset();
+			Check(!weak.expired(), "pending launch retains its request and reference pins");
+			if (reset) f.session.Reset([] {}); else f.session.Visibility(false, [] {});
+			f.owners = { 0 }; Queue::Drain(); Queue::Drain();
+			Check(!f.starts && !f.failures && weak.expired(), "hide or world reset cancels the launch and releases retained references");
+		}
+	}
 }
 
 int main()
@@ -43,6 +108,7 @@ int main()
 	using OSF::Test::Check;
 	using namespace OSF::API;
 	RunBrowserClipLibraryTests();
+	RunBrowserLaunchSequenceTests();
 	{
 		using Transport = BrowserJsonTransport;
 		using json = nlohmann::json;
