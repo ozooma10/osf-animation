@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
+#include <utility>
 
 namespace OSF::Testing::D3QualificationState
 {
@@ -37,4 +39,28 @@ namespace OSF::Testing::D3QualificationState
     private:
         std::optional<CpuInterval> interval;
     };
+
+    template<class Close>
+    void CloseChannels(std::span<std::uint64_t> channels, Close&& close)
+    {
+        for (auto& channel : channels) {
+            if (const auto owned = std::exchange(channel, 0)) close(owned);
+        }
+    }
+
+    // Retire every overwritten handle, including its pending work. Allocation
+    // failure leaves the requested range empty and closes partial replacements.
+    template<class Create, class Close>
+    bool ReplaceChannels(std::span<std::uint64_t> channels, Create&& create, Close&& close)
+    {
+        CloseChannels(channels, close);
+        for (auto& channel : channels) {
+            channel = create();
+            if (!channel) {
+                CloseChannels(channels, close);
+                return false;
+            }
+        }
+        return true;
+    }
 }

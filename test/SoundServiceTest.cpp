@@ -3,6 +3,7 @@
 #include "Check.h"
 #include "Testing/D3QualificationState.h"
 #include "Util/MonotonicClock.h"
+#include <array>
 #include <condition_variable>
 #include <future>
 #include <thread>
@@ -291,6 +292,46 @@ void TestSoundService()
         if(world) service.StopAll(); else service.CloseChannel(owner);
         Release(); Check(service.WaitIdleForTest() && Posts()==before,"opted cancellation drains without late posts");
     }
+
+    // The private qualification runner uses the same ownership transition after
+    // individual posts and before a load. Unselected sentinel channels survive.
+    using OSF::Testing::D3QualificationState::CloseChannels;
+    using OSF::Testing::D3QualificationState::ReplaceChannels;
+    std::array<std::uint64_t, 3> qualificationChannels{
+        service.CreateChannel(), service.CreateChannel(), service.CreateChannel()};
+    std::array<std::uint32_t, 3> qualificationVoices{};
+    for (std::size_t i = 0; i < qualificationChannels.size(); ++i) {
+        Check(service.PlayChannel(qualificationChannels[i], "event:test"), "D3 individual post starts");
+        qualificationVoices[i] = Last();
+    }
+    const auto originalChannels = qualificationChannels;
+    const auto createChannel = [&] { return service.CreateChannel(); };
+    const auto closeChannel = [&](std::uint64_t owned) { return service.CloseChannel(owned); };
+    Check(ReplaceChannels(std::span(qualificationChannels).first(2), createChannel, closeChannel) &&
+        Stopped(qualificationVoices[0]) && Stopped(qualificationVoices[1]) && !Stopped(qualificationVoices[2]),
+        "D3 load retires overwritten voices while preserving the independent sentinel");
+    Check(!service.PlayChannel(originalChannels[0], "event:test") &&
+        !service.PlayChannel(originalChannels[1], "event:test"), "D3 load cannot orphan previous post handles");
+    for (std::size_t i = 0; i < 2; ++i) {
+        Check(service.PlayChannel(qualificationChannels[i], "event:test"), "D3 replacement channel starts");
+        qualificationVoices[i] = Last();
+    }
+    CloseChannels(qualificationChannels, closeChannel);
+    Check(std::ranges::all_of(qualificationChannels, [](auto owned) { return owned == 0; }) &&
+        std::ranges::all_of(qualificationVoices, Stopped), "D3 end closes every owned replacement and sentinel");
+
+    qualificationChannels[0] = service.CreateChannel();
+    const auto beforeFailedLoad = qualificationChannels[0];
+    Check(service.PlayChannel(beforeFailedLoad, "event:test"), "D3 pre-failure post starts");
+    const auto beforeFailedVoice = Last();
+    std::uint64_t partialChannel{};
+    int allocations = 0;
+    Check(!ReplaceChannels(std::span(qualificationChannels).first(2), [&]() -> std::uint64_t {
+        return ++allocations == 1 ? (partialChannel = service.CreateChannel()) : 0;
+    }, closeChannel), "D3 load reports partial channel allocation failure");
+    Check(Stopped(beforeFailedVoice) && qualificationChannels[0] == 0 && qualificationChannels[1] == 0 &&
+        partialChannel && !service.PlayChannel(partialChannel, "event:test"),
+        "D3 allocation failure closes partial replacements and leaves no owned handles behind");
 
     std::vector<std::uint64_t> handles;
     for (std::size_t i = 0; i < 4096; ++i) handles.push_back(service.CreateChannel());

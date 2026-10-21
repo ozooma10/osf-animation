@@ -110,7 +110,8 @@ namespace {
     }
     void Close() {
         running=false;
-        for(auto& channel:channels){if(channel)API::RequestEngineAPI()->CloseAudioChannel(channel);channel=0;}
+        const auto* services=API::RequestEngineAPI();
+        D3QualificationState::CloseChannels(channels,[services](std::uint64_t channel) { services->CloseAudioChannel(channel); });
         Event("channels-closed");
     }
     void WakeOutput() {
@@ -178,9 +179,14 @@ Json Command(const Json& args) {
         const auto accepted=API::RequestEngineAPI()->PlayAudioChannel(channels[slot],path.c_str());
         Event("post",{{"media",media},{"slot",slot},{"accepted",accepted}});
     } else if(action=="load") {
-        voices=args.at("voices").get<std::uint32_t>();const auto seconds=args.value("seconds",20u);
-        if(running||voices<1||voices>24||seconds<1||seconds>60)throw std::runtime_error("D3 load outside bounded limits");
-        for(std::uint32_t i=0;i<voices;++i)channels[i]=API::RequestEngineAPI()->CreateAudioChannel();
+        const auto requestedVoices=args.at("voices").get<std::uint32_t>();const auto seconds=args.value("seconds",20u);
+        if(running||requestedVoices<1||requestedVoices>24||seconds<1||seconds>60)throw std::runtime_error("D3 load outside bounded limits");
+        const auto* services=API::RequestEngineAPI();
+        if(!D3QualificationState::ReplaceChannels(std::span(channels).first(requestedVoices),
+            [services] { return services->CreateAudioChannel(); },
+            [services](std::uint64_t channel) { services->CloseAudioChannel(channel); }))
+            throw std::runtime_error("D3 load channel allocation refused");
+        voices=requestedVoices;
         nextBatch=D3AudioProbe::NowNs();deadline=nextBatch+std::uint64_t(seconds)*1000000000;running=true;
         Event("load",{{"voices",voices},{"seconds",seconds}});
     } else if(action=="suspend") {
