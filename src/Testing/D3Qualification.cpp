@@ -63,12 +63,15 @@ namespace {
         if(!b.value("installed",false) || b.value("result",0u)!=1)throw std::runtime_error("D3 qualification requires verified private buffer initialization");
         // Static native caller + dispatcher proof on 1.16.244, captured in OSF RE
         // systems.audio_wwise. Six register arguments; output settings copied opaque.
-        registerCallback=Bind<Register>(150403,0x2CD5F50,std::array<std::uint8_t,13>{0x40,0x53,0x56,0x41,0x54,0x41,0x56,0x41,0x57,0x48,0x83,0xEC,0x40});
+        const auto candidateRegister=Bind<Register>(150403,0x2CD5F50,std::array<std::uint8_t,13>{0x40,0x53,0x56,0x41,0x54,0x41,0x56,0x41,0x57,0x48,0x83,0xEC,0x40});
         outputID=Bind<OutputID>(150376,0x2CD4790,std::array<std::uint8_t,15>{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x57,0x48,0x83,0xEC,0x20});
         removeOutput=Bind<Remove>(150406,0x2CD6190,std::array<std::uint8_t,9>{0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9});
         addOutput=Bind<Add>(150350,0x2CD3850,std::array<std::uint8_t,15>{0x48,0x89,0x74,0x24,0x20,0x41,0x54,0x41,0x56,0x41,0x57,0x48,0x83,0xEC,0x20});
-        const auto result=registerCallback(Render,16|32,nullptr,0,0,0);
-        if(result!=1){registerCallback=nullptr;throw std::runtime_error("D3 render callback registration failed");}
+        const auto result=candidateRegister(Render,16|32,nullptr,0,0,0);
+        if(result!=1)throw std::runtime_error("D3 render callback registration failed");
+        // Publish initialized state only after every binding and registration passed.
+        // A rejected later byte gate must not let a subsequent command skip Init.
+        registerCallback=candidateRegister;
         std::memcpy(outputSettings.data(),reinterpret_cast<void*>(REL::Offset(0x5D608A0).address()),16);
         Event("registered",{{"result",result},{"outputSettings",outputSettings}});
     }
