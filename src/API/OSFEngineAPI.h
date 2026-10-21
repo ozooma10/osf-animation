@@ -8,7 +8,7 @@
 namespace OSF::API
 {
 	// Services 3.11 appends read-only equipment observations from the shared H2 backend.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000C;
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000D;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -201,6 +201,12 @@ namespace OSF::API
 		// resnapshot=1 means history was lost or the cursor is ahead: discard cached snapshots.
 		// Reset changes world and emits actor=0. Do not persist cursors/revisions across processes.
 		ActorStateStatus (*ReadActorStateChanges)(std::uint64_t cursor, ActorStateChanges*);
+		// 3.13. Verified-frame context only. Opt-in covered handoff with the same role/anchor rules.
+		// false: no handoff accepted; true: asynchronous preparation, not a commit guarantee.
+		// Exclusive fade ownership; refuses an existing OSF fade. Cover preparation and actual stamped
+		// pose blending, independent of clip speed. Five-second deadline cancels; stop/reset unwinds.
+		// ReadScenePreparation.pending includes cover/reveal; optional cover reports phase/token/startedMs.
+		bool (*ReplaceSceneRolesCovered)(std::int32_t, const char* sceneId, const char* const* roles, std::uint32_t count);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

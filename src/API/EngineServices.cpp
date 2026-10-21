@@ -322,7 +322,13 @@ namespace OSF::API::EngineServices
 			},
 			&ActorStateAPI::CreateScope, &ActorStateAPI::AcquireEquipment, &ActorStateAPI::ReleaseClaim, &ActorStateAPI::ReleaseGroup, &ActorStateAPI::CloseScope, &ActorStateAPI::Reconcile, &PreparationAPI::Register, &PreparationAPI::Unregister, &PreparationAPI::Equipment,
 			&PreparationAPI::Resource, &PreparationAPI::Failure, &PreparationAPI::Read, &ActorStateAPI::ReadEquipment,
-			&ActorStateAPI::ReadRevision, &ActorStateAPI::ReadChanges };
+			&ActorStateAPI::ReadRevision, &ActorStateAPI::ReadChanges,
+			[](std::int32_t scene, const char* id, const char* const* roles, std::uint32_t count) {
+				if (!Util::NativeMainThreadQueue::IsDraining() || !id || (!roles && count) || count > kOSFSceneMatchMaxActors) return false;
+				std::vector<std::string> names;
+				for (std::uint32_t i=0;i<count;++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
+				return Scene::SceneRuntime::GetSingleton().Replace(scene,id,names,{.covered=true});
+			} };
 	}
 	void WorldReset() { ActorState::Get().Reset(); g_state.ResetWorld(); }
 	void ContentReloaded() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::ContentReloaded)); }

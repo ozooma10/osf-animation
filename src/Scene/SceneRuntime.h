@@ -9,6 +9,7 @@
 #include "Registry/ContentRegistry.h"
 #include "Scene/AlignmentState.h"
 #include "Scene/SceneFoundation.h"
+#include "Scene/TransitionCover.h"
 
 #include <cstdint>
 #include <deque>
@@ -82,6 +83,7 @@ namespace OSF::Scene
 			RE::TESObjectREFR* anchor = nullptr;
 			std::optional<float> headingRad;
 			std::int32_t stage = 0;
+			bool covered = false;
 		};
 		bool Replace(std::int32_t a_scene, std::string_view a_id, const std::vector<std::string>& a_roles,
 			const ReplaceOptions& a_options);
@@ -216,6 +218,7 @@ namespace OSF::Scene
 			bool                    transitioning = false;
 			ActorState::Handle                               equipmentScope{};
 			std::shared_ptr<PreparedTransition>              preparation;
+			std::shared_ptr<PreparedTransition>              cover;
 			std::string                                      preparationResult, preparationError;
 			std::map<Preparation::Token, ActorState::Handle> preparedScopes;
 			TerminationCause        terminationCause = TerminationCause::kCompleted;
@@ -275,6 +278,9 @@ namespace OSF::Scene
 			bool                                                           defaults{}, applied{}, exitFired{}, committed{};
 			bool                                                           playerInputLock{ true }, hideApparel{ true }, clearHeldItems{ true }, fade{};
 			Animation::PlaybackId                                          published{};
+			bool covered{}, coverReleased{};
+			std::uint64_t coverToken{};
+			TransitionCover coverState;
 			ActorState::Handle                                             edit{};
 			std::vector<ActorState::Store::Change>                         changes;
 			std::map<Preparation::Token, std::vector<ActorState::Request>> requests;
@@ -289,6 +295,8 @@ namespace OSF::Scene
 		bool                                                              CommitPreparation(const std::shared_ptr<PreparedTransition>&);
 		void                                                              FinishPreparation(const std::shared_ptr<PreparedTransition>&, Preparation::Outcome, bool applied);
 		void                                                              PollPreparation();
+		void                                                              PollCover(const std::shared_ptr<PreparedTransition>&);
+		void                                                              ReleaseCover(const std::shared_ptr<PreparedTransition>&);
 		void                                                              ResetPreparation();
 		void                                                              ReleaseResources(std::int32_t scene);
 		static bool                                                       PreparedEquipmentAction(Registry::ActionKind);

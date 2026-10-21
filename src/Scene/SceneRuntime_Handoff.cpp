@@ -71,6 +71,7 @@ namespace OSF::Scene
 		p->anchorBase = base;
 		p->anchorRef = ref;
 		p->defaults = true;
+		p->covered = a_options.covered;
 		p->playerInputLock = next->playerInputLock;
 		p->hideApparel = next->hideApparel;
 		p->clearHeldItems = next->clearHeldItems;

@@ -563,6 +563,10 @@ namespace OSF::Scene
 			Slot*           s = Resolve(a_scene);
 			if (!s)
 				return false;
+			if (s->cover) {
+				s->cover->cancelled = true;
+				if (!s->preparation) s->transitioning = false;
+			}
 			if (s->preparation) {
 				const auto p = s->preparation;
 				p->cancelled = true;

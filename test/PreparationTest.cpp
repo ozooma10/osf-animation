@@ -1,10 +1,25 @@
 #include "Check.h"
 #include "Preparation/Coordinator.h"
+#include "Scene/TransitionCover.h"
 #include <stdexcept>
 using namespace OSF::Preparation;
 
 int main()
 {
+    {
+        OSF::Scene::TransitionCover cover{.started=1000};
+        CHECK(!cover.PreparationReady(1299));
+        CHECK(cover.PreparationReady(1300));
+        CHECK(!cover.CanReveal(true));
+        cover.Committed();
+        CHECK(!cover.CanReveal(false)); // elapsed time alone never proves a stamped pose
+        CHECK(cover.CanReveal(true)); // clip time need not advance
+        CHECK(!cover.Expired(5999) && cover.Expired(6000));
+        cover.Revealing(5500);
+        CHECK(!cover.Finished(5999) && cover.Finished(6000));
+        OSF::Scene::TransitionCover delayed{.started=1000};
+        CHECK(!delayed.PreparationReady(6000)); // stalled frame cannot start a late handoff
+    }
     for (auto kind : {Kind::Start, Kind::Handoff, Kind::Node, Kind::Stage}) {
         Coordinator c; std::vector<int> calls; int polls=0; Outcome result=Outcome::Failed;
         auto provider=c.Register({0,5000,

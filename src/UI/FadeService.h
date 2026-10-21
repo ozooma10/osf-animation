@@ -24,6 +24,12 @@ namespace OSF::UI
 
 		void Tick();
 
+		// Exclusive screen ownership for a covered handoff. Old tokens cannot release a new owner.
+		std::uint64_t BeginTransition();
+		bool OwnsTransition(std::uint64_t token);
+		bool RevealTransition(std::uint64_t token);
+		void EndTransition(std::uint64_t token);
+
 #ifdef OSF_ANIMATION_SMOKE
 		bool HoldingForSmoke() const { return releaseAtMs.load() != 0; }
 #endif
@@ -34,5 +40,7 @@ namespace OSF::UI
 
 		// Steady-clock ms; 0 = nothing held.
 		std::atomic<int64_t> releaseAtMs{ 0 };
+		std::mutex transitionLock;
+		std::uint64_t transitionOwner{}, nextTransition{};
 	};
 }

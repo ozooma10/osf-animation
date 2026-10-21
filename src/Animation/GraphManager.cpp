@@ -717,6 +717,21 @@ namespace OSF::Animation
 		return SynchronizedPlaybackState{ snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage), scene->playbackId, scene->anchorPos, scene->anchorHeading, static_cast<int32_t>(scene->stages.size()) };
 	}
 
+	bool GraphManager::SceneBlendComplete(const std::vector<RE::Actor*>& actors, PlaybackId playback)
+	{
+		if (actors.empty() || !playback) return false;
+		std::shared_lock lock{stateLock};
+		for (auto* actor : actors) {
+			const auto it = graphs.find(actor);
+			if (it == graphs.end()) return false;
+			std::scoped_lock graphLock{it->second->stateLock};
+			const auto& graph = *it->second;
+			// kIn becomes kNone only after the full target pose has actually been stamped.
+			if (!graph.playbackSession || graph.playbackSession->playbackId != playback ||
+				graph.blendPhase != BlendPhase::kNone) return false;
+		}
+		return true;
+	}
 	bool GraphManager::StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback)
 	{
 		if (!a_actor) {

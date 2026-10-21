@@ -22,7 +22,8 @@ namespace OSF::Scene
 		auto&           rt = GetSingleton();
 		std::lock_guard l{ rt._lock };
 		const auto*     s = rt.Resolve(handle);
-		return s && s->node == node && !(s->preparation && (s->preparation->cancelled || s->preparation->reset)) && (!enter || !s->transitioning);
+		return s && s->node == node && !(s->preparation && (s->preparation->cancelled || s->preparation->reset)) &&
+			(!enter || !s->transitioning || (s->cover && s->cover->committed && !s->cover->cancelled));
 	}
 
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition,
