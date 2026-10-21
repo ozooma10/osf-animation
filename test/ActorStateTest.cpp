@@ -35,6 +35,22 @@ Request Preserve(Object o) { return {10,o,Operation::Preserve,3,false}; }
 int main()
 {
 	{
+		Fake f;
+		auto state = ReadEquipment(f,10,1);
+		CHECK(state && state->item.slots == 1 && !state->item.count && !state->item.worn);
+		f.Seed(10,1); f.Seed(10,2); f.Seed(10,3);
+		state = ReadEquipment(f,10,1);
+		CHECK(state && state->item.worn && state->conflictingWornSlots == 1);
+		f.Get(10,2).skin = true;
+		CHECK(ReadEquipment(f,10,1)->conflictingWornSlots == 0);
+		f.Get(10,2).skin = false; f.Get(10,2).worn = false;
+		CHECK(ReadEquipment(f,10,1)->conflictingWornSlots == 0);
+		CHECK(f.writes == 0);
+		f.unavailable = true;
+		CHECK(!ReadEquipment(f,10,1));
+		CHECK(!ReadEquipment(f,10,999) && !ReadEquipment(f,0,1));
+	}
+	{
 		Fake f; f.Seed(10,1); Store s(f);
 		auto scene=s.CreateScope("scene",Lifetime::Session,42), device=s.CreateScope("device",Lifetime::Persistent);
 		auto body=s.Acquire(scene,Equip(2)); CHECK(body);

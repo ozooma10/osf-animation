@@ -1,5 +1,7 @@
 #include "API/ActorStateAPI.h"
 #include "ActorState/Service.h"
+#include "Equipment/EquipmentService.h"
+#include "Util/NativeMainThreadQueue.h"
 #include "Scene/SceneRuntime.h"
 
 namespace OSF::API::ActorStateAPI
@@ -49,6 +51,16 @@ namespace OSF::API::ActorStateAPI
 	ActorStateStatus CloseScope(std::uint64_t scope)
 	{
 		try { return Result(ActorState::Get().CloseScope(scope)); } catch (...) { return ActorStateStatus::Failed; }
+	}
+	ActorStateStatus ReadEquipment(RE::Actor* actor, RE::TESBoundObject* object, ActorEquipmentState* out)
+	{
+		if (!actor || !object || !out || out->size < sizeof(ActorEquipmentState) || !Util::NativeMainThreadQueue::IsDraining()) return ActorStateStatus::Invalid;
+		try {
+			const auto state = ActorState::ReadEquipment(Equipment::EquipmentService::GetSingleton(), actor->GetFormID(), object->GetFormID());
+			if (!state) return ActorStateStatus::Unavailable;
+			*out = {sizeof(ActorEquipmentState), state->item.count, state->item.slots, state->conflictingWornSlots, state->item.worn ? 1u : 0u};
+			return ActorStateStatus::Ok;
+		} catch (...) { return ActorStateStatus::Failed; }
 	}
 	ActorStateStatus Reconcile(RE::Actor* actor)
 	{

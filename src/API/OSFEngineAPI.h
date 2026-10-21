@@ -7,8 +7,8 @@
 
 namespace OSF::API
 {
-	// Services 3.10 appends shared preparation for scene starts and transitions.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000A;
+	// Services 3.11 appends read-only equipment observations from the shared H2 backend.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000B;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -189,6 +189,11 @@ namespace OSF::API
 		bool (*SetPreparationFailure)(std::uint64_t attempt, std::uint64_t provider, const char* reason);
 		// JSON {scene,status,reason,pending,playing,attempt?}; retains terminal results with ended roster.
 		bool (*ReadScenePreparation)(std::int32_t scene, TextCallback, void*);
+		// 3.11. Verified-frame context only. Reads the same backend as H2, without claims,
+		// reconciliation or writes. Ok with count=0/worn=0 means absent, not unavailable.
+		// Conflicts exclude this base form and default skins, using H2's slot policy.
+		// Output is written only on Ok. No mesh, exact-instance, or snapshot-version guarantee.
+		ActorStateStatus (*ReadActorEquipment)(RE::Actor*, RE::TESBoundObject*, ActorEquipmentState*);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

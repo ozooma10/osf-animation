@@ -10,6 +10,18 @@ This is H2's equipment implementation and common scope contract. Services 3.10 b
 reservations. Pose layers, bone holds, attachment backends and versioned snapshots remain future
 work. Success here confirms inventory state, not mesh readiness or playback admission.
 
+## Read-only equipment observations (services 3.11)
+
+`ReadActorEquipment(actor, object, &state)` uses this service's existing inventory backend.
+Call it only in the verified frame drain (including preparation callbacks). It writes the
+size-tagged `ActorEquipmentState` only on `Ok`, returning base-form count, worn state, 64-bit
+slots, and slots overlapping other worn equipment. The queried item and default skins are
+excluded from conflicts using the same overlap rule as claims. A valid absent item returns
+`Ok`, count zero and worn zero; unavailable inventory/description returns `Unavailable`.
+This does not acquire claims, reconcile, mutate inventory, prove mesh readiness or provide
+an exact-instance/versioned snapshot. Providers can combine it with their own item geometry
+checks without copying engine offsets or walking inventory independently.
+
 ## Lifetime and authority
 
 Create a scope with a copied owner label (1–256 bytes), a lifetime, and a scene handle.

@@ -41,6 +41,9 @@ namespace OSF::ActorState
 		virtual bool Remove(Actor, Object) = 0;
 	};
 
+	struct EquipmentObservation { Item item; std::uint64_t conflictingWornSlots{}; };
+	std::optional<EquipmentObservation> ReadEquipment(Backend& backend, Actor actor, Object object);
+
 	// Serial game-context service, deliberately without locks around engine/backend calls.
 	// Scopes and claims share a never-recycled token space. Owner strings are diagnostic identity,
 	// not security credentials; possession of the scope is the authority to release its claims.

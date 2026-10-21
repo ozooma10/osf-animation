@@ -17,6 +17,19 @@ namespace OSF::ActorState
 		void Merge(Status& result, Status next) { if (next != Status::Ok) result = next; }
 	}
 
+	std::optional<EquipmentObservation> ReadEquipment(Backend& backend, Actor actor, Object object)
+	{
+		if (!actor || !object) return {};
+		const auto description = backend.Describe(object);
+		if (!description) return {};
+		const auto inventory = backend.Read(actor);
+		if (!inventory) return {};
+		EquipmentObservation out{Find(*inventory, object, *description)};
+		for (const auto& item : *inventory)
+			if (item.worn && Overlap(out.item, item)) out.conflictingWornSlots |= out.item.slots & item.slots;
+		return out;
+	}
+
 	Handle Store::Next()
 	{
 		if (!_next || _next == std::numeric_limits<Handle>::max()) return 0;

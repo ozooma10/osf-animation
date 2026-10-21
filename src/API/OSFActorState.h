@@ -11,6 +11,12 @@ namespace OSF::API
 		ActorEquipmentAllowAdd = 1,        // Equip only; add one transient copy only if absent
 		ActorEquipmentReplaceGroup = 2     // Equip only; replace conflicting equip claims in this scope/group
 	};
+	// Read-only base-form observation; inventory state is not mesh readiness.
+	struct ActorEquipmentState {
+		std::uint32_t size{sizeof(ActorEquipmentState)}, count{};
+		std::uint64_t slots{}, conflictingWornSlots{};
+		std::uint32_t worn{};
+	};
 	struct ActorEquipmentRequest {
 		std::uint32_t size{sizeof(ActorEquipmentRequest)};
 		RE::Actor* actor{};
