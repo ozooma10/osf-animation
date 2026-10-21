@@ -11,6 +11,8 @@ namespace OSF::Util::NativeMainThreadQueue
 	// Order preserved within one frame batch.
 	void PostBatch(std::vector<std::function<void()>> a_tasks);
 
+	bool IsDraining();  // current thread is executing the verified frame batch
+
 	// Frame-hook owner only. Runs one finite batch without holding the queue lock.
 	void Drain();
 }

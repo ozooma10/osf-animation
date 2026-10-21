@@ -1,5 +1,6 @@
-#include "Check.h"
 #include "ActorState/Store.h"
+#include "Check.h"
+#include "Preparation/Coordinator.h"
 
 #include <algorithm>
 #include <map>
@@ -225,5 +226,95 @@ int main()
         CHECK(s.FinishEdit(edit,false)==Status::Invalid);
         CHECK(s.CloseScope(device)==Status::Ok);
     }
+
+	for (auto outcome : { OSF::Preparation::Outcome::Committed, OSF::Preparation::Outcome::TimedOut, OSF::Preparation::Outcome::WorldReset, OSF::Preparation::Outcome::Failed }) {
+		using namespace OSF::Preparation;
+		Fake f;
+		f.Seed(10, 1);
+		Store       store(f);
+		Coordinator coordinator;
+		auto        scene = store.CreateScope("scene", Lifetime::Session, 9);
+		auto        device = store.CreateScope("device", Lifetime::Persistent);
+		CHECK(store.Acquire(scene, Equip(2)));
+		std::vector<Store::Change> changes{ { scene, { 0, 0, Operation::Equip, 1 }, true, false, false, {} },  // authored exit unequip
+			{ scene, Equip(1), false, false, false, {} } };                                                    // required destination item
+		Handle                     edit = 0;
+		bool                       ready = false, world = true;
+		int                        commits = 0;
+		Outcome                    got = Outcome::Vetoed;
+		coordinator.Register({ 0, 100,
+			[&](const Context&, Phase phase) {
+				if (phase == Phase::Ready)
+					return ready ? Decision::Approve : Decision::Pending;
+				return Decision::Approve;
+			},
+			[](const Context&, Outcome) {} });
+		Context ctx;
+		ctx.scene = 9;
+		ctx.actors = { 10 };
+		coordinator.Begin(ctx,
+			{ [&] { return world; },
+				[&] {
+					auto writes = f.writes;
+					auto status = store.PreviewPlan(changes);
+					CHECK(writes == f.writes);
+					return status == Status::Ok;
+				},
+				[&] {
+					edit = store.BeginEdit({ scene });
+					return edit && store.ApplyPlan(changes) == Status::Ok;
+				},
+				[] { return Decision::Approve; },
+				[&] {
+					++commits;
+					return outcome != Outcome::Failed;
+				},
+				[&](Outcome o, bool applied) {
+					got = o;
+					CHECK(applied);
+					if (o != Outcome::WorldReset)
+						CHECK(store.FinishEdit(edit, o == Outcome::Committed) == Status::Ok);
+				},
+				[] { return Outcome::WorldReset; } },
+			0);
+		coordinator.Tick(1);
+		CHECK(commits == 0 && coordinator.PendingCount() == 1 && f.Get(10, 1).worn);
+		CHECK(store.Acquire(device, Equip(3)));  // unrelated persistent change while waiting
+		if (outcome == Outcome::WorldReset) {
+			auto writes = f.writes;
+			world = false;
+			store.Reset();
+			coordinator.Tick(2);
+			CHECK(f.writes == writes && store.ClaimCount() == 0);
+		} else {
+			ready = outcome != Outcome::TimedOut;
+			coordinator.Tick(ready ? 2 : 100);
+			CHECK(f.Get(10, 3).worn && f.Get(10, 3).count == 1);
+			CHECK(f.Get(10, outcome == Outcome::Committed ? 1 : 2).worn);
+		}
+		CHECK(got == outcome && !coordinator.PendingCount());
+		CHECK(commits == ((outcome == Outcome::Committed || outcome == Outcome::Failed) ? 1 : 0));
+	}
+	{
+		Fake  f;
+		Store store(f);
+		auto  scene = store.CreateScope("scene", Lifetime::Session, 1), device = store.CreateScope("device", Lifetime::Persistent);
+		CHECK(store.Acquire(device, Equip(1)));
+		auto writes = f.writes;
+		CHECK(store.PreviewPlan({ { scene, Equip(2), false, false, false, {} } }) == Status::Conflict);
+		CHECK(f.writes == writes && f.Get(10, 1).worn);  // refusal never displaces a persistent owner
+	}
+	{
+		Fake f;
+		f.Seed(10, 1);
+		Store store(f);
+		auto  scene = store.CreateScope("release", Lifetime::Session, 1);
+		CHECK(store.Acquire(scene, Equip(2)));
+		auto edit = store.BeginEdit({ scene });
+		CHECK(edit);
+		CHECK(store.ReleaseGroup(scene, 1) == Status::Ok && store.PendingActorCount() == 1);
+		CHECK(store.FinishEdit(edit, true) == Status::Ok && store.PendingActorCount() == 0);
+		CHECK(f.Get(10, 1).worn && !f.Get(10, 2).count);
+	}
 	return OSF::Test::Finish("actor-state");
 }

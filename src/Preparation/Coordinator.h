@@ -36,7 +36,8 @@ namespace OSF::Preparation
         std::function<Decision()> ready;
         std::function<bool()> commit;
         std::function<void(Outcome, bool)> finish; // bool: application began, so rollback may be needed
-    };
+		std::function<Outcome()>           invalidReason;  // optional: distinguish world reset from ordinary cancellation
+	};
 
     // Serial frame-drain coordinator. Callbacks run without internal locks and may cancel,
     // reset, unregister, or enqueue other attempts. Tick never recursively pumps new work.
@@ -50,8 +51,10 @@ namespace OSF::Preparation
         void Reset();
         bool Contains(Token attempt) const { return _attempts.contains(attempt); }
         std::size_t PendingCount() const { return _attempts.size(); }
-        std::optional<Token> CurrentProvider(Token attempt, Phase phase) const;
-    private:
+		std::optional<Token> CurrentProvider(Token attempt, std::optional<Phase> phase = {}) const;
+		std::vector<Token>   Providers(Token attempt) const;
+
+	private:
         struct Entry { Token token; Provider provider; };
         struct Attempt {
             Context context;

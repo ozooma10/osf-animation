@@ -73,5 +73,106 @@ int main()
         c.Begin(ctx,{[]{return true;},[]{return true;},[]{return true;},[]{return Decision::Approve;},[]{return true;},[](Outcome,bool){}},0);
         c.Tick(1);CHECK(order==std::vector<int>({1,1,2}));
     }
-    return OSF::Test::Finish("preparation");
+
+	// A reset in one callback changes all later finalizers to WorldReset; no commit follows.
+	for (auto resetPhase : { Phase::Plan, Phase::Apply, Phase::Ready, Phase::Validate }) {
+		Coordinator c;
+		bool        live = true;
+		int         commit = 0;
+		Outcome     result = Outcome::Failed;
+		c.Register({ 0, 100,
+			[&](const Context& ctx, Phase phase) {
+				CHECK(c.CurrentProvider(ctx.attempt, phase).has_value());
+				CHECK(c.Providers(ctx.attempt).size() == 1);
+				if (phase == resetPhase)
+					live = false;
+				return Decision::Approve;
+			},
+			[&](const Context&, Outcome outcome) { CHECK(outcome == Outcome::WorldReset); } });
+		Context ctx;
+		ctx.scene = 1;
+		ctx.actors = { 1 };
+		Hooks h{ [&] { return live; }, [] { return true; }, [] { return true; }, [] { return Decision::Approve; },
+			[&] {
+				++commit;
+				return true;
+			},
+			[&](Outcome o, bool) { result = o; }, [] { return Outcome::WorldReset; } };
+		auto  id = c.Begin(ctx, h, 0);
+		c.Tick(1);
+		CHECK(result == Outcome::WorldReset && !commit && !c.CurrentProvider(id) && c.Providers(id).empty());
+	}
+	{
+		Coordinator          c;
+		bool                 live = true;
+		std::vector<Outcome> results;
+		c.Register({ 0, 100, [](const Context&, Phase) { return Decision::Approve; }, [&](const Context&, Outcome o) { results.push_back(o); } });
+		c.Register({ 1, 100, [](const Context&, Phase) { return Decision::Approve; },
+			[&](const Context&, Outcome o) {
+				results.push_back(o);
+				live = false;
+			} });
+		Context ctx;
+		ctx.scene = 1;
+		ctx.actors = { 1 };
+		c.Begin(ctx, { [&] { return live; }, [] { return true; }, [] { return true; }, [] { return Decision::Approve; }, [] { return true; }, [&](Outcome o, bool) { results.push_back(o); }, [] { return Outcome::WorldReset; } }, 0);
+		c.Tick(1);
+		CHECK(results == std::vector<Outcome>({ Outcome::Committed, Outcome::WorldReset, Outcome::WorldReset }));
+	}
+	{
+		Coordinator c;
+		Token       provider = 0;
+		int         commits = 0, finishes = 0;
+		provider = c.Register({ 0, 100,
+			[&](const Context&, Phase p) {
+				if (p == Phase::Ready)
+					CHECK(c.Unregister(provider));
+				return Decision::Approve;
+			},
+			[&](const Context&, Outcome o) {
+				CHECK(o == Outcome::OwnerWithdrawn);
+				++finishes;
+			} });
+		Context ctx;
+		ctx.scene = 1;
+		ctx.actors = { 1 };
+		c.Begin(ctx,
+			{ [] { return true; }, [] { return true; }, [] { return true; }, [] { return Decision::Approve; },
+				[&] {
+					++commits;
+					return true;
+				},
+				[](Outcome o, bool applied) { CHECK(o == Outcome::OwnerWithdrawn && applied); } },
+			0);
+		c.Tick(1);
+		CHECK(!commits && finishes == 1 && !c.PendingCount());
+	}
+	{
+		Coordinator c;
+		int         commits = 0;
+		Context     first;
+		first.scene = 1;
+		first.actors = { 1 };
+		auto second = first;
+		second.scene = 2;
+		Hooks h{ [] { return true; }, [] { return true; }, [] { return true; }, [] { return Decision::Approve; },
+			[&] {
+				++commits;
+				return true;
+			},
+			[](Outcome, bool) {} };
+		auto  outer = h;
+		outer.finish = [&](Outcome, bool) {
+			CHECK(c.Begin(second, h, 1));
+			c.Tick(1);
+			CHECK(commits == 1);
+		};
+		c.Begin(first, outer, 0);
+		c.Tick(1);
+		CHECK(commits == 1 && c.PendingCount() == 1);
+		c.Tick(2);
+		CHECK(commits == 2 && !c.PendingCount());
+		CHECK(!c.Register({ 0, 5001, [](const Context&, Phase) { return Decision::Approve; }, [](const Context&, Outcome) {} }));
+	}
+	return OSF::Test::Finish("preparation");
 }

@@ -231,7 +231,11 @@ namespace OSF::ActorState
 			if (!wear(object, true)) return Status::Failed;
 		}
 		const bool claimed = std::any_of(_claims.begin(), _claims.end(), [&](const auto& entry) { return entry.second.request.actor == actor; });
-		if (!claimed) _records.erase(actor);
+		// A prepared transition can temporarily release the actor's last claim. Keep its
+		// provenance until the edit closes, so rollback can restore the source requirements.
+		const bool editing = std::any_of(_edits.begin(), _edits.end(), [&](const auto& edit) { return std::any_of(edit.second.claims.begin(), edit.second.claims.end(), [&](const auto& claim) { return claim.second.request.actor == actor; }); });
+		if (!claimed && !editing)
+			_records.erase(actor);
 		return Status::Ok;
 	}
 	Status Store::Reconcile(Actor actor) { return _records.contains(actor) ? Apply(actor) : Status::Ok; }
@@ -325,8 +329,17 @@ namespace OSF::ActorState
         const auto it = _edits.find(id);
         if (it == _edits.end()) return Status::Invalid;
         auto edit = std::move(it->second); _edits.erase(it);
-        if (commit) return Status::Ok;
-        std::vector<Actor> actors;
+		if (commit) {
+			// Applying a release already reconciled its actor. Only the temporary edit kept
+			// these now-unclaimed records alive; committing must not retain them indefinitely.
+			std::erase_if(_records, [&](const auto& record) {
+				const auto actor = record.first;
+				return std::none_of(_claims.begin(), _claims.end(), [&](const auto& c) { return c.second.request.actor == actor; }) &&
+				       std::none_of(_edits.begin(), _edits.end(), [&](const auto& e) { return std::any_of(e.second.claims.begin(), e.second.claims.end(), [&](const auto& c) { return c.second.request.actor == actor; }); });
+			});
+			return Status::Ok;
+		}
+		std::vector<Actor> actors;
         std::erase_if(_claims, [&](const auto& e) {
             if (std::find(edit.scopes.begin(), edit.scopes.end(), e.second.scope) == edit.scopes.end()) return false;
             actors.push_back(e.second.request.actor); return true;

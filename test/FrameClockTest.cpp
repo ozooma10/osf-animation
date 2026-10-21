@@ -124,21 +124,24 @@ int main()
 		std::vector<int> events;
 		Queue::PostBatch({
 			[&] {
+				Check(Queue::IsDraining(), "callback observes the verified drain boundary");
 				events.push_back(1);  // final timed mark
 				// A producer can publish during a callback without waiting on the drain's lock.
 				std::thread producer([&] { Queue::Post([&] { events.push_back(3); }); });
 				producer.join();
 				Queue::Post([&] { events.push_back(4); });
+				Queue::Drain();
+				Check(events == std::vector<int>{ 1 } && Queue::IsDraining(), "recursive drain cannot run future work");
 			},
 			[&] { events.push_back(2); }  // auto-end follows final marks
 		});
-		Check(events.empty(), "frame commands never execute on the posting thread");
+		Check(events.empty() && !Queue::IsDraining(), "frame commands never execute on the posting thread");
 		Queue::Drain();
 		Check(events == std::vector<int>{ 1, 2 }, "drain completes its captured batch before callback-enqueued work");
 		Queue::Drain();
 		Check(events == std::vector<int>{ 1, 2, 3, 4 }, "worker and nested posts wait for the next frame in FIFO order");
 		Queue::Drain();
-		Check(events.size() == 4, "commands execute once");
+		Check(events.size() == 4 && !Queue::IsDraining(), "commands execute once and drain context ends");
 	}
 	{
 		namespace Queue = OSF::Util::NativeMainThreadQueue;

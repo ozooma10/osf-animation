@@ -216,7 +216,7 @@ target("osf-actor-state-test")
     set_kind("binary")
     set_default(false)
     add_tests("default")
-    add_files("src/ActorState/Store.cpp", "test/ActorStateTest.cpp")
+    add_files("src/ActorState/Store.cpp", "src/Preparation/Coordinator.cpp", "test/ActorStateTest.cpp")
     add_includedirs("src")
 
 target("osf-preparation-test")

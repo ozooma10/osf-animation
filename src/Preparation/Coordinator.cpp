@@ -8,8 +8,9 @@ namespace OSF::Preparation
     Token Coordinator::Next() { return _next && _next != std::numeric_limits<Token>::max() ? _next++ : 0; }
     Token Coordinator::Register(Provider provider)
     {
-        if (!provider.invoke || !provider.finish || !provider.timeoutMs || provider.timeoutMs > 30000) return 0;
-        const auto id = Next();
+		if (!provider.invoke || !provider.finish || !provider.timeoutMs || provider.timeoutMs > 5000)
+			return 0;
+		const auto id = Next();
         if (id) _providers.emplace(id, std::move(provider));
         return id;
     }
@@ -49,26 +50,44 @@ namespace OSF::Preparation
     bool Coordinator::Valid(const std::shared_ptr<Attempt>& a)
     {
         if (a->cancelled || !Contains(a->context.attempt)) return false;
-        if (!a->hooks.valid()) { a->cancelled = Outcome::Cancelled; return false; }
-        return !a->cancelled && Contains(a->context.attempt);
+		if (!a->hooks.valid()) {
+			a->cancelled = a->hooks.invalidReason ? a->hooks.invalidReason() : Outcome::Cancelled;
+			return false;
+		}
+		return !a->cancelled && Contains(a->context.attempt);
     }
-    std::optional<Token> Coordinator::CurrentProvider(Token attempt, Phase phase) const
-    {
+	std::optional<Token> Coordinator::CurrentProvider(Token attempt, std::optional<Phase> phase) const
+	{
         const auto it = _attempts.find(attempt);
-        if (it == _attempts.end() || it->second->phase != phase || !it->second->calling || it->second->cancelled) return {};
-        return it->second->calling;
+		if (it == _attempts.end() || (phase && it->second->phase != *phase) || !it->second->calling || it->second->cancelled)
+			return {};
+		return it->second->calling;
     }
-    void Coordinator::Finish(const std::shared_ptr<Attempt>& a, Outcome outcome)
+	std::vector<Token> Coordinator::Providers(Token attempt) const
+	{
+		std::vector<Token> out;
+		const auto         it = _attempts.find(attempt);
+		if (it != _attempts.end())
+			for (const auto& e : it->second->providers) out.push_back(e.token);
+		return out;
+	}
+	void Coordinator::Finish(const std::shared_ptr<Attempt>& a, Outcome outcome)
     {
         if (a->finishing) return;
         a->finishing = true;
         _attempts.erase(a->context.attempt); // callbacks cannot cancel/re-publish this attempt
         for (std::size_t i = a->providers.size(); i-- > 0;) {
             if (!a->entered[i]) continue;
-            try { a->providers[i].provider.finish(a->context, outcome); } catch (...) {}
+			if (!a->hooks.valid())
+				outcome = a->hooks.invalidReason ? a->hooks.invalidReason() : Outcome::Cancelled;
+			try { a->providers[i].provider.finish(a->context, outcome); } catch (...) {}
         }
-        try { a->hooks.finish(outcome, a->applied); } catch (...) {}
-    }
+		try {
+			if (!a->hooks.valid())
+				outcome = a->hooks.invalidReason ? a->hooks.invalidReason() : Outcome::Cancelled;
+			a->hooks.finish(outcome, a->applied);
+		} catch (...) {}
+	}
     bool Coordinator::Cancel(Token attempt, Outcome reason)
     {
         const auto it = _attempts.find(attempt);
@@ -138,9 +157,13 @@ namespace OSF::Preparation
     {
         if (_ticking) return;
         _ticking = true;
-        std::vector<std::shared_ptr<Attempt>> batch;
+		struct Guard
+		{
+			bool& flag;
+			~Guard() { flag = false; }
+		} guard{ _ticking };
+		std::vector<std::shared_ptr<Attempt>> batch;
         for (const auto& [id, a] : _attempts) batch.push_back(a);
         for (const auto& a : batch) if (Contains(a->context.attempt)) Pump(a, nowMs);
-        _ticking = false;
     }
 }
