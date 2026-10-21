@@ -1,6 +1,7 @@
 #include "Check.h"
 
 #include "Serialization/PersistenceBroker.h"
+#include "Serialization/SaveReference.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -17,6 +18,21 @@ using OSF::Serialization::PersistenceBroker;
 
 namespace
 {
+	void TestGeneratedSaveReferences()
+	{
+		std::array<std::uint8_t, 3> bytes{};
+		CHECK(OSF::Serialization::EncodeGeneratedSaveReference(0xFF0169DE, bytes));
+		CHECK((bytes == std::array<std::uint8_t, 3>{ 0x81, 0x69, 0xDE }));
+		CHECK(OSF::Serialization::EncodeGeneratedSaveReference(0xFF000000, bytes));
+		CHECK((bytes == std::array<std::uint8_t, 3>{ 0x80, 0, 0 }));
+		CHECK(OSF::Serialization::EncodeGeneratedSaveReference(0xFF3FFFFF, bytes));
+		CHECK((bytes == std::array<std::uint8_t, 3>{ 0xBF, 0xFF, 0xFF }));
+		for (const auto id : { 0u, 0x00000014u, 0xFE001234u, 0xFF400000u, 0xFFFFFFFFu }) {
+			CHECK(!OSF::Serialization::EncodeGeneratedSaveReference(id, bytes));
+			CHECK((bytes == std::array<std::uint8_t, 3>{}));
+		}
+	}
+
 	constexpr std::uint32_t A = OSF_PERSISTENCE_FOURCC('A', 'A', 'A', 'A');
 	constexpr std::uint32_t B = OSF_PERSISTENCE_FOURCC('B', 'B', 'B', 'B');
 	constexpr std::uint32_t U = OSF_PERSISTENCE_FOURCC('U', 'N', 'K', 'N');
@@ -393,6 +409,7 @@ namespace
 int main()
 {
 	try {
+		TestGeneratedSaveReferences();
 		TestRoundTripAndRecords();
 		TestEmptyAndDuplicate();
 		TestUnknownClient();

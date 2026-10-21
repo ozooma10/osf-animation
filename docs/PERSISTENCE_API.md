@@ -117,7 +117,7 @@ For a world-replacing load, OSF performs:
 
 A missing sidecar is a clean load after revert; it does not invoke `load`. Save invokes every registered client's `save`. Form deletion events invoke every registered `formDeleted` callback. Callback invocation never holds the registry mutex.
 
-The load reader bounds every read to the current record and client block. Calling `GetNextRecordInfo` skips any unread bytes from the previous record. `ResolveFormID` applies remap/delete information captured for the current load; a false result means the form no longer resolves. ABI 1.0 has no `ResolveHandle`, because the current host cannot promise correct cross-plugin handle remapping. It can be appended in a future minor once that support is reliable.
+The load reader bounds every read to the current record and client block. Calling `GetNextRecordInfo` skips any unread bytes from the previous record. `ResolveFormID` applies remap/delete information captured for the current load. Generated references also use the byte-gated native save-reference decoder during the keyed reader callback, because a cold load can change their IDs without a remap event. Unrepresentable generated IDs, unavailable decoding, deleted or unresolved forms return false; clients must not reuse the old numeric ID on failure. ABI 1.0 has no `ResolveHandle`, because the current host cannot promise correct cross-plugin handle remapping. It can be appended in a future minor once that support is reliable.
 
 OSF Animation registers itself through the same broker as `OSFA`. Its current internal persistence responsibility is the pre-load scene/graph teardown previously performed by `SaveSafety`; there is no privileged parallel record path.
 
@@ -169,3 +169,20 @@ RecordHeader (12 bytes), repeated inside the bounded client payload
 Clients are written in ascending numeric client-ID order. Limits are 4,096 client blocks, 65,536 records per client, 16 MiB per record, 64 MiB per client payload, and 512 MiB per sidecar. Client payload lengths preserve the boundary to a following block; CRC or record-stream failure therefore skips one block without shifting later clients. An untrustworthy truncated outer header/payload ends parsing because no safe next boundary exists.
 
 Saves stage every client in memory, then write `<save>.osf.tmp`, flush the C stream, commit the OS file buffer, close it, and atomically replace the old `.osf` with write-through semantics. If staging, writing, flushing, closing, or replacement fails, the previous `.osf` remains in place.
+
+## Generated-reference cold-load verification
+
+The recovery regression exposed lost generated-actor choices after a fresh process,
+although same-process reloads had passed. The saved actor is identified independently
+through a persisted reference link. The corrected production DLL passed the original
+failing save in Intimacy run `20261021-215209-332-Cold-Remap`, restoring voice and actor
+configuration under its new runtime ID. The full recovery result is recorded in
+`OSF Intimacy/docs/RECOVERY_VERIFICATION.md`.
+
+The engine proof and decoder ABI live in the canonical RE module
+`OSF RE/tools/ghidra/context_repo/modules/engine.save_load.json`, note
+“Generated references change IDs on cold load without TESFormIDRemapEvent”.
+The decoder is used only during keyed loading and can allocate pending IDs under
+engine load flags; it is not exposed as a general-purpose lookup. No new hook,
+public ABI change or record-format migration is required. Native boundary tests
+reject compact-ID overflow rather than aliasing another reference.

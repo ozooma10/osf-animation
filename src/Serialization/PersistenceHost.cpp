@@ -4,6 +4,7 @@
 #include "API/OSFPersistenceAPI.h"
 #include "Animation/GraphManager.h"
 #include "Serialization/PersistenceBroker.h"
+#include "Serialization/SaveReference.h"
 #include "Util/Hooking.h"
 
 #include <REL/ASM.h>
@@ -32,6 +33,12 @@ namespace OSF::Serialization::PersistenceHost
 		DeleteSaveFn* g_originalDeleteSave{};
 
 		constexpr REL::ID kDeleteSave{ 98620 };
+		// Vanilla SaveFileHandleReaderWriter::Read uses this compact-reference decoder.
+		// Verified on 1.16.244.0; see docs/PERSISTENCE_API.md for cold-load evidence.
+		constexpr REL::ID kDecodeSaveReference{ 98804 };
+		constexpr std::array<std::uint8_t, 9> kDecodePrologue{
+			0x40, 0x56, 0x57, 0x41, 0x56, 0x48, 0x83, 0xEC, 0x20
+		};
 		constexpr std::array<std::uint8_t, 15> kSavePrologue{
 			0x4C, 0x89, 0x4C, 0x24, 0x20,
 			0x4C, 0x89, 0x44, 0x24, 0x18,
@@ -152,6 +159,10 @@ namespace OSF::Serialization::PersistenceHost
 					return false;
 				}
 
+				_generatedResolverReady = Util::Hooking::PrologueMatches(kDecodeSaveReference, kDecodePrologue);
+				if (!_generatedResolverReady) {
+					REX::WARN("[Save] generated FormID resolution unavailable: save-reference decoder failed validation");
+				}
 				const bool hooks = InstallHooks();
 				_ready.store(hooks, std::memory_order_release);
 				if (hooks) {
@@ -287,16 +298,41 @@ namespace OSF::Serialization::PersistenceHost
 
 			bool ResolveFormID(std::uint32_t oldID, std::uint32_t& resolved)
 			{
-				std::lock_guard lock(_remapMutex);
-				if (const auto it = _remapped.find(oldID); it != _remapped.end()) {
-					resolved = it->second;
-					return resolved != 0;
-				}
-				if (_deleted.contains(oldID)) {
+				resolved = 0;
+				if (!_loadInProgress.load(std::memory_order_acquire)) {
 					return false;
 				}
+				{
+					std::lock_guard lock(_remapMutex);
+					if (const auto it = _remapped.find(oldID); it != _remapped.end()) {
+						resolved = it->second;
+						return resolved != 0;
+					}
+					if (_deleted.contains(oldID)) {
+						return false;
+					}
+				}
+				if ((oldID >> 24) == 0xFF) {
+					std::array<std::uint8_t, 3> reference{};
+					if (!_generatedResolverReady || !EncodeGeneratedSaveReference(oldID, reference)) {
+						return false;
+					}
+					// Cold loads remap generated references without TESFormIDRemapEvent.
+					// Use only inside this keyed load callback, while the engine's map is
+					// valid. This helper may allocate pending IDs during an engine load;
+					// it is not a general-purpose runtime lookup or an actor mutation API.
+					using DecodeFn = std::uint32_t* (*)(const void*, std::uint32_t*, bool);
+					REL::Relocation<DecodeFn> decode{ kDecodeSaveReference };
+					std::uint32_t translated{};
+					decode(reference.data(), &translated, false);
+					if (!translated || !RE::TESForm::LookupByID(translated)) {
+						return false;
+					}
+					resolved = translated;
+					return true;
+				}
 				resolved = oldID;
-				return true;
+				return resolved != 0;
 			}
 
 			void Save(std::string_view saveName)
@@ -398,6 +434,7 @@ namespace OSF::Serialization::PersistenceHost
 			PersistenceBroker _broker;
 			std::atomic<bool> _initialized{};
 			std::atomic<bool> _ready{};
+			bool _generatedResolverReady{};  // initialized before publishing _ready
 			std::mutex _lifecycleMutex;
 			std::atomic<bool> _loadInProgress{};
 			bool _loadDispatched{};  // guarded by _lifecycleMutex
