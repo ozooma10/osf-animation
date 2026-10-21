@@ -2,6 +2,6 @@
 
 namespace OSF::Serialization::SaveSafety
 {
-	// Call at kPostDataLoad. Without SaveLoadEvent only the TESLoadGameEvent backstop runs (no save window).
+	// Call at kPostDataLoad. Installs the requested-save dispatch hook and save/load event sinks.
 	void RegisterLoadEventSinks();
 }

@@ -24,7 +24,7 @@ namespace
 {
 	// Last game version whose raw offsets were hand-checked.
 	constexpr REL::Version kVerifiedGameVersion{ 1, 16, 244, 0 };
-	// Persistence gateways/branches use 101 bytes; the main-loop call hook adds up to 14.
+	// Persistence gateways/branches use 101 bytes; the main-loop and requested-save call hooks add up to 28.
 	constexpr std::size_t kTrampolineBytes = 192;
 
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
