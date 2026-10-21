@@ -1,5 +1,6 @@
 #include "Audio/WwiseBackend.h"
 #include "Testing/D3AudioProbe.h"
+#include "Testing/D3WwiseTrace.h"
 
 #include "Audio/PcmWem.h"
 
@@ -308,10 +309,17 @@ namespace OSF::Audio::Wwise
 			ext.uiMemorySize = media.size;
 			ext.idFile = 0;
 #ifdef OSF_ANIMATION_SMOKE
+			void* traceCookie=Testing::D3WwiseTrace::Cookie(d3);
 			Testing::D3AudioProbe::Point(d3, "postNs");
-#endif
+			const auto playing = RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, a_gameObj,
+				traceCookie ? 0x19u : 0u,
+				traceCookie ? reinterpret_cast<void*>(&Testing::D3WwiseTrace::Callback) : nullptr,
+				traceCookie, 1, &ext, 0);
+#else
 			const auto playing = RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, a_gameObj, 0, nullptr, nullptr, 1, &ext, 0);
+#endif
 #ifdef OSF_ANIMATION_SMOKE
+			Testing::D3WwiseTrace::Posted(traceCookie,playing);
 			Testing::D3AudioProbe::Point(d3, "postReturnNs");
 			Testing::D3AudioProbe::Point(d3, playing ? "acceptedPlayingId" : "postRejected", playing ? playing : 1);
 #endif
@@ -361,9 +369,11 @@ namespace OSF::Audio::Wwise
 	bool StopVoice(std::uint32_t a_playingID)
 	{
 		if (a_playingID == 0) return false;
-		RE::BGSAudio::AkSoundEngine::StopPlayingID(a_playingID);
 #ifdef OSF_ANIMATION_SMOKE
+		RE::BGSAudio::AkSoundEngine::StopPlayingID(a_playingID,Testing::D3WwiseTrace::StopTransition(a_playingID));
 		Testing::D3AudioProbe::VoiceStopped(a_playingID);
+#else
+		RE::BGSAudio::AkSoundEngine::StopPlayingID(a_playingID);
 #endif
 		return true;
 	}

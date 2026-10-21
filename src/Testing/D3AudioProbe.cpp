@@ -1,4 +1,5 @@
 #include "Testing/D3AudioProbe.h"
+#include "Testing/D3WwiseTrace.h"
 
 #ifdef OSF_ANIMATION_SMOKE
 #include "API/OSFSceneAPI.h"
@@ -85,6 +86,7 @@ namespace OSF::Testing::D3AudioProbe
                 channels = testChannels;
             }
             auto* player = RE::PlayerCharacter::GetSingleton();
+            result["wwiseTrace"] = D3WwiseTrace::Snapshot();
             result["playerPlaying"] = api && player && api->IsPlaying(player);
             result["channels"] = Json::array();
             for (const auto channel : channels)
@@ -245,6 +247,7 @@ namespace OSF::Testing::D3AudioProbe
             {
                 std::lock_guard lock(mutex);
                 if (pending || waiting || voiceChannel) throw std::runtime_error("D3 audio still in flight");
+                D3WwiseTrace::Configure(args.value("wwiseTrace",false),args.value("stopTransitionMs",0u));
                 active=true; scoped=false; released=false; timedOut=false; testChannels={};
                 scene=args.value("scene",0); trial=args.value("trial",std::string("intimacy-provider"));
                 gatePoint=args.value("gate",std::string{}); gateId=0; resetCount=0;
