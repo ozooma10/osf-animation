@@ -1,10 +1,37 @@
 #include "Check.h"
 #include "Preparation/Coordinator.h"
+#include "Scene/PreparationPolicy.h"
 #include <stdexcept>
 using namespace OSF::Preparation;
 
 int main()
 {
+	// A one-shot automatic boundary cannot be replayed after a refusal. Exercise
+	// both coordinator failure paths using the same resume policy as the runtime.
+	for (auto origin : { OSF::Scene::TransitionOrigin::Manual, OSF::Scene::TransitionOrigin::TimedCue,
+	         OSF::Scene::TransitionOrigin::PlaybackCompletion }) {
+		for (bool timeout : { false, true }) {
+			Coordinator c;
+			bool resumed = false, terminated = false;
+			int writes = 0;
+			c.Register({ 0, 10, [&](const Context&, Phase) { return timeout ? Decision::Pending : Decision::Veto; },
+				[](const Context&, Outcome) {} });
+			Context ctx; ctx.scene = 1; ctx.kind = Kind::Node; ctx.actors = { 14 };
+			c.Begin(ctx, { [] { return true; }, [] { return true; }, [&] { ++writes; return true; },
+				[] { return Decision::Approve; }, [&] { ++writes; return true; },
+				[&](Outcome outcome, bool applied) {
+					CHECK(outcome == (timeout ? Outcome::TimedOut : Outcome::Vetoed));
+					resumed = OSF::Scene::MayResumePreparedSource(ctx.kind,
+						OSF::Scene::IsAutomaticTransition(origin), false, applied, false, true);
+					terminated = !resumed;
+				} }, 0);
+			c.Tick(1);
+			if (timeout) c.Tick(10);
+			CHECK(!writes && !c.PendingCount());
+			CHECK(resumed == (origin == OSF::Scene::TransitionOrigin::Manual));
+			CHECK(terminated == (origin != OSF::Scene::TransitionOrigin::Manual));
+		}
+	}
     for (auto kind : {Kind::Start, Kind::Handoff, Kind::Node, Kind::Stage}) {
         Coordinator c; std::vector<int> calls; int polls=0; Outcome result=Outcome::Failed;
         auto provider=c.Register({0,5000,

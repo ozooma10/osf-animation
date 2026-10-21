@@ -8,6 +8,7 @@
 #include "Props/PropService.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/AlignmentState.h"
+#include "Scene/PreparationPolicy.h"
 #include "Scene/SceneFoundation.h"
 
 #include <cstdint>
@@ -415,7 +416,7 @@ namespace OSF::Scene
 			bool a_clearHeldItems, bool a_fade, const StartOverrides& a_over);
 
 		// NODE_EXIT, then end or play a_newNode + NODE_ENTER. Call outside _lock with a snapshot.
-		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode, bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, bool a_automatic = false);
+		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode, bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, TransitionOrigin a_origin);
 
 		// Releases Slot::transitioning after a non-terminal transition. Takes _lock.
 		void EndTransition(std::int32_t a_handle);

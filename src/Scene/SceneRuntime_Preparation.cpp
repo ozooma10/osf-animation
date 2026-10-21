@@ -449,7 +449,9 @@ namespace OSF::Scene
 		REX::WARN("[Scene] preparation {} for scene {:#010x} ended with outcome {}", p->context.attempt, p->context.scene, static_cast<unsigned>(outcome));
 		if (!p->failureReason.empty())
 			REX::WARN("[Scene] preparation refusal: {}", p->failureReason);
-		const bool resumed = p->context.kind != Kind::Start && !p->automatic && !p->cancelled && !applied && !p->exitFired && restored == ActorState::Status::Ok && Animation::GraphManager::GetSingleton().HoldForPreparation(p->old.participants.front(), p->old.playbackId, false);
+		const bool resumed = MayResumePreparedSource(p->context.kind, p->automatic, p->cancelled,
+			applied, p->exitFired, restored == ActorState::Status::Ok) &&
+			Animation::GraphManager::GetSingleton().HoldForPreparation(p->old.participants.front(), p->old.playbackId, false);
 		// Preflight refusal preserves a still-valid old motion. Once application or exit effects
 		// have begun, interrupt conservatively; arbitrary provider side effects cannot be proven restored.
 		if (p->context.kind == Kind::Start) {

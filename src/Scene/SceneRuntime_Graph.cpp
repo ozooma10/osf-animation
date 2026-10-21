@@ -210,7 +210,7 @@ namespace OSF::Scene
 		}
 		if (triggered) {
 			REX::DEBUG("[Scene] scene {:#010x} cue-trigger node '{}' -> {}", handle, oldNode, end ? "$end" : newNode);
-			ApplyTransition(handle, oldNode, newNode, end, sceneId, participants);
+			ApplyTransition(handle, oldNode, newNode, end, sceneId, participants, TransitionOrigin::TimedCue);
 		}
 	}
 
@@ -420,7 +420,7 @@ namespace OSF::Scene
 		REX::DEBUG("[Scene] scene {:#010x} scene controls engaged (capabilities {:#x}, locked {})", a_handle, grant.capabilities, grant.locked);
 	}
 
-	void SceneRuntime::ApplyTransition(std::int32_t handle, std::string_view oldNode, std::string_view newNode, bool end, std::string_view sceneId, const std::vector<RE::Actor*>& cast, bool automatic)
+	void SceneRuntime::ApplyTransition(std::int32_t handle, std::string_view oldNode, std::string_view newNode, bool end, std::string_view sceneId, const std::vector<RE::Actor*>& cast, TransitionOrigin origin)
 	{
 		SlotView old;
 		if (!SnapshotSlot(handle, old))
@@ -451,7 +451,7 @@ namespace OSF::Scene
 		p->old = old;
 		p->cast = cast;
 		p->target = old.definition;
-		p->automatic = automatic;
+		p->automatic = IsAutomaticTransition(origin);
 		if (old.definition) {
 			p->context.fromStage = old.definition->LinearStageOf(oldNode);
 			p->context.toStage = old.definition->LinearStageOf(newNode);
@@ -551,7 +551,7 @@ namespace OSF::Scene
 			s->transitioning = true;
 		}
 
-		ApplyTransition(a_scene, oldNode, newNode, /*a_end*/ false, sceneId, participants);
+		ApplyTransition(a_scene, oldNode, newNode, /*a_end*/ false, sceneId, participants, TransitionOrigin::Manual);
 		return true;
 	}
 
@@ -581,7 +581,7 @@ namespace OSF::Scene
 			s->transitioning = true;
 		}
 
-		ApplyTransition(a_scene, view.node, /*a_newNode*/ "", /*a_end*/ true, view.id, view.participants);
+		ApplyTransition(a_scene, view.node, /*a_newNode*/ "", /*a_end*/ true, view.id, view.participants, TransitionOrigin::Manual);
 		return true;
 	}
 
@@ -754,7 +754,7 @@ namespace OSF::Scene
 			s->transitioning = true;
 		}
 
-		ApplyTransition(a_scene, oldNode, newNode, end, sceneId, participants);
+		ApplyTransition(a_scene, oldNode, newNode, end, sceneId, participants, TransitionOrigin::Manual);
 		return true;
 	}
 
@@ -868,7 +868,7 @@ namespace OSF::Scene
 		REX::DEBUG("[Scene] scene {:#010x} auto-end (reason={}) node '{}' -> {}{}",
 			handle, reasonStr, oldNode, end ? "$end" : newNode, tookEdge ? "" : " (terminal, no edge)");
 
-		ApplyTransition(handle, oldNode, newNode, end, sceneId, participants, true);
+		ApplyTransition(handle, oldNode, newNode, end, sceneId, participants, TransitionOrigin::PlaybackCompletion);
 		return true;
 	}
 
