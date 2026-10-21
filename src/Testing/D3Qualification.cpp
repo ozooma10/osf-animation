@@ -16,16 +16,22 @@ namespace {
     using OutputID=std::uint64_t(*)(std::uint32_t,std::uint32_t);
     using Remove=std::uint32_t(*)(std::uint64_t);
     using Add=std::uint32_t(*)(const void*,std::uint64_t*,const std::uint64_t*,std::uint32_t);
+    using Suspend=std::uint32_t(*)(bool);
+    using Wake=std::uint32_t(*)();
     Register registerCallback{}; OutputID outputID{}; Remove removeOutput{}; Add addOutput{};
+    Suspend suspendOutput{}; Wake wakeOutput{};
     struct Frame {std::atomic<bool> ready{}; std::uint64_t begin{},end{};std::uint32_t generation{},thread{};};
+    struct Lifecycle {std::atomic<bool> ready{};std::uint64_t at{};std::uint32_t location{},generation{},thread{};};
     std::array<Frame,32768> frames;
+    std::array<Lifecycle,128> lifecycle;
+    std::atomic<std::uint32_t> lifecycleNext{};
     std::atomic<std::uint32_t> next{},generation{},threadID{};
     std::atomic<bool> measuring{};
     std::array<std::uint64_t,25> channels{};
     std::array<std::uint8_t,16> outputSettings{};
-    bool removed{},running{};
+    bool removed{},running{},suspendRequested{};
     std::uint32_t voices{},batches{},refused{};
-    std::uint64_t deadline{},nextBatch{},restoreDeadline{},startNs{},cpuStart{},oldOutput{};
+    std::uint64_t deadline{},nextBatch{},restoreDeadline{},wakeDeadline{},startNs{},cpuStart{},oldOutput{};
     Json events=Json::array();
     void Event(const char* name,Json detail=Json::object()) { detail["name"]=name;detail["atNs"]=D3AudioProbe::NowNs();events.push_back(detail); }
     void Render(void*,std::uint32_t location,void*) noexcept {
@@ -33,7 +39,13 @@ namespace {
         thread_local std::uint32_t gen{};
         if(!measuring.load(std::memory_order_relaxed)) return;
         const auto now=D3AudioProbe::NowNs();
-        if(location==16) {begin=now;gen=generation.load();threadID.store(GetCurrentThreadId());}
+        if(location==2048 || location==4096) {
+            const auto index=lifecycleNext.fetch_add(1);
+            if(index<lifecycle.size()) {
+                auto& e=lifecycle[index];e.at=now;e.location=location;e.generation=generation.load();e.thread=GetCurrentThreadId();
+                e.ready.store(true,std::memory_order_release);
+            }
+        } else if(location==16) {begin=now;gen=generation.load();threadID.store(GetCurrentThreadId());}
         else if(location==32 && begin && gen==generation.load()) {
             const auto index=next.fetch_add(1);
             if(index<frames.size()) {
@@ -67,7 +79,11 @@ namespace {
         outputID=Bind<OutputID>(150376,0x2CD4790,std::array<std::uint8_t,15>{0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x57,0x48,0x83,0xEC,0x20});
         removeOutput=Bind<Remove>(150406,0x2CD6190,std::array<std::uint8_t,9>{0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9});
         addOutput=Bind<Add>(150350,0x2CD3850,std::array<std::uint8_t,15>{0x48,0x89,0x74,0x24,0x20,0x41,0x54,0x41,0x56,0x41,0x57,0x48,0x83,0xEC,0x20});
-        const auto result=candidateRegister(Render,16|32,nullptr,0,0,0);
+        // Native game calls pass one bool to Suspend and no arguments to Wakeup.
+        // Both enqueue message 0x36; 0x800/0x1000 callbacks report later transitions.
+        suspendOutput=Bind<Suspend>(150431,0x2CD7230,std::array<std::uint8_t,14>{0x44,0x0F,0xB6,0xC1,0x45,0x33,0xC9,0x48,0x8B,0x0D,0x1A,0x96,0x08,0x03});
+        wakeOutput=Bind<Wake>(150440,0x2CD7B60,std::array<std::uint8_t,15>{0x48,0x8B,0x0D,0xF1,0x8C,0x08,0x03,0x45,0x33,0xC9,0x41,0xB0,0x01,0x33,0xD2});
+        const auto result=candidateRegister(Render,16|32|2048|4096,nullptr,0,0,0);
         if(result!=1)throw std::runtime_error("D3 render callback registration failed");
         // Publish initialized state only after every binding and registration passed.
         // A rejected later byte gate must not let a subsequent command skip Init.
@@ -87,21 +103,36 @@ namespace {
         for(auto& channel:channels){if(channel)API::RequestEngineAPI()->CloseAudioChannel(channel);channel=0;}
         Event("channels-closed");
     }
+    void WakeOutput() {
+        if(!suspendRequested)return;
+        const auto at=D3AudioProbe::NowNs();
+        const auto result=wakeOutput();
+        Event("output-wake",{{"requestNs",at},{"result",result}});
+        if(result==1)suspendRequested=false;
+    }
     Json Snapshot() {
         Json rows=Json::array();const auto gen=generation.load(),count=next.load();
         for(std::size_t i=0;i<std::min<std::size_t>(count,frames.size());++i) {
             const auto& f=frames[i];
             if(f.ready.load(std::memory_order_acquire)&&f.generation==gen)rows.push_back({f.begin,f.end,f.thread});
         }
+        Json transitions=Json::array();const auto lifecycleCount=lifecycleNext.load();
+        for(std::size_t i=0;i<std::min<std::size_t>(lifecycleCount,lifecycle.size());++i) {
+            const auto& e=lifecycle[i];
+            if(e.ready.load(std::memory_order_acquire)&&e.generation==gen)
+                transitions.push_back({{"atNs",e.at},{"location",e.location},{"thread",e.thread}});
+        }
         const auto now=D3AudioProbe::NowNs(),cpu=CPU();
         return {{"running",running},{"removed",removed},{"voices",voices},{"batches",batches},{"refused",refused},
             {"startNs",startNs},{"snapshotNs",now},{"cpuStart100ns",cpuStart},{"cpuNow100ns",cpu},{"threadID",threadID.load()},
+            {"suspendRequested",suspendRequested},{"lifecycle",transitions},{"lifecycleOverflow",lifecycleCount>lifecycle.size()},
             {"outputID",outputID?outputID(0,0):0},{"events",events},{"renderFrames",rows},{"overflow",count>frames.size()}};
     }
 }
 void Tick() {
     const auto now=D3AudioProbe::NowNs();
     if(removed && now>=restoreDeadline)Restore();
+    if(suspendRequested && now>=wakeDeadline)WakeOutput();
     if(!running)return;
     if(now>=deadline){Close();return;}
     if(now<nextBatch)return;
@@ -115,7 +146,7 @@ void Tick() {
 Json Command(const Json& args) {
     Init();const auto action=args.at("action").get<std::string>();
     if(action=="begin") {
-        if(running||removed)throw std::runtime_error("D3 qualification already running");
+        if(running||removed||suspendRequested)throw std::runtime_error("D3 qualification already running");
         Close();measuring=false;++generation;startNs=D3AudioProbe::NowNs();cpuStart=CPU();measuring=true;
         batches=refused=0;voices=0;events=Json::array();Event("begin");
     } else if(action=="post") {
@@ -132,14 +163,21 @@ Json Command(const Json& args) {
         for(std::uint32_t i=0;i<voices;++i)channels[i]=API::RequestEngineAPI()->CreateAudioChannel();
         nextBatch=D3AudioProbe::NowNs();deadline=nextBatch+std::uint64_t(seconds)*1000000000;running=true;
         Event("load",{{"voices",voices},{"seconds",seconds}});
-    } else if(action=="remove") {
+    } else if(action=="suspend") {
+        if(suspendRequested||removed)throw std::runtime_error("D3 output transition already pending");
+        const bool render=args.value("render",false);const auto at=D3AudioProbe::NowNs();
+        const auto result=suspendOutput(render);
+        if(result==1){suspendRequested=true;wakeDeadline=D3AudioProbe::NowNs()+3000000000ULL;}
+        Event("output-suspend",{{"requestNs",at},{"render",render},{"result",result}});
+    } else if(action=="wake")WakeOutput();
+    else if(action=="remove") {
         if(removed)throw std::runtime_error("D3 output already removed");
         oldOutput=outputID(0,0);const auto result=removeOutput(oldOutput);
         if(result==1){removed=true;restoreDeadline=D3AudioProbe::NowNs()+3000000000ULL;}
         Event("output-remove",{{"result",result},{"id",oldOutput}});
     } else if(action=="restore")Restore();
     else if(action=="close")Close();
-    else if(action=="end"){Close();Restore();measuring=false;Event("end");}
+    else if(action=="end"){Close();WakeOutput();Restore();measuring=false;Event("end");}
     else if(action!="status")throw std::runtime_error("Unknown D3 qualification action");
     return Snapshot();
 }
