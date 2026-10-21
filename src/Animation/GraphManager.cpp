@@ -26,6 +26,22 @@
 
 namespace OSF::Animation
 {
+	// Opaque to consumers: one preparation may publish once, in the world it loaded for.
+	class PreparedPlayback
+	{
+	public:
+		PreparedPlayback() = default;
+	private:
+		friend class GraphManager;
+		PlaybackPlan plan;
+		std::vector<RE::Actor*> actors;
+		std::vector<RE::NiPointer<RE::Actor>> pins;
+		std::shared_ptr<PlaybackSession> session;
+		std::uint64_t worldEpoch{};
+		PlaybackSinkId sink{};
+		int32_t startSegment{};
+		std::atomic<bool> consumed{};
+	};
 #ifdef OSF_ANIMATION_SMOKE
 	std::optional<GraphManager::SmokePose> GraphManager::ObservePoseForSmoke(RE::Actor* a_actor)
 	{
@@ -181,91 +197,29 @@ namespace OSF::Animation
 			return true;
 		}
 
-		std::shared_ptr<PlaybackSession> BuildPlaybackFromPlan(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan,
+		std::shared_ptr<PlaybackSession> BuildPlaybackFromPlan(const PlaybackPlan& a_plan, std::size_t a_actorCount,
 			int32_t a_startSegment)
 		{
+			auto stages = PreparePlaybackStages(a_plan, a_actorCount, [](const AnimationClipSpec& spec)
+				-> std::optional<PlaybackSession::ParticipantSlot> {
+				const auto file = Util::ResolveClipSpec(std::filesystem::path{ spec.resourcePath });
+				auto load = GraphManagerClipLoad::Load(file, spec.animationId);
+				if (!load.ok) {
+					REX::ERROR("[Anim] synchronized playback: failed to load '{}' ({}) — session not started",
+						load.source.empty() ? file.display : load.source, load.detail);
+					return std::nullopt;
+				}
+				return PlaybackSession::ParticipantSlot{ std::move(load.skeleton), std::move(load.anim), spec.resourcePath };
+			});
+			if (!stages) return {};
 			auto scene = std::make_shared<PlaybackSession>();
-			scene->stages.reserve(a_plan.stages.size());
-			for (const auto& planStage : a_plan.stages) {
-				PlaybackSession::SegmentData stage;
-				stage.timer = planStage.timer;
-				stage.loops = planStage.loops;
-				stage.hold = std::isfinite(planStage.hold) && planStage.hold >= 0.0f ?
-				                 std::min(planStage.hold, 1.0f) : -1.0f;
-				const float defaultBlend = std::isfinite(a_plan.blendIn) && a_plan.blendIn >= 0.0f ? a_plan.blendIn : 0.4f;
-				stage.blendIn = std::isfinite(planStage.blendIn) && planStage.blendIn >= 0.0f ? planStage.blendIn : defaultBlend;
-				stage.placements = planStage.placements.empty() ?
-				                       std::vector<ParticipantPlacement>(a_actors.size()) :
-				                       planStage.placements;
-				stage.masks = planStage.masks.empty() ?
-				                  (a_plan.masks.empty() ? std::vector<std::string>(a_actors.size()) : a_plan.masks) :
-				                  planStage.masks;
-				stage.poseModes = planStage.poseModes.empty() ?
-				                      (a_plan.poseModes.empty() ? std::vector<PoseMode>(a_actors.size(), PoseMode::kOverride) : a_plan.poseModes) :
-				                      planStage.poseModes;
-				stage.poseWeights = planStage.poseWeights.empty() ?
-				                        (a_plan.poseWeights.empty() ? std::vector<float>(a_actors.size(), 1.0f) : a_plan.poseWeights) :
-				                        planStage.poseWeights;
-				stage.marks = planStage.marks;
-				for (std::size_t clipIdx = 0; clipIdx < planStage.files.size(); clipIdx++) {
-					const AnimationClipSpec clipSpec{
-						.resourcePath = planStage.files[clipIdx],
-						.animationId = clipIdx < planStage.animIds.size() ? planStage.animIds[clipIdx] : std::string{}
-					};
-					auto file = Util::ResolveClipSpec(std::filesystem::path{ clipSpec.resourcePath });
-					auto load = GraphManagerClipLoad::Load(file, clipSpec.animationId);
-					if (!load.ok) {
-						REX::ERROR("[Anim] synchronized playback: failed to load '{}' ({}) — session not started",
-							load.source.empty() ? file.display : load.source, load.detail);
-						return nullptr;
-					}
-					stage.participants.push_back({ std::move(load.skeleton), std::move(load.anim), clipSpec.resourcePath });
-				}
-				stage.duration = stage.participants[0].anim->data->duration();
-				for (std::size_t i = 1; i < stage.participants.size(); i++) {
-					const float participantDuration = stage.participants[i].anim->data->duration();
-					if (std::abs(participantDuration - stage.duration) > 0.01f) {
-						REX::WARN("[Anim] synchronized playback: segment participant {} duration {:.3f}s differs from reference {:.3f}s; sampling wraps independently",
-							i, participantDuration, stage.duration);
-					}
-				}
-				scene->stages.push_back(std::move(stage));
-			}
+			scene->stages = std::move(*stages);
 			scene->animId = a_plan.animId;
 			scene->anchored = a_plan.anchored;
 			scene->restoreParticipantTransforms = a_plan.anchored && a_plan.restoreTransformsOnEnd;
 			scene->loopWhole = a_plan.loopWhole;
 			scene->SetAutoAdvance(a_plan.autoAdvance);
-			if (scene->restoreParticipantTransforms) {
-				if (a_plan.baselineTransforms.size() == a_actors.size()) {
-					scene->originalTransforms = a_plan.baselineTransforms;  // caller-carried pre-playback baseline
-				} else {
-					scene->originalTransforms.reserve(a_actors.size());
-					for (const auto* actor : a_actors) {
-						scene->originalTransforms.emplace_back(actor->data.location, actor->data.angle.z);
-					}
-				}
-			}
-			const float requestedSpeed = std::isfinite(a_plan.speed) ? a_plan.speed : 1.0f;
-			scene->speed = std::clamp(requestedSpeed, 0.0f, 100.0f);
-
 			scene->SetSegment(a_startSegment);
-
-			if (a_plan.anchorResolved) {
-				scene->anchorPos = a_plan.anchorPos;
-				scene->anchorHeading = a_plan.anchorHeading;
-			} else {
-				scene->anchorPos = a_actors[0]->data.location;
-				scene->anchorHeading = a_actors[0]->data.angle.z;
-			}
-
-			// Arm the stall watchdog from birth: it skips lastAdvanceMs == 0, so a never-ticked session would
-			// otherwise hold the player input lock forever.
-			scene->lastAdvanceMs.store(
-				std::chrono::duration_cast<std::chrono::milliseconds>(
-					std::chrono::steady_clock::now().time_since_epoch())
-					.count(),
-				std::memory_order_relaxed);
 			return scene;
 		}
 	}
@@ -445,37 +399,83 @@ namespace OSF::Animation
 	bool GraphManager::PlaySynchronized(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment,
 		PlaybackId* a_outPlaybackId, PlaybackId a_expectedPlayback, PlaybackSinkId a_sinkId)
 	{
-		if (a_outPlaybackId) {
-			*a_outPlaybackId = 0;
-		}
+		return PlayPrepared(PrepareSynchronized(a_actors, a_plan, a_startSegment, a_sinkId),
+			a_plan.speed, a_outPlaybackId, a_expectedPlayback);
+	}
+
+	std::shared_ptr<PreparedPlayback> GraphManager::PrepareSynchronized(const std::vector<RE::Actor*>& a_actors,
+		const PlaybackPlan& a_plan, int32_t a_startSegment, PlaybackSinkId a_sinkId)
+	{
 		if (!HooksInstalled()) {
 			REX::ERROR("[Anim] synchronized playback refused: update hook is not installed");
-			return false;
+			return {};
 		}
 		if (!ValidatePlaybackPlanArgs(a_actors, a_plan, a_startSegment)) {
-			return false;
+			return {};
 		}
 		if (a_sinkId != 0 && !GetPlaybackSink(a_sinkId)) {
 			REX::ERROR("[Anim] synchronized playback refused: playback sink {} is not registered", a_sinkId);
-			return false;
+			return {};
 		}
+		auto prepared = std::make_shared<PreparedPlayback>();
+		prepared->worldEpoch = _worldEpoch.load(std::memory_order_acquire);
+		prepared->actors = a_actors;
+		prepared->pins.reserve(a_actors.size());
+		for (auto* actor : a_actors) prepared->pins.emplace_back(actor);
+		prepared->plan = a_plan;
+		prepared->startSegment = a_startSegment;
+		prepared->sink = a_sinkId;
+		prepared->session = BuildPlaybackFromPlan(a_plan, a_actors.size(), a_startSegment);
+		if (!prepared->session || prepared->worldEpoch != _worldEpoch.load(std::memory_order_acquire)) return {};
+		return prepared;
+	}
 
-		auto scene = BuildPlaybackFromPlan(a_actors, a_plan, a_startSegment);
-		if (!scene) {
-			return false;
+	bool GraphManager::PlayPrepared(const std::shared_ptr<PreparedPlayback>& prepared, float a_speed,
+		PlaybackId* a_outPlaybackId, PlaybackId a_expectedPlayback)
+	{
+		if (a_outPlaybackId) *a_outPlaybackId = 0;
+		if (!prepared || prepared->consumed.exchange(true, std::memory_order_acq_rel) || !HooksInstalled() ||
+			prepared->worldEpoch != _worldEpoch.load(std::memory_order_acquire)) return false;
+		const auto& a_actors = prepared->actors;
+		const auto& a_plan = prepared->plan;
+		const auto a_startSegment = prepared->startSegment;
+		const auto a_sinkId = prepared->sink;
+		const auto sink = GetPlaybackSink(a_sinkId);
+		if (a_sinkId && !sink) return false;
+		auto scene = prepared->session;
+		if (!scene) return false;
+		const float speed = std::isfinite(a_speed) ? a_speed : 1.0f;
+		scene->speed = std::clamp(speed, 0.0f, 100.0f);
+		// Values that depend on the live actors are sampled at publication, after pending
+		// readiness. Explicit anchors and caller-carried restore baselines stay pinned.
+		if (a_plan.anchorResolved) {
+			scene->anchorPos = a_plan.anchorPos;
+			scene->anchorHeading = a_plan.anchorHeading;
+		} else {
+			scene->anchorPos = a_actors.front()->data.location;
+			scene->anchorHeading = a_actors.front()->data.angle.z;
+		}
+		if (scene->restoreParticipantTransforms) {
+			if (a_plan.baselineTransforms.size() == a_actors.size()) scene->originalTransforms = a_plan.baselineTransforms;
+			else {
+				scene->originalTransforms.reserve(a_actors.size());
+				for (const auto* actor : a_actors)
+					scene->originalTransforms.emplace_back(actor->data.location, actor->data.angle.z);
+			}
 		}
 		scene->playbackId = _nextPlaybackId.fetch_add(1, std::memory_order_relaxed);
 		if (scene->playbackId == 0) {
 			scene->playbackId = _nextPlaybackId.fetch_add(1, std::memory_order_relaxed);
 		}
-		scene->worldEpoch = _worldEpoch.load(std::memory_order_acquire);
+		scene->worldEpoch = prepared->worldEpoch;
 		scene->playbackSinkId = a_sinkId;
-        if (const auto sink = GetPlaybackSink(a_sinkId)) scene->prepareStages = static_cast<bool>(sink->prepareStage);
+		if (sink) scene->prepareStages = static_cast<bool>(sink->prepareStage);
 
 		const auto startSegment = static_cast<uint32_t>(a_startSegment);
 		std::vector<std::function<void()>> deferred;
 		{
 			std::unique_lock l{ stateLock };
+			if (prepared->worldEpoch != _worldEpoch.load(std::memory_order_acquire)) return false;
 
 			// Admit the full cast before mutating any graph; an owner may replace only the playback it names.
 			std::vector<PlaybackSession*> replacements;
@@ -557,6 +557,9 @@ namespace OSF::Animation
 				}
 				scene->participants.push_back(slot);
 			}
+			// Pending preparation time must not count against the published session's watchdog.
+			scene->lastAdvanceMs.store(std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
 			playbackSessions.push_back(scene);
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}

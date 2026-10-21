@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <optional>
 
 namespace OSF::Animation
@@ -289,7 +290,7 @@ namespace OSF::Animation
 		std::atomic<bool> ended{ false };
 		std::atomic<bool> endQueued{ false };
 
-		// Last frame any participant ticked (steady ms; seeded at build). Goes stale when the engine stops
+		// Last frame any participant ticked (steady ms; seeded at publication). Goes stale when the engine stops
 		// updating unloaded/AI-disabled actors, so the stall watchdog ends the scene.
 		std::atomic<std::int64_t> lastAdvanceMs{ 0 };
 		// Trace-only compose heartbeat: tells a stopped clock from one that ticks without stamping.
@@ -345,4 +346,10 @@ namespace OSF::Animation
 		std::vector<FiredMark> firedMarks;
 		std::vector<bool>      markFired;
 	};
+
+	// Builds immutable clip resources without publishing graphs or mutating actors.
+	// The host supplies its resource loader; tests exercise this same path with generated clips.
+	using PlaybackClipLoader = std::function<std::optional<PlaybackSession::ParticipantSlot>(const AnimationClipSpec&)>;
+	std::optional<std::vector<PlaybackSession::SegmentData>> PreparePlaybackStages(
+		const PlaybackPlan& plan, std::size_t actorCount, const PlaybackClipLoader& load);
 }

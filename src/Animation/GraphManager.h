@@ -11,6 +11,7 @@
 
 namespace OSF::Animation
 {
+	class PreparedPlayback;
 	// Data-relative path opens via BSResource (loose or BA2, engine precedence); no read.
 	// Only meaningful once archives are mounted (kPostDataLoad+).
 	bool ResourceExists(std::string_view a_relPath);
@@ -70,6 +71,13 @@ namespace OSF::Animation
 		bool PlaySynchronized(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment,
 			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
 			PlaybackSinkId a_sinkId = 0);
+
+		// Same resource/engine context as PlaySynchronized. Preparation retains decoded clips
+		// and exact actor identities without publishing; publication rechecks world/ownership.
+		std::shared_ptr<PreparedPlayback> PrepareSynchronized(const std::vector<RE::Actor*>& a_actors,
+			const PlaybackPlan& a_plan, int32_t a_startSegment, PlaybackSinkId a_sinkId);
+		bool PlayPrepared(const std::shared_ptr<PreparedPlayback>& a_prepared, float a_speed,
+			PlaybackId* a_outPlaybackId, PlaybackId a_expectedPlayback);
 
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
         // SceneRuntime preparation commit only. No public SDK surface bypasses the gate.

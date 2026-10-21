@@ -155,7 +155,7 @@ target("osf-playback-session-test")
     add_tests("default")
     add_deps("commonlibsf")
     add_packages("ozz-animation", "nlohmann_json")
-    add_files("src/Animation/Scene.cpp", "test/PlaybackSessionTest.cpp")
+    add_files("src/Animation/Scene.cpp", "src/Preparation/Coordinator.cpp", "test/PlaybackSessionTest.cpp")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 

@@ -66,9 +66,16 @@ snapshots.
 | Validate | Recheck permissions, resource/attachment identity and readiness immediately before playback admission. Approve or Veto; no new asynchronous work. |
 
 After all Plan callbacks approve, the host previews the combined ownership plan without backend
-writes. It then emits the old node's exit observations (where applicable), applies the H2 edit,
+writes and prepares the destination's playback resources. Clip loading and decoding run in the
+same verified frame context, before exit effects, equipment application and commit guards. Exact
+path plus animation-ID requests share decoded resources within this attempt; a later attempt
+performs its own preparation. Internal stage changes reuse the live session's existing resources.
+The host then emits the old node's exit observations (where applicable), applies the H2 edit,
 runs Apply/Ready/Validate, reconciles inventory and actor 3D once more, acquires commit guards,
-checks the cast's H2 revisions, and commits playback.
+checks the cast's H2 revisions, and publishes the prepared playback. Publication performs no clip
+loading: it rechecks the world epoch, installed hooks, sink and complete cast's playback ownership.
+Current speed and alignment still apply, and unresolved actor-based anchors are sampled at
+publication. Readiness waiting does not consume the new playback's watchdog budget.
 Callbacks run outside runtime/manager locks; scene identity and cancellation are checked after
 each callback. Work queued by a callback waits for a later finite frame batch.
 
@@ -126,8 +133,10 @@ an exact, still-live source playback with no pending automatic boundary. Automat
 source disappearance, cancellation, or any failure after application/exit begins interrupts the
 scene. Partial failure rolls back the selected H2 scopes against current live inventory, preserving
 unrelated owners, then terminates conservatively: arbitrary provider effects cannot be proven
-restored by the host. Playback loading/admission can still fail after preflight; this takes that
-same partial-failure path.
+restored by the host. Missing or invalid playback resources refuse during preflight, before exit
+effects or equipment application. Playback admission can still fail after preflight if ownership
+changes; this takes the partial-failure path. A one-shot authored cue-trigger edge is an automatic
+transition, so refusal interrupts rather than resuming a source whose cue was already consumed.
 
 Stop can cancel pending preparation. The End input remains usable on an existing scene when its
 grant permits it. Provider withdrawal also ends sessions that depend on that provider. Save begin
@@ -146,7 +155,12 @@ persistent pose layer is supplied by H3's initial implementation.
 
 Native tests cover coordinator ordering, all four kinds, pending/readiness, veto/timeout,
 callback reentry, owner withdrawal, world reset, failed playback commit, transaction rollback with
-an unrelated persistent owner, and stage gating/pose/pause behavior. The production runtime and
+an unrelated persistent owner, and stage gating/pose/pause behavior. Generated Ozz clips exercise
+the production resource builder with an injected loader, including partial-load failure before
+effects, retained resources across pending readiness, no reload during publication/stage switches,
+and exact-request deduplication with distinct animation IDs and attempt boundaries. Coordinator
+tests also distinguish automatic cue/completion refusals from resumable manual refusals. These
+tests do not run the engine resource reader or production runtime orchestration in a game. The production runtime and
 both DLLs compile; the Browser boundary check verifies public-header separation. These are not
 in-game acceptance. Fresh start/handoff/node/internal-stage scenarios, actual item/attachment
 readiness, visible poses, save/load and consumer integration remain live gates. A7 stays open.

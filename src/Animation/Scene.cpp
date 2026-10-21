@@ -3,9 +3,61 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <map>
 
 namespace OSF::Animation
 {
+	std::optional<std::vector<PlaybackSession::SegmentData>> PreparePlaybackStages(
+		const PlaybackPlan& plan, std::size_t actorCount, const PlaybackClipLoader& load)
+	{
+		if (!actorCount || plan.stages.empty() || !load) return std::nullopt;
+		std::vector<PlaybackSession::SegmentData> stages;
+		stages.reserve(plan.stages.size());
+		// The resource reader can do IO before the import cache is consulted. Share exact
+		// clip requests within this preparation only; a later attempt loads fresh normally.
+		std::map<std::pair<std::string, std::string>, PlaybackSession::ParticipantSlot> clips;
+		for (const auto& source : plan.stages) {
+			if (source.files.size() != actorCount ||
+				(!source.animIds.empty() && source.animIds.size() != actorCount)) return std::nullopt;
+			PlaybackSession::SegmentData stage;
+			stage.timer = source.timer;
+			stage.loops = source.loops;
+			stage.hold = std::isfinite(source.hold) && source.hold >= 0.0f ? std::min(source.hold, 1.0f) : -1.0f;
+			const float defaultBlend = std::isfinite(plan.blendIn) && plan.blendIn >= 0.0f ? plan.blendIn : 0.4f;
+			stage.blendIn = std::isfinite(source.blendIn) && source.blendIn >= 0.0f ? source.blendIn : defaultBlend;
+			stage.placements = source.placements.empty() ? std::vector<ParticipantPlacement>(actorCount) : source.placements;
+			stage.masks = source.masks.empty() ? (plan.masks.empty() ? std::vector<std::string>(actorCount) : plan.masks) : source.masks;
+			stage.poseModes = source.poseModes.empty() ? (plan.poseModes.empty() ? std::vector<PoseMode>(actorCount, PoseMode::kOverride) : plan.poseModes) : source.poseModes;
+			stage.poseWeights = source.poseWeights.empty() ? (plan.poseWeights.empty() ? std::vector<float>(actorCount, 1.0f) : plan.poseWeights) : source.poseWeights;
+			stage.marks = source.marks;
+			stage.participants.reserve(actorCount);
+			for (std::size_t i = 0; i < actorCount; ++i) {
+				const AnimationClipSpec spec{ source.files[i], source.animIds.empty() ? std::string{} : source.animIds[i] };
+				const auto key = std::pair{ spec.resourcePath, spec.animationId };
+				auto found = clips.find(key);
+				if (found == clips.end()) {
+					auto clip = load(spec);
+					if (!clip || !clip->skeleton || !clip->skeleton->data || !clip->anim || !clip->anim->data)
+						return std::nullopt;
+					const float duration = clip->anim->data->duration();
+					if (!std::isfinite(duration) || duration <= 0.0f) return std::nullopt;
+					clip->file = spec.resourcePath;
+					found = clips.emplace(key, std::move(*clip)).first;
+				}
+				stage.participants.push_back(found->second);
+			}
+			stage.duration = stage.participants.front().anim->data->duration();
+			for (std::size_t i = 1; i < stage.participants.size(); ++i) {
+				const float duration = stage.participants[i].anim->data->duration();
+				if (std::abs(duration - stage.duration) > 0.01f)
+					REX::WARN("[Anim] synchronized playback: segment participant {} duration {:.3f}s differs from reference {:.3f}s; sampling wraps independently",
+						i, duration, stage.duration);
+			}
+			stages.push_back(std::move(stage));
+		}
+		return stages;
+	}
+
 	PlaybackSession::Tick PlaybackSession::Advance(const void* a_token, float a_deltaTime)
 	{
 		std::scoped_lock l{ lock };

@@ -21,6 +21,11 @@ namespace OSF::Camera
 	enum class CameraMode : std::uint8_t;
 }
 
+namespace OSF::Animation
+{
+	class PreparedPlayback;
+}
+
 namespace OSF::Scene
 {
 	class SceneRuntime
@@ -272,6 +277,7 @@ namespace OSF::Scene
 			WorldAnchor                                                    anchor, anchorBase;
 			RE::NiPointer<RE::TESObjectREFR>                               anchorRef;
 			std::optional<Animation::PlaybackPlan>                         plan;
+			std::shared_ptr<Animation::PreparedPlayback>                  playback;
 			std::string                                                    failureReason;
 			std::atomic<bool>                                              automatic{}, cancelled{}, reset{}, interrupted{};
 			bool                                                           defaults{}, applied{}, exitFired{}, committed{};
@@ -391,11 +397,8 @@ namespace OSF::Scene
 
 		void RecordInputChannel(std::int32_t a_handle, const Input::Grant& a_grant);
 
-		// Call outside _lock. 0 = no playable or play failed; ApplyTransition then ends the scene
-		// cleanly rather than stranding it with the input lock held.
-		static Animation::PlaybackId PlayNodeAnim(const std::vector<RE::Actor*>& a_participants,
-			std::string_view a_sceneId, std::string_view a_nodeId,
-			Animation::PlaybackId a_expectedPlayback = 0);
+		// Build/load the pinned destination before exit effects or actor-state application.
+		bool PreparePlayback(const std::shared_ptr<PreparedTransition>&);
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants,
 			Animation::PlaybackId a_expectedPlayback);
 

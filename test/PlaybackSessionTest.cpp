@@ -4,6 +4,12 @@
 #include "Scene/SceneFoundation.h"
 #include "Scene/AlignmentState.h"
 #include "Matchmaking/RoleBinding.h"
+#include "Preparation/Coordinator.h"
+
+#include "ozz/animation/offline/animation_builder.h"
+#include "ozz/animation/offline/raw_animation.h"
+#include "ozz/animation/offline/raw_skeleton.h"
+#include "ozz/animation/offline/skeleton_builder.h"
 
 #include <array>
 #include <cmath>
@@ -19,6 +25,21 @@ namespace
 	using OSF::Test::Check;
 	using Stage = PlaybackSession::SegmentData;
 	using Hits = std::vector<std::pair<std::uint8_t, std::string>>;
+
+	PlaybackSession::ParticipantSlot DecodedClip(float duration)
+	{
+		ozz::animation::offline::RawSkeleton rawSkeleton;
+		rawSkeleton.roots.resize(1);
+		rawSkeleton.roots.front().name = "root";
+		auto skeleton = std::make_shared<OzzSkeleton>();
+		skeleton->data = ozz::animation::offline::SkeletonBuilder{}(rawSkeleton);
+		ozz::animation::offline::RawAnimation rawAnimation;
+		rawAnimation.duration = duration;
+		rawAnimation.tracks.resize(1);
+		auto animation = std::make_shared<OzzAnimation>();
+		animation->data = ozz::animation::offline::AnimationBuilder{}(rawAnimation);
+		return { std::move(skeleton), std::move(animation), {} };
+	}
 
 	Stage Segment(float a_duration, int a_loops = 0, float a_timer = 0)
 	{
@@ -53,6 +74,107 @@ namespace
 
 int main()
 {
+	Run("resource preparation precedes effects and survives pending readiness without reloading", [] {
+		using namespace OSF::Preparation;
+		for (bool missing : { false, true }) {
+			PlaybackPlan plan;
+			plan.stages.resize(2);
+			plan.stages[0].files = { "first.glb" };
+			plan.stages[0].animIds = { "clip-a" };
+			plan.stages[0].loops = 1;
+			plan.stages[1].files = { "last.glb" };
+			plan.stages[1].hold = 1.0f;
+			auto first = DecodedClip(1.0f), last = DecodedClip(2.0f);
+			const auto* expectedFirst = first.anim.get();
+			const auto* expectedLast = last.anim.get();
+			const std::weak_ptr<const OzzAnimation> firstLifetime = first.anim;
+			int loads = 0, effects = 0, guards = 0, commits = 0, readyCalls = 0;
+			Outcome outcome = Outcome::Failed;
+			PlaybackSession session;
+			Coordinator coordinator;
+			Token provider{};
+			provider = coordinator.Register({ 0, 100,
+				[&](const Context& context, Phase phase) {
+					if (phase == Phase::Ready && ++readyCalls == 1) return Decision::Pending;
+					if (phase == Phase::Validate) {
+						CHECK(loads == 2 && effects == 1);
+						CHECK(coordinator.Guard(context.attempt, provider,
+							{ [&] { ++guards; return true; }, [&] { --guards; } }));
+					}
+					return Decision::Approve;
+				}, [](const Context&, Outcome) {} });
+			Context context; context.scene = 1; context.actors = { 14 };
+			coordinator.Begin(context, { [] { return true; }, [&] {
+				auto stages = PreparePlaybackStages(plan, 1, [&](const AnimationClipSpec& spec)
+					-> std::optional<PlaybackSession::ParticipantSlot> {
+					CHECK(!effects && !guards && !commits);
+					++loads;
+					if (spec.resourcePath == "first.glb") {
+						CHECK(spec.animationId == "clip-a");
+						return first;
+					}
+					CHECK(spec.resourcePath == "last.glb" && spec.animationId.empty());
+					return missing ? std::nullopt : std::optional{ last };
+				});
+				if (!stages) return false;
+				session.stages = std::move(*stages);
+				return true;
+			}, [&] { ++effects; return true; }, [] { return Decision::Approve; }, [&] {
+				CHECK(guards == 1 && loads == 2 && effects == 1);
+				++commits;
+				return session.SetSegment(0);
+			}, [&](Outcome result, bool applied) { outcome = result; CHECK(applied == !missing); } }, 0);
+			coordinator.Tick(1);
+			// Loading has finished before any pending provider Ready callback. The session
+			// owns the decoded assets even if the loader drops its references meanwhile.
+			first = {}; last = {};
+			if (missing) {
+				CHECK(outcome == Outcome::Vetoed && !effects && !commits && !coordinator.PendingCount());
+				CHECK(session.stages.empty());
+				CHECK(firstLifetime.expired()); // partial preparation released its loaded resources
+			} else {
+				CHECK(coordinator.PendingCount() == 1 && !commits && !guards);
+				coordinator.Tick(2);
+				CHECK(outcome == Outcome::Committed && commits == 1 && !guards && loads == 2);
+				CHECK(!firstLifetime.expired());
+				CHECK(session.stages[0].participants[0].anim.get() == expectedFirst);
+				CHECK(session.stages[1].participants[0].anim.get() == expectedLast);
+				CHECK(session.stages[0].participants[0].file == "first.glb");
+				CHECK(session.Advance(&session, 1.0f).stage == 1);
+				Near(session.GetPlaybackSnapshot().time, 2.0f, "prepared second stage retains authored hold and duration");
+				CHECK(loads == 2); // no loader participates in publication or later stage switches
+			}
+		}
+	});
+	Run("resource preparation refuses incomplete decoded assets", [] {
+		PlaybackPlan plan; plan.stages.resize(1); plan.stages[0].files = { "broken.glb" };
+		CHECK(!PreparePlaybackStages(plan, 1, [](const AnimationClipSpec&) {
+			return std::optional{ PlaybackSession::ParticipantSlot{} };
+		}));
+	});
+	Run("resource preparation shares exact clip requests only within one attempt", [] {
+		PlaybackPlan plan; plan.stages.resize(3);
+		for (auto& stage : plan.stages) stage.files = { "shared.glb" };
+		plan.stages[0].animIds = plan.stages[1].animIds = { "first" };
+		plan.stages[2].animIds = { "second" };
+		int loads = 0;
+		const auto loader = [&](const AnimationClipSpec& spec) -> std::optional<PlaybackSession::ParticipantSlot> {
+			++loads;
+			CHECK(spec.resourcePath == "shared.glb");
+			return DecodedClip(spec.animationId == "first" ? 1.0f : 2.0f);
+		};
+		auto stages = PreparePlaybackStages(plan, 1, loader);
+		CHECK(stages && loads == 2);
+		if (!stages) return;
+		CHECK((*stages)[0].participants[0].anim == (*stages)[1].participants[0].anim);
+		CHECK((*stages)[0].participants[0].skeleton == (*stages)[1].participants[0].skeleton);
+		CHECK((*stages)[0].participants[0].anim != (*stages)[2].participants[0].anim);
+		Near((*stages)[2].duration, 2.0f, "different animation ID preserves its own decoded clip");
+		const auto nextAttempt = PreparePlaybackStages(plan, 1, loader);
+		CHECK(nextAttempt && loads == 4);
+		if (nextAttempt)
+			CHECK((*nextAttempt)[0].participants[0].anim != (*stages)[0].participants[0].anim);
+	});
 	Run("manual progression keeps looping and preserves cue identity", [] {
 		PlaybackSession s;
 		auto st = Segment(1.0f, 2, 2.0f);

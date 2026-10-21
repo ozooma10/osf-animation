@@ -4,7 +4,6 @@
 #include "Input/InputService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
-#include "Scene/AlignmentStore.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneTiming.h"
 #include "UI/FadeService.h"
@@ -214,74 +213,47 @@ namespace OSF::Scene
 		}
 	}
 
-	Animation::PlaybackId SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants,
-		std::string_view a_sceneId, std::string_view a_nodeId, Animation::PlaybackId a_expectedPlayback)
+	bool SceneRuntime::PreparePlayback(const std::shared_ptr<PreparedTransition>& p)
 	{
-		if (a_participants.empty()) {
-			return 0;
-		}
-		// Per-start anchor/placement/loopScale are read fresh from the slot for every node entry.
+		if (p->context.kind == Preparation::Kind::Stage) return true; // this session already owns every segment
+		if (p->cast.empty() || !PreparationValid(p)) return false;
+		// Definitions and destination cast are pinned by the attempt. No slot identity or
+		// alignment state changes until the prepared resources pass final admission.
 		float loopScale = 1.0f;
 		bool autoAdvance = true;
 		std::optional<Animation::WorldPlacementMode> placementOverride;
-		auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 		AnchorOverride anchor;
 		AnchorOverride frozenAnchor;
 		ActorBaseline baseline;
-		SceneSpeed speed;
-		std::vector<Alignment::Delta> alignment;
 		{
-			std::lock_guard l{ GetSingleton()._lock };
-			std::int32_t tok = 0;
-			if (Slot* s = GetSingleton().FindSlotForActor(a_participants.front(), &tok); s) {
-				if (s->definition) {
-					def = s->definition;  // the version pinned at Start
-				}
-				anchor = s->anchor;
-				frozenAnchor = s->frozenAnchor;
-				baseline = s->baseline;
-				speed = s->speed;
-				loopScale = s->loopScale;
-				autoAdvance = s->autoAdvance;
-				placementOverride = s->worldPlacement;
-				if (def && def->roles.size() == a_participants.size()) {
-					std::vector<std::string> roles;
-					for (const auto& role : def->roles) roles.push_back(role.name);
-					alignment = s->align.Enter(std::string(a_nodeId), Alignment::Read(s->id, a_nodeId, roles));
-				}
-			}
+			std::lock_guard l{ _lock };
+			const auto* s = Resolve(p->context.scene);
+			if (!s || s->preparation != p) return false;
+			anchor = p->context.kind == Preparation::Kind::Handoff ? p->anchor : s->anchor;
+			frozenAnchor = s->frozenAnchor;
+			baseline = s->baseline;
+			loopScale = s->loopScale;
+			autoAdvance = s->autoAdvance;
+			placementOverride = s->worldPlacement;
 		}
-		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
-		if (!node || (node->use.empty() && node->stages.empty())) {
-			return 0;
-		}
-		auto plan = Registry::ContentRegistry::GetSingleton().BuildNodePlan(def, *node, a_participants.size());
+		auto plan = p->plan;
 		if (!plan) {
-			REX::WARN("[Scene] node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
-			return 0;
-		}
-		ApplyScenePlacement(*plan, anchor, frozenAnchor, baseline, a_participants);
-		speed.Apply(*plan);
-		if (placementOverride.has_value()) {
-			plan->SetWorldPlacementMode(*placementOverride);
-		}
-		ApplyNodeTiming(*plan, *node, loopScale);
-		plan->autoAdvance = !node->allowManualHold || autoAdvance;
-		ApplyNodeMarks(*plan, *node);
-		Animation::PlaybackId playbackId = 0;
-		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(a_participants, *plan, 0, &playbackId,
-			a_expectedPlayback, GetSingleton()._playbackSinkId)) {
-			return 0;
-		}
-		if (const auto playback = Animation::GraphManager::GetSingleton().GetScenePlayback(a_participants.front(), playbackId)) {
-			std::lock_guard l{ GetSingleton()._lock };
-			if (Slot* s = GetSingleton().FindSlotForActor(a_participants.front(), nullptr); s && !s->frozenAnchor.set) {
-				s->frozenAnchor = { true, playback->anchorPos, playback->anchorHeading };
+			const auto* node = p->target ? p->target->FindNode(p->context.toNode) : nullptr;
+			if (!node || (node->use.empty() && node->stages.empty())) return false;
+			plan = Registry::ContentRegistry::GetSingleton().BuildNodePlan(p->target, *node, p->cast.size());
+			if (!plan) {
+				REX::WARN("[Scene] node '{}' not playable for {} participant(s)", p->context.toNode, p->cast.size());
+				return false;
 			}
+			ApplyNodeTiming(*plan, *node, loopScale);
+			plan->autoAdvance = !node->allowManualHold || autoAdvance;
+			ApplyNodeMarks(*plan, *node);
 		}
-		for (std::size_t i = 0; i < alignment.size(); ++i)
-			Animation::GraphManager::GetSingleton().SetAlignmentDelta(a_participants[i], alignment[i], playbackId);
-		return playbackId;
+		ApplyScenePlacement(*plan, anchor, frozenAnchor, baseline, p->cast);
+		if (placementOverride) plan->SetWorldPlacementMode(*placementOverride);
+		p->playback = Animation::GraphManager::GetSingleton().PrepareSynchronized(p->cast, *plan,
+			p->plan ? p->context.toStage : 0, _playbackSinkId);
+		return p->playback && PreparationValid(p);
 	}
 
 	void SceneRuntime::StopGraph(const std::vector<RE::Actor*>& a_participants,

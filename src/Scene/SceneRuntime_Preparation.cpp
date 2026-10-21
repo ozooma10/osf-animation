@@ -1,6 +1,7 @@
 #include "Animation/GraphManager.h"
 #include "Equipment/EquipmentService.h"
 #include "Scene/SceneEventRelay.h"
+#include "Scene/AlignmentStore.h"
 #include "Scene/SceneRuntime.h"
 #include "Util/FormRef.h"
 #include "Util/MonotonicClock.h"
@@ -329,7 +330,12 @@ namespace OSF::Scene
 		const auto result = state.PreviewPlan(p->changes);
 		if (result != ActorState::Status::Ok && p->failureReason.empty())
 			p->failureReason = "equipment preflight refused (status " + std::to_string(static_cast<unsigned>(result)) + ")";
-		return result == ActorState::Status::Ok;
+		if (result != ActorState::Status::Ok) return false;
+		if (!PreparePlayback(p)) {
+			if (p->failureReason.empty()) p->failureReason = "playback-resource-preparation-failed";
+			return false;
+		}
+		return true;
 	}
 	bool SceneRuntime::CommitPreparation(const std::shared_ptr<PreparedTransition>& p)
 	{
@@ -341,6 +347,8 @@ namespace OSF::Scene
 				return false;
 			p->published = p->old.playbackId;
 		} else {
+			float speed = 1.0f;
+			std::vector<Alignment::Delta> alignment;
 			{
 				std::lock_guard l{ _lock };
 				auto*           s = Resolve(handle);
@@ -357,22 +365,17 @@ namespace OSF::Scene
 					s->align = {};
 					s->alignSelected = 0;
 				}
-			}
-			if (p->plan) {
-				auto plan = *p->plan;
-				{
-					std::lock_guard l{ _lock };
-					const auto*     s = Resolve(handle);
-					if (!s)
-						return false;
-					s->speed.Apply(plan);
+				speed = s->speed.value;
+				if (s->definition && s->definition->roles.size() == p->cast.size()) {
+					std::vector<std::string> roles;
+					for (const auto& role : s->definition->roles) roles.push_back(role.name);
+					alignment = s->align.Enter(s->node, Alignment::Read(s->id, s->node, roles));
 				}
-				if (!Animation::GraphManager::GetSingleton().PlaySynchronized(p->cast, plan, p->context.toStage, &p->published, 0, _playbackSinkId))
-					return false;
-			} else
-				p->published = PlayNodeAnim(p->cast, p->context.toScene, p->context.toNode, p->old.playbackId);
-			if (!p->published)
+			}
+			if (!Animation::GraphManager::GetSingleton().PlayPrepared(p->playback, speed, &p->published, p->old.playbackId))
 				return false;
+			for (std::size_t i = 0; i < alignment.size(); ++i)
+				Animation::GraphManager::GetSingleton().SetAlignmentDelta(p->cast[i], alignment[i], p->published);
 			const auto      playback = Animation::GraphManager::GetSingleton().GetScenePlayback(p->cast.front(), p->published);
 			std::lock_guard l{ _lock };
 			auto*           s = Resolve(handle);
