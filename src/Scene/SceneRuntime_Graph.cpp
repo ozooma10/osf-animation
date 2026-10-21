@@ -4,12 +4,13 @@
 #include "Input/InputService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
+#include "Scene/AlignmentStore.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneTiming.h"
-#include "Scene/AlignmentStore.h"
 #include "UI/FadeService.h"
 #include "UI/HudMessage.h"
 #include "Util/FormRef.h"
+#include "Util/NativeMainThreadQueue.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>
@@ -103,8 +104,8 @@ namespace OSF::Scene
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = FindSlotForPlayback(a_playbackId, &handle);
-			if (!s) {
-				return;  // standalone playback, or stale task from a replaced node
+			if (!s || s->transitioning) {
+				return;  // standalone playback, preparing, or stale task from a replaced node
 			}
 			oldNode = s->node;
 			sceneId = s->id;
@@ -124,6 +125,8 @@ namespace OSF::Scene
 		std::vector<Registry::CueEntry> cues;
 		std::vector<const Animation::FiredMark*> cueMarks;
 		for (const auto& m : marks) {
+			if (!LifecycleValid(handle, oldNode, true))
+				return;
 			if (m.lane == kLaneCue) {
 				std::size_t idx = 0;
 				if (node && ParseIndexToken(m.token, node->cues.size(), idx)) {
@@ -157,6 +160,8 @@ namespace OSF::Scene
 
 		// TODO: thread the fired fraction back from the Scene; time is sent as -1.
 		for (std::size_t cueIndex = 0; cueIndex < cues.size(); ++cueIndex) {
+			if (!LifecycleValid(handle, oldNode, true))
+				return;
 			const auto& cue = cues[cueIndex];
 			const auto& mark = *cueMarks[cueIndex];
 #ifdef OSF_ANIMATION_SMOKE
@@ -194,7 +199,6 @@ namespace OSF::Scene
 							if (edge->to == "$end" || s->singleStage) {
 								end = true;
 							} else {
-								s->node = edge->to;
 								newNode = edge->to;
 							}
 							s->transitioning = true;
@@ -345,158 +349,6 @@ namespace OSF::Scene
 		RunCamera(a_handle, Registry::CameraState::kSceneOrbit, hasPlayer, 0.0f);
 	}
 
-	void SceneRuntime::ClearHeldItems(std::int32_t a_handle, bool a_clearHeldItems,
-		const std::vector<RE::Actor*>& a_participants,
-		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
-	{
-		if (!a_clearHeldItems) {
-			REX::DEBUG("[Scene] scene {:#010x} held-item clear skipped — opted out (clearHeldItems:false)", a_handle);
-			return;
-		}
-		// Held props stay welded to the hand through an animation; independent of hideApparel.
-		std::size_t cleared = 0;
-		for (std::size_t i = 0; i < a_participants.size(); i++) {
-			RE::Actor* actor = a_participants[i];
-			if (!actor) {
-				continue;
-			}
-			std::vector<RE::TESBoundObject*> keep;
-			if (i < a_gearPicks.size()) {
-				for (const auto& pick : a_gearPicks[i]) {
-					if (pick.worn && pick.object) {
-						keep.push_back(pick.object);
-					}
-				}
-			}
-			cleared += ApplyHiddenEquipment(a_handle, actor, 0, true, keep);
-		}
-		REX::DEBUG("[Scene] scene {:#010x} held-item clear: {} item(s) across {} participant(s)",
-			a_handle, cleared, a_participants.size());
-	}
-
-	void SceneRuntime::HideDefaultApparel(std::int32_t a_handle, bool a_hideApparel, const std::vector<RE::Actor*>& a_participants,
-		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
-	{
-		if (!a_hideApparel) {
-			REX::DEBUG("[Scene] scene {:#010x} default apparel hide skipped — opted out (legacy stripActors:false)", a_handle);
-			return;
-		}
-		for (std::size_t i = 0; i < a_participants.size(); i++) {
-			RE::Actor* actor = a_participants[i];
-			if (!actor) {
-				continue;
-			}
-			std::vector<RE::TESBoundObject*> keep;
-			if (i < a_gearPicks.size()) {
-				for (const auto& pick : a_gearPicks[i]) {
-					if (pick.worn && pick.object) {
-						keep.push_back(pick.object);
-					}
-				}
-			}
-			ApplyHiddenEquipment(a_handle, actor, 0xFFFFFFFFu, false, keep);
-		}
-		REX::DEBUG("[Scene] scene {:#010x} default apparel hide applied to {} participant(s)", a_handle, a_participants.size());
-	}
-
-	std::vector<std::vector<Equipment::Gear::Pick>> SceneRuntime::BuildGearPicks(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants)
-	{
-		std::vector<std::vector<Equipment::Gear::Pick>> picks(a_participants.size());
-		if (!Equipment::Gear::AutoEquip()) {
-			return picks;
-		}
-		SlotView view;
-		SnapshotSlot(a_handle, view);
-		const auto def = view.definition;
-		for (std::size_t i = 0; i < a_participants.size(); i++) {
-			RE::Actor* actor = a_participants[i];
-			if (!actor) {
-				continue;
-			}
-			// Authored role equip reserves its registered gear slot; physical conflicts are checked by actor state.
-			std::vector<std::string> taken;
-			if (def && i < def->roles.size() && !def->roles[i].equip.Empty()) {
-				const std::string  gender = Matchmaking::ActorGenderTag(actor);
-				const std::string& ref = def->roles[i].equip.ForGender(gender);
-				if (!ref.empty()) {
-					if (const auto id = Util::ComposeFormID(ref)) {
-						if (auto slot = Equipment::Gear::SlotOfForm(*id); !slot.empty()) {
-							taken.push_back(std::move(slot));
-						}
-					}
-				}
-			}
-			picks[i] = Equipment::Gear::SelectForActor(actor, taken);
-		}
-		return picks;
-	}
-
-	void SceneRuntime::EquipGearItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
-		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
-	{
-		for (std::size_t i = 0; i < a_participants.size() && i < a_gearPicks.size(); ++i) {
-			for (const auto& pick : a_gearPicks[i]) {
-				if (pick.object && !ApplyEquippedItem(a_handle, a_participants[i], pick.object, true))
-					REX::WARN("[Scene] scene {:#010x} gear '{}' could not acquire ownership", a_handle, pick.ref);
-			}
-		}
-	}
-
-	void SceneRuntime::EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
-	{
-		if (a_defId.empty()) {
-			return;
-		}
-		SlotView view;
-		SnapshotSlot(a_handle, view);
-		const auto def = view.definition;
-		if (!def) {
-			return;
-		}
-		for (std::size_t i = 0; i < def->roles.size() && i < a_participants.size(); i++) {
-			const auto& role = def->roles[i];
-			if (role.equip.Empty()) {
-				continue;
-			}
-			RE::Actor* actor = a_participants[i];
-			if (!actor) {
-				REX::WARN("[Scene] scene {:#010x} role '{}' has equip but bound no actor — skipped", a_handle, role.name);
-				continue;
-			}
-			const std::string gender = Matchmaking::ActorGenderTag(actor);
-			const std::string& ref = role.equip.ForGender(gender);
-			if (ref.empty()) {
-				REX::DEBUG("[Scene] scene {:#010x} role '{}' (actor {:08X}, gender '{}') has equip but none for that gender — skipped",
-					a_handle, role.name, actor->formID, gender.empty() ? "any" : gender);
-				continue;
-			}
-			REX::DEBUG("[Scene] scene {:#010x} role '{}' (actor {:08X}, gender '{}') equipping '{}'",
-				a_handle, role.name, actor->formID, gender.empty() ? "any" : gender, ref);
-			const auto composed = Util::ComposeFormID(ref);
-			if (!composed) {
-				REX::ERROR("[Scene] scene {:#010x} role '{}' equip '{}' — plugin not loaded or ref malformed (no FormID composed); is the .esm active in the load order?",
-					a_handle, role.name, ref);
-				continue;
-			}
-			auto* anyForm = RE::TESForm::LookupByID(*composed);
-			auto* object = (anyForm && Util::IsBoundObjectType(anyForm->GetFormType())) ? static_cast<RE::TESBoundObject*>(anyForm) : nullptr;
-			if (!object) {
-				if (anyForm) {
-					REX::ERROR("[Scene] scene {:#010x} role '{}' equip '{}' resolved to FormID {:#010x} but it is a {} (formType {}), not an equippable bound object — skipped",
-						a_handle, role.name, ref, *composed,
-						anyForm->GetFormEditorID() ? anyForm->GetFormEditorID() : "?",
-						static_cast<std::uint32_t>(anyForm->GetFormType()));
-				} else {
-					REX::ERROR("[Scene] scene {:#010x} role '{}' equip '{}' composed FormID {:#010x} but no such form is loaded — wrong local id? — skipped",
-						a_handle, role.name, ref, *composed);
-				}
-				continue;
-			}
-			if (!ApplyEquippedItem(a_handle, actor, object))
-				REX::WARN("[Scene] scene {:#010x} role '{}' equip '{}' could not acquire ownership", a_handle, role.name, ref);
-		}
-	}
-
 	void SceneRuntime::FadeSceneStart(std::int32_t a_handle, bool a_fade, const std::vector<RE::Actor*>& a_participants)
 	{
 		auto*      player = RE::PlayerCharacter::GetSingleton();
@@ -520,15 +372,18 @@ namespace OSF::Scene
 		const std::string_view cameraOverride = a_over.camera ? std::string_view(*a_over.camera) : std::string_view{};
 		EngageDefaultPlayerInputLock(a_handle, a_playerInputLock, a_participants);
 		EngageDefaultCamera(a_handle, a_entryNode, a_playerInputLock, cameraOverride, a_participants);
-		const auto gearPicks = BuildGearPicks(a_handle, a_participants);
-		ClearHeldItems(a_handle, a_clearHeldItems, a_participants, gearPicks);
-		HideDefaultApparel(a_handle, a_hideApparel, a_participants, gearPicks);
-		EquipGearItems(a_handle, a_participants, gearPicks);
-		EquipRoleItems(a_handle, a_defId, a_participants);
+		(void)a_hideApparel;
+		(void)a_clearHeldItems;  // applied by preparation before playback
 		FadeSceneStart(a_handle, a_fade, a_participants);
 		EngageDefaultSceneControls(a_handle, a_defId, a_over.sceneControls, a_participants);
 		REX::INFO("[Scene] start id='{}' handle={:#010x}", a_defId.empty() ? "<ad-hoc>" : a_defId, a_handle);
 		Fire(a_handle, Event::kSceneBegin, a_entryNode, "");
+		{
+			std::lock_guard l{ _lock };
+			const auto*     slot = Resolve(a_handle);
+			if (!slot || slot->transitioning || slot->node != a_entryNode)
+				return;
+		}
 		Fire(a_handle, Event::kNodeEnter, a_entryNode, "enter");
 	}
 
@@ -565,61 +420,44 @@ namespace OSF::Scene
 		REX::DEBUG("[Scene] scene {:#010x} scene controls engaged (capabilities {:#x}, locked {})", a_handle, grant.capabilities, grant.locked);
 	}
 
-	void SceneRuntime::ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
-		bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
+	void SceneRuntime::ApplyTransition(std::int32_t handle, std::string_view oldNode, std::string_view newNode, bool end, std::string_view sceneId, const std::vector<RE::Actor*>& cast, bool automatic)
 	{
-		Fire(a_handle, Event::kNodeExit, a_oldNode, "exit");
-
-		// A target that can't play must end the scene cleanly, not strand it with the input lock held.
-		bool end = a_end;
-		Animation::PlaybackId oldPlaybackId = 0;
-		{
-			std::lock_guard l{ _lock };
-			if (const Slot* s = Resolve(a_handle)) oldPlaybackId = s->playbackId;
-		}
-		Animation::PlaybackId newPlaybackId = 0;
-		if (!end && !(newPlaybackId = PlayNodeAnim(a_participants, a_sceneId, a_newNode, oldPlaybackId))) {
-			REX::WARN("[Scene] scene {:#010x} transition '{}' -> '{}' could not play the target node — ending scene",
-				a_handle, a_oldNode, a_newNode);
-			UI::HudMessage::Error(std::format("could not play '{}' — scene ended", a_newNode));
-			end = true;
-			std::lock_guard l{ _lock };
-			if (Slot* s = Resolve(a_handle)) {
-				s->terminationCause = TerminationCause::kInterrupted;
-			}
-		}
-
+		SlotView old;
+		if (!SnapshotSlot(handle, old))
+			return;
 		if (end) {
-			TerminationCause terminationCause = TerminationCause::kCompleted;
-			{
-				std::lock_guard l{ _lock };
-				if (const Slot* s = Resolve(a_handle)) {
-					terminationCause = s->terminationCause;
-				}
-			}
-			StopGraph(a_participants, oldPlaybackId);  // also tears down the old graph after a failed play
-			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");  // async Papyrus dispatch
-			REX::INFO("[Scene] end id='{}' handle={:#010x} cause={}", a_sceneId, a_handle,
-				TerminationCauseName(terminationCause));
-			ReleaseSlot(a_handle);  // also clears the transitioning guard
-			UI::HudMessage::Debug("OSF: scene ended");
-		} else {
-			{
-				std::lock_guard l{ _lock };
-				if (Slot* s = Resolve(a_handle)) {
-					s->playbackId = newPlaybackId;
-				}
-			}
-			Fire(a_handle, Event::kNodeEnter, a_newNode, "enter");
-			if (UI::HudMessage::DebugEnabled()) {
-				const auto         def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
-				const std::int32_t stage = def ? def->LinearStageOf(a_newNode) : -1;
-				UI::HudMessage::Show(stage >= 0
-						? std::format("OSF: stage {}/{} - {}", stage + 1, def->linearStages.size(), a_newNode)
-						: std::format("OSF: -> {}", a_newNode));
-			}
-			EndTransition(a_handle);
+			auto pins = std::make_shared<std::vector<RE::NiPointer<RE::Actor>>>();
+			for (auto* actor : cast) pins->emplace_back(actor);
+			Util::NativeMainThreadQueue::Post([this, handle, old, pins] {
+				SlotView live;
+				if (!SnapshotSlot(handle, live) || live.playbackId != old.playbackId)
+					return;
+				Fire(handle, Event::kNodeExit, old.node, "exit");
+				if (!SnapshotSlot(handle, live) || live.playbackId != old.playbackId)
+					return;
+				StopGraph(old.participants, old.playbackId);
+				Fire(handle, Event::kSceneEnd, old.node, "");
+				ReleaseSlot(handle);
+			});
+			return;
 		}
+		auto p = std::make_shared<PreparedTransition>();
+		p->context.scene = handle;
+		p->context.kind = Preparation::Kind::Node;
+		p->context.fromScene = std::string(sceneId);
+		p->context.toScene = std::string(sceneId);
+		p->context.fromNode = std::string(oldNode);
+		p->context.toNode = std::string(newNode);
+		p->old = old;
+		p->cast = cast;
+		p->target = old.definition;
+		p->automatic = automatic;
+		if (old.definition) {
+			p->context.fromStage = old.definition->LinearStageOf(oldNode);
+			p->context.toStage = old.definition->LinearStageOf(newNode);
+		}
+		if (!QueuePreparation(p))
+			EndTransition(handle);
 	}
 
 	void SceneRuntime::EndTransition(std::int32_t a_handle)
@@ -667,41 +505,26 @@ namespace OSF::Scene
 				s->cameraOverridden = a_over.camera.has_value();
 			}
 		}
-		// An unplayable entry would hold the input lock with no graph for the watchdog to recover.
-		const Animation::PlaybackId playbackId = PlayNodeAnim(a_participants, a_id, a_entryNode);
-		if (!playbackId) {
-			REX::WARN("[Scene] start '{}' entry node '{}' could not play — aborting start", a_id, a_entryNode);
+		auto p = std::make_shared<PreparedTransition>();
+		p->context.scene = handle;
+		p->context.kind = Preparation::Kind::Start;
+		p->context.toScene = std::string(a_id);
+		p->context.toNode = std::string(a_entryNode);
+		p->context.toStage = definition ? definition->LinearStageOf(a_entryNode) : 0;
+		p->old = { std::string(a_id), std::string(a_entryNode), a_participants, 0, definition, a_over.camera.has_value() };
+		p->cast = a_participants;
+		p->target = definition;
+		p->overrides = a_over;
+		p->defaults = true;
+		p->playerInputLock = a_over.playerInputLock.value_or(definition ? definition->playerInputLock : true);
+		p->hideApparel = a_over.hideApparel.value_or(definition ? definition->hideApparel : true);
+		p->clearHeldItems = definition ? definition->clearHeldItems : true;
+		p->fade = a_over.fade.value_or(definition ? definition->fade : false);
+		if (!QueuePreparation(p)) {
 			ReleaseSlot(handle);
 			return 0;
 		}
-		{
-			std::lock_guard l{ _lock };
-			if (Slot* s = Resolve(handle)) {
-				s->playbackId = playbackId;
-			}
-		}
-		std::string castDiag;
-		for (RE::Actor* actor : a_participants) {
-			castDiag += std::format("{}{:08X}", castDiag.empty() ? "" : ",", actor->formID);
-		}
-		REX::DEBUG("[Scene] start correlation handle={:#010x} playback={} id='{}' cast=[{}]",
-			handle, playbackId, a_id, castDiag);
-		bool playerInputLock = true;
-		bool hideApparel = true;
-		bool clearHeldItems = true;
-		bool fade = false;
-		if (definition) {
-			playerInputLock = definition->playerInputLock;
-			hideApparel = definition->hideApparel;
-			clearHeldItems = definition->clearHeldItems;
-			fade = definition->fade;
-		}
-		playerInputLock = a_over.playerInputLock.value_or(playerInputLock);
-		hideApparel = a_over.hideApparel.value_or(hideApparel);
-		fade = a_over.fade.value_or(fade);
-		CompleteStart(handle, a_id, a_entryNode, a_participants, playerInputLock, hideApparel,
-			clearHeldItems, fade, a_over);
-		return handle;
+		return handle;  // reserved; SCENE_BEGIN is emitted only after preparation/playback commit
 	}
 
 	bool SceneRuntime::SetNode(std::int32_t a_scene, std::string_view a_node)
@@ -720,8 +543,9 @@ namespace OSF::Scene
 				return false;
 			}
 			oldNode = s->node;
-			s->node = std::string(a_node);
-			newNode = s->node;
+			if (!s->definition || !s->definition->FindNode(a_node))
+				return false;
+			newNode = std::string(a_node);
 			sceneId = s->id;
 			participants = s->participants;
 			s->transitioning = true;
@@ -733,14 +557,23 @@ namespace OSF::Scene
 
 	bool SceneRuntime::Stop(std::int32_t a_scene)
 	{
-		// Bails if a transition is in flight; that transition owns the teardown.
 		SlotView view;
 		{
 			std::lock_guard l{ _lock };
-			Slot* s = Resolve(a_scene);
-			if (!s || s->transitioning) {
+			Slot*           s = Resolve(a_scene);
+			if (!s)
 				return false;
+			if (s->preparation) {
+				const auto p = s->preparation;
+				p->cancelled = true;
+				Util::NativeMainThreadQueue::Post([this, p] {
+					if (p->context.attempt)
+						_preparers.Cancel(p->context.attempt, p->reset ? Preparation::Outcome::WorldReset : Preparation::Outcome::Cancelled);
+				});
+				return true;
 			}
+			if (s->transitioning)
+				return false;
 			view.id = s->id;
 			view.node = s->node;
 			view.participants = s->participants;
@@ -835,26 +668,23 @@ namespace OSF::Scene
 				Animation::WorldPlacementMode::kAnchorAndPin : Animation::WorldPlacementMode::kFollowActor);
 			ApplyScenePlacement(a_plan, a_anchor, {}, s->baseline, a_participants);
 		}
-		Animation::PlaybackId playbackId = 0;
-		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(a_participants, a_plan, a_startStage,
-			&playbackId, 0, _playbackSinkId)) {
+		auto p = std::make_shared<PreparedTransition>();
+		p->context.scene = handle;
+		p->context.kind = Preparation::Kind::Start;
+		p->context.toNode = "main";
+		p->context.toStage = a_startStage;
+		p->old = { "", "main", a_participants, 0, {}, a_over.camera.has_value() };
+		p->cast = a_participants;
+		p->plan = std::move(a_plan);
+		p->overrides = a_over;
+		p->defaults = true;
+		p->playerInputLock = a_over.playerInputLock.value_or(true);
+		p->hideApparel = a_over.hideApparel.value_or(true);
+		p->fade = a_over.fade.value_or(false);
+		if (!QueuePreparation(p)) {
 			ReleaseSlot(handle);
 			return 0;
 		}
-		{
-			std::lock_guard l{ _lock };
-			if (Slot* s = Resolve(handle)) {
-				s->playbackId = playbackId;
-			}
-		}
-		const bool playerInputLock = a_over.playerInputLock.value_or(true);
-		if (const auto playback = Animation::GraphManager::GetSingleton().GetScenePlayback(a_participants.front())) {
-			std::lock_guard l{ _lock };
-			if (auto* s = Resolve(handle)) s->frozenAnchor = { true, playback->anchorPos, playback->anchorHeading };
-		}
-		const bool hideApparel = a_over.hideApparel.value_or(true);
-		const bool fade = a_over.fade.value_or(false);
-		CompleteStart(handle, "", "main", a_participants, playerInputLock, hideApparel, true, fade, a_over);
 		return handle;
 	}
 
@@ -919,7 +749,6 @@ namespace OSF::Scene
 				end = true;
 				s->terminationCause = TerminationCause::kCancelled;
 			} else {
-				s->node = edge->to;
 				newNode = edge->to;
 			}
 			s->transitioning = true;
@@ -990,7 +819,15 @@ namespace OSF::Scene
 				return false;  // standalone scene, or stale task
 			}
 			if (s->transitioning) {
-				// The in-flight transition owns the teardown; report handled so GraphManager doesn't also stop it.
+				// Completion makes resuming the source unsafe. Interruption also cancels admission.
+				if (s->preparation) {
+					s->preparation->automatic = true;
+					if (a_reason == Animation::PlaybackEndReason::kInterrupted) {
+						s->preparation->interrupted = true;
+						s->preparation->cancelled = true;
+					}
+				}
+				// The in-flight transition owns teardown; don't leave an ended source on veto.
 				REX::DEBUG("[Scene] auto-end for scene {:#010x} skipped — a transition is already in flight", handle);
 				return true;
 			}
@@ -1017,7 +854,6 @@ namespace OSF::Scene
 					if (edge->to == "$end" || s->singleStage) {
 						end = true;
 					} else {
-						s->node = edge->to;
 						newNode = edge->to;
 					}
 				} else {
@@ -1032,7 +868,7 @@ namespace OSF::Scene
 		REX::DEBUG("[Scene] scene {:#010x} auto-end (reason={}) node '{}' -> {}{}",
 			handle, reasonStr, oldNode, end ? "$end" : newNode, tookEdge ? "" : " (terminal, no edge)");
 
-		ApplyTransition(handle, oldNode, newNode, end, sceneId, participants);
+		ApplyTransition(handle, oldNode, newNode, end, sceneId, participants, true);
 		return true;
 	}
 

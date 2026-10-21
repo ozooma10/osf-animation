@@ -4,10 +4,11 @@
 #include "Equipment/GearRegistry.h"
 #include "Input/InputTypes.h"
 #include "Matchmaking/Matchmaker.h"
+#include "Preparation/Coordinator.h"
 #include "Props/PropService.h"
 #include "Registry/ContentRegistry.h"
-#include "Scene/SceneFoundation.h"
 #include "Scene/AlignmentState.h"
+#include "Scene/SceneFoundation.h"
 
 #include <cstdint>
 #include <deque>
@@ -43,7 +44,14 @@ namespace OSF::Scene
 			WorldAnchor anchorBase;  // rendered ref transform before the definition offset
 		};
 
-		void RegisterWithGraphManager();
+		void               RegisterWithGraphManager();
+		Preparation::Token RegisterPreparer(Preparation::Provider);
+		bool               UnregisterPreparer(Preparation::Token);
+		bool               PlanEquipment(Preparation::Token attempt, Preparation::Token provider, const ActorState::Request&);
+		bool               ReserveResource(Preparation::Token attempt, Preparation::Token provider, std::string_view key);
+		bool               PreparationFailure(Preparation::Token attempt, Preparation::Token provider, std::string_view reason);
+		std::string        ReadPreparation(std::int32_t scene);
+		bool               OnPlaybackStage(Animation::PlaybackId, std::int32_t stage, bool automatic);
 
 		// Game thread. If no auto-edge matches, the scene completes. False if not a runtime scene.
 		bool OnGraphAutoEnd(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
@@ -196,6 +204,7 @@ namespace OSF::Scene
 			Props::Instance instance;
 		};
 
+		struct PreparedTransition;
 		struct Slot
 		{
 			std::uint16_t           generation = 0;  // 0 = empty
@@ -205,7 +214,10 @@ namespace OSF::Scene
 			// One transition at a time: ApplyTransition runs outside _lock, and overlapping triggers
 			// (Papyrus advance vs auto-end) orphaned a graph and froze the player. Claimed under _lock.
 			bool                    transitioning = false;
-			ActorState::Handle      equipmentScope{};
+			ActorState::Handle                               equipmentScope{};
+			std::shared_ptr<PreparedTransition>              preparation;
+			std::string                                      preparationResult, preparationError;
+			std::map<Preparation::Token, ActorState::Handle> preparedScopes;
 			TerminationCause        terminationCause = TerminationCause::kCompleted;
 			std::string             id;
 			std::string             node;
@@ -246,6 +258,51 @@ namespace OSF::Scene
 			Registry::SceneRef      definition;
 			bool                    cameraOverridden = false;
 		};
+
+		struct PreparedTransition
+		{
+			Preparation::Context                                           context;
+			SlotView                                                       old;
+			Registry::SceneRef                                             target;
+			std::vector<RE::Actor*>                                        cast;
+			std::vector<RE::NiPointer<RE::Actor>>                          pins;
+			StartOverrides                                                 overrides;
+			WorldAnchor                                                    anchor, anchorBase;
+			RE::NiPointer<RE::TESObjectREFR>                               anchorRef;
+			std::optional<Animation::PlaybackPlan>                         plan;
+			std::string                                                    failureReason;
+			std::atomic<bool>                                              automatic{}, cancelled{}, reset{}, interrupted{};
+			bool                                                           defaults{}, applied{}, exitFired{}, committed{};
+			bool                                                           playerInputLock{ true }, hideApparel{ true }, clearHeldItems{ true }, fade{};
+			Animation::PlaybackId                                          published{};
+			ActorState::Handle                                             edit{};
+			std::vector<ActorState::Store::Change>                         changes;
+			std::map<Preparation::Token, std::vector<ActorState::Request>> requests;
+			std::map<Preparation::Token, ActorState::Handle>               scopes;
+			std::vector<ActorState::Handle>                                newScopes;
+			std::map<std::string, Preparation::Token>                      resources;
+		};
+		bool                                                              QueuePreparation(const std::shared_ptr<PreparedTransition>&);
+		void                                                              StartPreparation(const std::shared_ptr<PreparedTransition>&);
+		bool                                                              PreparationValid(const std::shared_ptr<PreparedTransition>&);
+		bool                                                              BuildPreparationPlan(const std::shared_ptr<PreparedTransition>&);
+		bool                                                              CommitPreparation(const std::shared_ptr<PreparedTransition>&);
+		void                                                              FinishPreparation(const std::shared_ptr<PreparedTransition>&, Preparation::Outcome, bool applied);
+		void                                                              PollPreparation();
+		void                                                              ResetPreparation();
+		void                                                              ReleaseResources(std::int32_t scene);
+		static bool                                                       PreparedEquipmentAction(Registry::ActionKind);
+		static bool                                                       LifecycleValid(std::int32_t, std::string_view, bool enter);
+		Preparation::Coordinator                                          _preparers;
+		std::map<Preparation::Token, std::shared_ptr<PreparedTransition>> _preparations;
+		struct ResourceLease
+		{
+			std::int32_t       scene;
+			Preparation::Token provider, attempt;
+		};
+		std::map<std::string, ResourceLease> _resources;
+		bool                                 _preparationPollQueued{};
+		std::atomic<bool>                    _preparationSaving{};
 
 		struct AdvanceEdgeInfo
 		{
@@ -345,26 +402,6 @@ namespace OSF::Scene
 		// Player participates and the scene specifies no camera: scene orbit.
 		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_entryNode, bool a_playerInputLock, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
-		// Empties every participant's hands (slate, tool, weapon). Worn gear picks are exempt.
-		void ClearHeldItems(std::int32_t a_handle, bool a_clearHeldItems,
-			const std::vector<RE::Actor*>& a_participants,
-			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
-
-		// Preserves base skin; worn gear picks are exempt.
-		void HideDefaultApparel(std::int32_t a_handle, bool a_hideApparel, const std::vector<RE::Actor*>& a_participants,
-			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
-
-		// Gear registry ∩ inventory, minus slots claimed by authored role `equip`. Index-parallel to
-		// a_participants. Game thread.
-		std::vector<std::vector<Equipment::Gear::Pick>> BuildGearPicks(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants);
-
-		// Worn and newly equipped gear both hold claims; only owned changes are undone.
-		void EquipGearItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
-			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
-
-		// a_participants[i] <-> def->roles[i]; gender picks the male/female ref, falling back to `any`.
-		void EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
-
 		void EngageDefaultSceneControls(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants);
 
 		// Self-releasing fade, not ledger-recorded. Async (UI queue), so it can't hide the frame-0 snap.
@@ -376,8 +413,7 @@ namespace OSF::Scene
 			bool a_clearHeldItems, bool a_fade, const StartOverrides& a_over);
 
 		// NODE_EXIT, then end or play a_newNode + NODE_ENTER. Call outside _lock with a snapshot.
-		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
-			bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
+		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode, bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, bool a_automatic = false);
 
 		// Releases Slot::transitioning after a non-terminal transition. Takes _lock.
 		void EndTransition(std::int32_t a_handle);

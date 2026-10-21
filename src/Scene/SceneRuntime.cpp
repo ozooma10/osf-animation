@@ -102,7 +102,7 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 		const auto* s = Resolve(a_grant.handle);
-		return s && !s->transitioning && Input::GrantAllows(a_grant, s->grant, a_verb);
+		return s && (!s->transitioning || (s->preparation && a_verb == Input::Verb::kEnd)) && Input::GrantAllows(a_grant, s->grant, a_verb);
 	}
 
 	void SceneRuntime::RegisterWithGraphManager()
@@ -125,6 +125,7 @@ namespace OSF::Scene
 			}
 			return rt.SetSpeed(handle, a_speed);
 		};
+		sink.prepareStage = [](Animation::PlaybackId id, std::int32_t stage, bool automatic) { return GetSingleton().OnPlaybackStage(id, stage, automatic); };
 		sink.clear = []() { SceneRuntime::GetSingleton().Clear(); };
 		sink.timedMarks = [](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors,
 			const std::vector<Animation::FiredMark>& a_marks) {
@@ -280,11 +281,13 @@ namespace OSF::Scene
 
 	void SceneRuntime::ReleaseSlot(std::int32_t a_handle)
 	{
+		ReleaseResources(a_handle);
 		ActorState::Report(ActorState::Get().CloseSession(static_cast<std::uint32_t>(a_handle)), "release session");
 		std::lock_guard l{ _lock };
 		if (Slot* s = Resolve(a_handle)) {
 			// Keep only the roster, for async SCENE_END consumers; bounded FIFO.
 			const std::uint16_t gen = s->generation;
+			auto                                  result = std::move(s->preparationResult), error = std::move(s->preparationError);
 			std::vector<RE::Actor*> roster = std::move(s->participants);
 			std::vector<RE::NiPointer<RE::Actor>> retained;
 			retained.reserve(roster.size());
@@ -294,6 +297,8 @@ namespace OSF::Scene
 			*s = Slot{};
 			s->generation = gen;
 			s->ended = true;
+			s->preparationResult = std::move(result);
+			s->preparationError = std::move(error);
 			s->participants = std::move(roster);
 			s->retiredParticipantRefs = std::move(retained);
 			_retiredHandles.push_back(a_handle);
@@ -328,7 +333,8 @@ namespace OSF::Scene
 		if (!s || s->participants.empty() || !std::isfinite(a_speed)) return false;
 		auto next = s->speed;
 		next.Set(a_speed);
-		if (!Animation::GraphManager::GetSingleton().SetPlaybackSpeed(s->participants.front(), s->playbackId, next.value)) return false;
+		if (s->playbackId && !Animation::GraphManager::GetSingleton().SetPlaybackSpeed(s->participants.front(), s->playbackId, next.value))
+			return false;
 		s->speed = next;
 		return true;
 	}
@@ -469,6 +475,7 @@ namespace OSF::Scene
 
 	void SceneRuntime::Clear()
 	{
+		ResetPreparation();
 		ActorState::Get().Reset(); // no old-world inventory operations
 		std::vector<ActiveProp> props;
 		{

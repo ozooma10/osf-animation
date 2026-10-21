@@ -17,6 +17,14 @@
 
 namespace OSF::Scene
 {
+	bool SceneRuntime::LifecycleValid(std::int32_t handle, std::string_view node, bool enter)
+	{
+		auto&           rt = GetSingleton();
+		std::lock_guard l{ rt._lock };
+		const auto*     s = rt.Resolve(handle);
+		return s && s->node == node && !(s->preparation && (s->preparation->cancelled || s->preparation->reset)) && (!enter || !s->transitioning);
+	}
+
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition,
 		std::string_view a_edge)
 	{
@@ -27,12 +35,22 @@ namespace OSF::Scene
 
 		// Exit entries run before NODE_EXIT, enter entries after NODE_ENTER; lane order action -> camera -> sound -> cue.
 		if (a_event == Event::kNodeExit) {
+			if (!LifecycleValid(a_handle, a_node, false))
+				return;
 			DispatchLifecycleActions(a_handle, a_node, false);
+			if (!LifecycleValid(a_handle, a_node, false))
+				return;
 			DispatchLifecycleCamera(a_handle, a_node, false);
+			if (!LifecycleValid(a_handle, a_node, false))
+				return;
 			DispatchLifecycleSounds(a_handle, a_node, false);
+			if (!LifecycleValid(a_handle, a_node, false))
+				return;
 			DispatchLifecycleCues(a_handle, a_node, false);
 		}
 
+		if (a_event == Event::kNodeExit && !LifecycleValid(a_handle, a_node, false))
+			return;
 		REX::DEBUG("[Scene] scene {:#010x} event {:#x} node='{}' trackPosition='{}'", a_handle, a_event, a_node, a_trackPosition);
 		SceneEvent e;
 		e.scene = a_handle;
@@ -51,9 +69,23 @@ namespace OSF::Scene
 		SceneEventRelay::GetSingleton().Dispatch(e);
 
 		if (a_event == Event::kNodeEnter) {
+			{
+				std::lock_guard l{ GetSingleton()._lock };
+				const auto*     s = GetSingleton().Resolve(a_handle);
+				if (!s || s->transitioning || s->node != a_node)
+					return;
+			}
+			if (!LifecycleValid(a_handle, a_node, true))
+				return;
 			DispatchLifecycleActions(a_handle, a_node, true);
+			if (!LifecycleValid(a_handle, a_node, true))
+				return;
 			DispatchLifecycleCamera(a_handle, a_node, true);
+			if (!LifecycleValid(a_handle, a_node, true))
+				return;
 			DispatchLifecycleSounds(a_handle, a_node, true);
+			if (!LifecycleValid(a_handle, a_node, true))
+				return;
 			DispatchLifecycleCues(a_handle, a_node, true);
 		}
 
@@ -98,6 +130,8 @@ namespace OSF::Scene
 		}
 		const auto wantPos = a_enter ? Registry::CuePos::kEnter : Registry::CuePos::kExit;
 		for (const auto& cue : node->cues) {
+			if (!LifecycleValid(a_handle, a_node, a_enter))
+				return;
 			if (cue.pos == wantPos) {
 				DispatchCue(a_handle, a_node, cue.id, cue.role, a_enter ? "enter" : "exit", -1.0f, 0, cue.nativeOnly);
 			}
@@ -126,6 +160,8 @@ namespace OSF::Scene
 		}
 		const auto wantPos = a_enter ? Registry::SoundPos::kEnter : Registry::SoundPos::kExit;
 		for (const auto& snd : node->sounds) {
+			if (!LifecycleValid(a_handle, a_node, a_enter))
+				return;
 			if (snd.pos == wantPos) {
 				PlaySound(a_handle, snd.spec, snd.role, snd.emitter);
 			}
@@ -185,6 +221,8 @@ namespace OSF::Scene
 
 		const auto wantPos = a_enter ? Registry::CameraPos::kEnter : Registry::CameraPos::kExit;
 		for (const auto& cam : node->cameras) {
+			if (!LifecycleValid(a_handle, a_node, a_enter))
+				return;
 			if (cam.pos == wantPos) {
 				RunCamera(a_handle, cam.state, hasPlayer, a_enter ? cam.distance : -1.0f);
 			}
@@ -253,9 +291,18 @@ namespace OSF::Scene
 		const bool hasPlayer = player &&
 			std::find(view.participants.begin(), view.participants.end(), static_cast<RE::Actor*>(player)) != view.participants.end();
 
+		bool preparedExit = false;
+		{
+			auto&           rt = GetSingleton();
+			std::lock_guard l{ rt._lock };
+			const auto*     slot = rt.Resolve(a_handle);
+			preparedExit = slot && static_cast<bool>(slot->preparation);
+		}
 		const auto wantPos = a_enter ? Registry::ActionPos::kEnter : Registry::ActionPos::kExit;
 		for (const auto& act : node->actions) {
-			if (act.pos == wantPos) {
+			if (!LifecycleValid(a_handle, a_node, a_enter))
+				return;
+			if (act.pos == wantPos && !((a_enter || preparedExit) && PreparedEquipmentAction(act.kind))) {
 				RunAction(a_handle, a_node, act, a_enter ? "enter" : "exit", hasPlayer);
 			}
 		}

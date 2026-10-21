@@ -13,10 +13,8 @@ namespace OSF::Scene
 		Registry::SceneRef next;
 		std::vector<RE::Actor*> cast;
 		std::string entry;
-		WorldAnchor anchor, base, oldAnchor, oldBase;
-		RE::NiPointer<RE::TESObjectREFR> ref, oldRef;
-		Alignment::WorkingCopy oldAlignment;
-		std::size_t oldSelected = 0;
+		WorldAnchor                      anchor, base;
+		RE::NiPointer<RE::TESObjectREFR> ref;
 		{
 			std::lock_guard l{ _lock };
 			auto* s = Resolve(a_scene);
@@ -54,61 +52,33 @@ namespace OSF::Scene
 				anchor = base;
 			}
 			old = { s->id, s->node, s->participants, s->playbackId, s->definition, s->cameraOverridden };
-			oldAnchor = s->anchor; oldBase = s->anchorBase; oldRef = s->anchorRef;
 			s->transitioning = true;
 		}
 
-		// Exit lanes retain their authored precedence and still observe the old identity and cast.
-		Fire(a_scene, Event::kNodeExit, old.node, "exit");
-		next = Registry::ContentRegistry::GetSingleton().ResolveLoopGlobals(next);
-		{
-			std::lock_guard l{ _lock };
-			auto* s = Resolve(a_scene);
-			if (!s) return false;  // a world reset from an external callback discarded the slot
-			s->definition = next; s->id = next->id; s->node = entry; s->participants = cast;
-			s->anchor = anchor; s->anchorBase = base; s->anchorRef = ref;
-			oldAlignment = std::move(s->align); s->align = {};
-			oldSelected = s->alignSelected; s->alignSelected = 0;
-		}
-		const auto playback = PlayNodeAnim(cast, next->id, entry, old.playbackId);
-		if (!playback) {
-			{
-				std::lock_guard l{ _lock };
-				auto* s = Resolve(a_scene);
-				if (!s) return false;
-				s->definition = old.definition; s->id = old.id; s->node = old.node; s->participants = old.participants;
-				s->anchor = oldAnchor; s->anchorBase = oldBase; s->anchorRef = oldRef;
-				s->align = std::move(oldAlignment); s->alignSelected = oldSelected;
-				s->terminationCause = TerminationCause::kInterrupted;
-			}
-			StopGraph(old.participants, old.playbackId);
-			Fire(a_scene, Event::kSceneEnd, old.node, "");
-			REX::INFO("[Scene] end id='{}' handle={:#010x} cause=interrupted (handoff to '{}' failed)", old.id, a_scene, next->id);
-			ReleaseSlot(a_scene);
+		auto p = std::make_shared<PreparedTransition>();
+		p->context.scene = a_scene;
+		p->context.kind = Preparation::Kind::Handoff;
+		p->context.fromScene = old.id;
+		p->context.fromNode = old.node;
+		p->context.toScene = next->id;
+		p->context.toNode = entry;
+		p->context.fromStage = old.definition ? old.definition->LinearStageOf(old.node) : -1;
+		p->context.toStage = next->LinearStageOf(entry);
+		p->old = old;
+		p->cast = cast;
+		p->target = Registry::ContentRegistry::GetSingleton().ResolveLoopGlobals(next);
+		p->anchor = anchor;
+		p->anchorBase = base;
+		p->anchorRef = ref;
+		p->defaults = true;
+		p->playerInputLock = next->playerInputLock;
+		p->hideApparel = next->hideApparel;
+		p->clearHeldItems = next->clearHeldItems;
+		if (!QueuePreparation(p)) {
+			EndTransition(a_scene);
 			return false;
 		}
-		{
-			std::lock_guard l{ _lock };
-			auto* s = Resolve(a_scene);
-			if (!s) return false;
-			s->playbackId = playback;
-		}
-		// Add the new defaults without undoing carried mechanisms or adding a runtime fade.
-		EngageDefaultPlayerInputLock(a_scene, next->playerInputLock, cast);
-		if (!old.cameraOverridden) EngageDefaultCamera(a_scene, entry, next->playerInputLock, {}, cast);
-		const auto gear = BuildGearPicks(a_scene, cast);
-		ClearHeldItems(a_scene, next->clearHeldItems, cast, gear);
-		HideDefaultApparel(a_scene, next->hideApparel, cast, gear);
-		EquipGearItems(a_scene, cast, gear);
-		EquipRoleItems(a_scene, next->id, cast);
-		EngageDefaultSceneControls(a_scene, next->id, std::nullopt, cast);
-		Fire(a_scene, Event::kSceneHandoff, entry, "", old.id);
-		SlotView live;
-		if (!SnapshotSlot(a_scene, live)) return true;  // a callback replaced the world
-		Fire(a_scene, Event::kNodeEnter, entry, "enter");
-		EndTransition(a_scene);
-		REX::DEBUG("[Scene] handoff handle={:#010x} '{}' -> '{}' node='{}'", a_scene, old.id, next->id, entry);
-		return true;
+		return true;  // accepted; successful handoff notification follows preparation and playback commit
 	}
 
 	bool SceneRuntime::ReplaceByQuery(std::int32_t a_scene, const Matchmaking::TagQuery& a_query,

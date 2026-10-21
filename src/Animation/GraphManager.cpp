@@ -715,9 +715,7 @@ namespace OSF::Animation
 			return std::nullopt;
 		}
 		const auto snapshot = scene->GetPlaybackSnapshot();
-		return SynchronizedPlaybackState{
-			snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage), scene->playbackId, scene->anchorPos, scene->anchorHeading
-		};
+		return SynchronizedPlaybackState{ snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage), scene->playbackId, scene->anchorPos, scene->anchorHeading, static_cast<int32_t>(scene->stages.size()) };
 	}
 
 	bool GraphManager::StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback)

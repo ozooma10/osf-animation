@@ -87,6 +87,7 @@ namespace OSF::Animation
 			PlaybackId playbackId = 0;
 			RE::NiPoint3 anchorPos{};
 			float anchorHeading = 0.0f;
+			int32_t      stageCount = 0;
 		};
 
 		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);

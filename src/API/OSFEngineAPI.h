@@ -1,13 +1,14 @@
-// Optional engine services. Copy with OSFSceneAPI.h and OSFActorState.h; link no Animation library.
+// Optional engine services. Copy with OSFSceneAPI.h, OSFActorState.h and OSFPreparation.h; link no Animation library.
 #pragma once
 
-#include "OSFSceneAPI.h"
 #include "OSFActorState.h"
+#include "OSFPreparation.h"
+#include "OSFSceneAPI.h"
 
 namespace OSF::API
 {
-	// Services 3.9 appends owner-held actor equipment with persistent/session scopes.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030009;
+	// Services 3.10 appends shared preparation for scene starts and transitions.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000A;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -172,6 +173,22 @@ namespace OSF::API
 		// ReconcileActorState retries when the actor/inventory is available. Invalid handles are harmless.
 		ActorStateStatus (*CloseActorStateScope)(std::uint64_t scope);
 		ActorStateStatus (*ReconcileActorState)(RE::Actor*);
+		// 3.10. Verified-frame context only: call through Post. Structures copied, callback/context
+		// storage remains caller-owned until unregister and any current callback/finish have returned.
+		// Registrations survive world reset. Attempts are ephemeral; all callbacks run in the frame drain.
+		std::uint64_t (*RegisterScenePreparer)(const ScenePreparer*);
+		bool (*UnregisterScenePreparer)(std::uint64_t provider);
+		// Only from this provider's Plan callback. group is ignored; AllowAdd is the only accepted flag.
+		// Collects requirements without mutations. Each destination replaces this provider's prior
+		// requirements in this session; persistent actor-state scopes remain independent.
+		bool (*RequirePreparedEquipment)(std::uint64_t attempt, std::uint64_t provider, const ActorEquipmentRequest*);
+		// Exact, caller-defined resource identity (1..256 bytes); exclusive across scene/provider owners.
+		// Reservations survive commit until the next destination plan releases them, or scene termination.
+		bool (*ReservePreparationResource)(std::uint64_t attempt, std::uint64_t provider, const char* key);
+		// Optional copied diagnostic (up to 1024 bytes) from any prepare phase; return Veto to refuse.
+		bool (*SetPreparationFailure)(std::uint64_t attempt, std::uint64_t provider, const char* reason);
+		// JSON {scene,status,reason,pending,playing,attempt?}; retains terminal results with ended roster.
+		bool (*ReadScenePreparation)(std::int32_t scene, TextCallback, void*);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

@@ -4,7 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path $PSScriptRoot -Parent
-$public = @('OSFSceneAPI.h','OSFEngineAPI.h','OSFActorState.h','OSFCatalog.h','OSFClipScene.h','OSFUI.h','OSFSettings.h','OSFSettings_Diagnostics.h')
+$public = @('OSFSceneAPI.h','OSFEngineAPI.h','OSFActorState.h','OSFPreparation.h','OSFCatalog.h','OSFClipScene.h','OSFUI.h','OSFSettings.h','OSFSettings_Diagnostics.h')
 $source = Join-Path $repo 'extensions/browser/src'
 foreach ($file in Get-ChildItem -LiteralPath $source -Recurse -File | Where-Object Extension -in '.cpp','.h') {
     foreach ($match in [regex]::Matches([IO.File]::ReadAllText($file.FullName), '(?m)^\s*#\s*include\s*"([^"]+)"')) {
