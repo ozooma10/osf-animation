@@ -12,6 +12,8 @@ import subprocess
 import sys
 import uuid
 
+from scale_profile import SCALE_PROFILES, UNIT_SCALE
+
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 
@@ -27,6 +29,8 @@ def validate_plan(plan):
         raise ValueError("Plan needs schema:1 and a filesystem-safe scene id")
     if plan["id"] in (".", ".."):
         raise ValueError("Invalid scene id")
+    if plan.get("scale_profile", UNIT_SCALE) not in SCALE_PROFILES:
+        raise ValueError("Unknown scale_profile in plan")
     roles = plan.get("roles", [])
     if (not isinstance(roles, list) or not 1 <= len(roles) <= 5
             or not isinstance(plan.get("stages"), list) or not plan["stages"]):
@@ -90,10 +94,15 @@ def parser():
     inputs.add_argument("--slal-json", type=Path, help="Generated SLAL JSON (source scripts are never executed)")
     p.add_argument("--pack-root", type=Path, help="Installed SLAL pack folder with meshes and FNIS lists")
     p.add_argument("--scene", help="SLAL animation id")
-    p.add_argument("--list", action="store_true", help="List SLAL metadata candidates and unsupported scenes without converting")
+    actions = p.add_mutually_exclusive_group()
+    actions.add_argument("--list", action="store_true", help="List SLAL metadata candidates and unsupported scenes without converting")
+    actions.add_argument("--plan-only", type=Path, help="Write a resolved plan to a new JSON file without starting Blender")
+    actions.add_argument("--preflight", action="store_true", help="Decode/check every selected clip without baking; exit 2 for unsupported clips")
     p.add_argument("--skeleton", type=Path, help="Default source skeleton HKX")
     p.add_argument("--female-skeleton", type=Path, help="Optional female source skeleton")
     p.add_argument("--target-rig", type=Path)
+    p.add_argument("--scale-profile", choices=SCALE_PROFILES,
+                   help="Explicit scale interpretation; defaults to the manifest's profile or unit-v1")
     p.add_argument("--pynifly", type=Path, help="Existing io_scene_nifly folder; read-only dependency")
     p.add_argument("--blender", type=Path)
     p.add_argument("--output", type=Path, help="New output directory; existing directories are never overwritten")
@@ -123,6 +132,7 @@ def run(args):
         plan = json.loads(args.manifest.read_text(encoding="utf-8-sig"))
     if not isinstance(plan, dict) or not isinstance(plan.get("roles"), list):
         raise ValueError("Plan needs an object with a roles array")
+    plan["scale_profile"] = args.scale_profile or plan.get("scale_profile", UNIT_SCALE)
     for role in plan["roles"]:
         if not isinstance(role, dict):
             raise ValueError("Each role must be an object")
@@ -130,11 +140,24 @@ def run(args):
         if override:
             role["skeleton"] = str(override.resolve())
     plan = validate_plan(plan)
+    if args.plan_only:
+        if args.output:
+            raise ValueError("--plan-only names its own output file; omit --output")
+        destination = args.plan_only.resolve()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("x", encoding="utf-8") as stream:
+            stream.write(json.dumps(plan, indent=2))
+        print(f"Created resolved plan: {destination}")
+        print("File resolution passed. HKX compatibility has not been checked; run --preflight next.")
+        return 0
+    if args.preflight and (args.save_blend or args.native_validator):
+        raise ValueError("--preflight does not create GLBs or previews; omit --save-blend and --native-validator")
     for key in ("blender", "target_rig"):
         path = getattr(args, key)
         if not path or not path.is_file():
             raise ValueError(f"Supply an existing --{key.replace('_', '-')} file")
-    if not args.pynifly or not (args.pynifly / "hkx" / "anim_skyrim.py").is_file():
+    if not args.pynifly or not all((args.pynifly / "hkx" / name).is_file()
+                                  for name in ("anim_skyrim.py", "anim_fo4.py")):
         raise ValueError("--pynifly must point to an existing io_scene_nifly installation")
     if not args.output:
         raise ValueError("Supply --output")
@@ -147,13 +170,14 @@ def run(args):
     staging = output.with_name(f".{output.name}.partial-{uuid.uuid4().hex[:8]}")
     staging.mkdir()
     job = {"plan": plan, "target_rig": str(args.target_rig.resolve()),
-           "pynifly": str(args.pynifly.resolve()), "output": str(staging), "save_blend": args.save_blend}
+           "pynifly": str(args.pynifly.resolve()), "output": str(staging), "save_blend": args.save_blend,
+           "preflight": args.preflight}
     job_path = staging / "job.json"
     job_path.write_text(json.dumps(job, indent=2), encoding="utf-8")
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", TEMP=str(staging), TMP=str(staging))
     command = [str(args.blender.resolve()), "--background", "--factory-startup", "--disable-autoexec",
                "--python-exit-code", "1", "--python", str(HERE / "worker.py"), "--", str(job_path)]
-    print(f"Converting {plan['name']} in background Blender...", flush=True)
+    print(f"{'Checking' if args.preflight else 'Converting'} {plan['name']} in background Blender...", flush=True)
     try:
         with (staging / "blender.log").open("w", encoding="utf-8") as log:
             process = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, env=env, timeout=900)
@@ -161,6 +185,14 @@ def run(args):
             raise RuntimeError(f"Blender exited with {process.returncode}; see {staging / 'blender.log'}")
         report_path = staging / "report.json"
         report = json.loads(report_path.read_text(encoding="utf-8"))
+        if args.preflight:
+            job_path.unlink()
+            (staging / "input-plan.json").write_text(json.dumps(plan, indent=2), encoding="utf-8")
+            staging.rename(output)
+            supported = report["preflight"]["status"] == "compatible"
+            print(f"Preflight {'passed' if supported else 'rejected unsupported input'}: {output / 'preflight.json'}")
+            print("No clips were baked. Native, visual and in-game acceptance have not been performed.")
+            return 0 if supported else 2
         from target_rig import read_rig, validate_glb
         rig = read_rig(args.target_rig)
         native = []
@@ -177,7 +209,7 @@ def run(args):
         if args.native_validator:
             report["native_validator"] = {"path": str(args.native_validator.resolve()),
                                           "sha256": sha256(args.native_validator)}
-        report["validation"] = {"glb_structure": "passed", "native_decode_and_sampling": "passed" if native else "not_run",
+        report["validation"] = {"source_preflight": "passed", "glb_structure": "passed", "native_decode_and_sampling": "passed" if native else "not_run",
                                 "scene_registry": "not_run", "in_game": "not_run", "visual_contact_quality": "not_reviewed"}
         report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         # Input plan is reviewable; temporary worker path has no place in the finished package.

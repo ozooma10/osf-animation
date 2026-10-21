@@ -1,8 +1,8 @@
 """Conservative humanoid retargeting, executed in Blender's Python runtime.
 
-Model-space rest-relative rotations cross differing bone hierarchies. Target
-limb lengths stay fixed; pelvis translation carries source scene placement.
-This initial profile does not solve contacts or reconstruct physics/expressions.
+Model-space bind-relative transforms cross differing bone hierarchies. Target
+bind translations stay fixed; positive-affine-v1 exports animated stretch while
+unit-v1 retains the original rotation-only policy. Neither profile solves contacts.
 """
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import math
 import hashlib
 import json
 from mathutils import Matrix, Quaternion, Vector
+from scale_profile import UNIT_SCALE, POSITIVE_AFFINE, SCALE_PROFILES, MIN_SCALE, MAX_SCALE, TRS_RESIDUAL_LIMIT
 
 # Ordered names + parent indices from vanilla Skyrim SE male/female animation
 # skeletons, including the two terminal camera nodes. This limits implicit
@@ -38,6 +39,20 @@ def decompose(m):
     t, r, s = m.decompose()
     r.normalize()
     return {"translation": list(t), "rotation": [r.x, r.y, r.z, r.w], "scale": list(s)}
+
+
+def linear_residual(actual, reference):
+    values = [abs(reference[r][c]) for r in range(3) for c in range(3)]
+    differences = [abs(actual[r][c] - reference[r][c]) for r in range(3) for c in range(3)]
+    if not all(math.isfinite(v) for v in values + differences) or max(values) < 1e-12:
+        raise ValueError("Non-finite or singular affine scale transform")
+    return max(differences) / max(values)
+
+
+def scale_diagnostics():
+    return {"max_local_trs_residual": 0., "max_model_trs_residual": 0.,
+            "worst_local": None, "worst_model": None, "output_scale_range": [1., 1.],
+            "non_unit_target_samples": 0, "checked_frames": 0}
 
 
 def model_matrices(locals_, parents):
@@ -96,7 +111,10 @@ def profile_mapping(source_names, target_names):
 
 
 class HumanoidRetargeter:
-    def __init__(self, skeleton, rig, unit_scale=None):
+    def __init__(self, skeleton, rig, unit_scale=None, *, scale_profile=UNIT_SCALE):
+        if scale_profile not in SCALE_PROFILES:
+            raise ValueError(f"Unknown scale profile: {scale_profile}")
+        self.scale_profile = scale_profile
         if not skeleton or not skeleton.bones:
             raise ValueError("Source HKX contains no skeleton bones")
         if len({n.casefold() for n in skeleton.bones}) != len(skeleton.bones):
@@ -105,8 +123,13 @@ class HumanoidRetargeter:
             raise ValueError("Incomplete source skeleton")
         self.source = skeleton
         self.rig = rig
+        if scale_profile == POSITIVE_AFFINE:
+            for bone, pose in zip(skeleton.bones, skeleton.reference_pose):
+                self._validate_scale(pose.scale, bone)
         self.source_rest_local = [matrix(p.translation, p.rotation, p.scale) for p in skeleton.reference_pose]
         self.source_rest = model_matrices(self.source_rest_local, skeleton.parents)
+        self.source_rest_linear_inverse = ([m.to_3x3().inverted() for m in self.source_rest]
+                                           if scale_profile == POSITIVE_AFFINE else None)
         self.source_rest_rotations = model_rotations(self.source_rest_local, skeleton.parents)
         self.target_rest_local = [matrix(b.translation, b.rotation_xyzw) for b in rig.bones]
         self.target_parents = [b.parent for b in rig.bones]
@@ -187,19 +210,49 @@ class HumanoidRetargeter:
                     raise ValueError("Decoder returned incomplete per-frame channels")
         return indices
 
-    def convert_frame(self, anim, binding, frame):
+    def _validate_scale(self, scale, bone):
+        minimum = MIN_SCALE if self.scale_profile == POSITIVE_AFFINE else 0.
+        if len(scale) != 3 or any(not math.isfinite(s) or s <= 0 or s < minimum or s > MAX_SCALE for s in scale):
+            raise ValueError(f"Invalid source bone scale at {bone}; {self.scale_profile} requires bounded positive scales")
+        if self.scale_profile == UNIT_SCALE and any(abs(s - 1) > 1e-3 for s in scale):
+            raise ValueError(f"Non-unit source scale at {bone}; select a supported explicit scale-interpretation profile")
+
+    def _affine_local(self, source_models, i, parent, frame, diagnostics):
+        source = self.mapping[i]
+        c = self.source_to_target
+        # Rest-relative *model* linear delta carries all source ancestors.
+        # Applying a local scale twice to Spine2/Chest or Neck/Neck1 would
+        # inflate the target; derive each local from the actual target parent.
+        desired = (c @ source_models[source].to_3x3() @ self.source_rest_linear_inverse[source]
+                   @ c.transposed() @ self.target_rest[i].to_3x3())
+        if desired.determinant() <= 0 or any(not MIN_SCALE <= col.length <= MAX_SCALE for col in desired.col):
+            raise ValueError(f"Unsupported cumulative scale at {self.rig.bones[i].name}")
+        affine = (parent.to_3x3().inverted() @ desired).to_4x4()
+        affine.translation = self.target_rest_local[i].translation
+        pose = decompose(affine)
+        if any(not math.isfinite(v) or not MIN_SCALE <= v <= MAX_SCALE for v in pose["scale"]):
+            raise ValueError(f"Unsupported target local scale at {self.rig.bones[i].name}")
+        local = matrix(pose["translation"], pose["rotation"], pose["scale"])
+        for space, actual, expected in (("local", local, affine), ("model", parent @ local, desired)):
+            error = linear_residual(actual, expected)
+            key = f"max_{space}_trs_residual"
+            if diagnostics is not None and error > diagnostics[key]:
+                diagnostics[key] = error
+                diagnostics[f"worst_{space}"] = {"bone": self.rig.bones[i].name, "frame": frame}
+            if error > TRS_RESIDUAL_LIMIT:
+                raise ValueError(f"Unrepresentable {space} shear at {self.rig.bones[i].name}, frame {frame}: "
+                                 f"TRS residual {error:.6g} exceeds {TRS_RESIDUAL_LIMIT}")
+        return local
+
+    def convert_frame(self, anim, binding, frame, *, diagnostics=None):
         locals_ = list(self.source_rest_local)
         for track, bone_id in zip(anim.tracks, binding):
             sample = lambda v: v[0] if len(v) == 1 else v[frame]
             scale = sample(track.scales)
-            if any(not math.isfinite(s) or s <= 0 or s > 100 for s in scale):
-                raise ValueError("Invalid source bone scale")
-            if any(abs(s - 1) > 1e-3 for s in scale):
-                raise ValueError(f"Non-unit source scale at {self.source.bones[bone_id]}; "
-                                 "this clip needs a separate Skyrim scale-interpretation profile")
+            self._validate_scale(scale, self.source.bones[bone_id])
             locals_[bone_id] = matrix(sample(track.translations), sample(track.rotations), scale)
         source_models = model_matrices(locals_, self.source.parents)
-        source_rotations = model_rotations(locals_, self.source.parents)
+        source_rotations = model_rotations(locals_, self.source.parents) if self.scale_profile == UNIT_SCALE else None
         c = self.source_to_target.to_quaternion()
         models, local_out = [None] * len(self.rig.bones), [None] * len(self.rig.bones)
         pending = set(range(len(self.rig.bones)))
@@ -210,7 +263,9 @@ class HumanoidRetargeter:
                     continue
                 parent = Matrix.Identity(4) if p == -1 else models[p]
                 local = self.target_rest_local[i].copy()
-                if i in self.mapping:
+                if i in self.mapping and self.scale_profile == POSITIVE_AFFINE:
+                    local = self._affine_local(source_models, i, parent, frame, diagnostics)
+                elif i in self.mapping:
                     s = self.mapping[i]
                     delta = source_rotations[s] @ self.source_rest_rotations[s].inverted()
                     desired = c @ delta @ c.inverted() @ self.target_rest[i].to_quaternion()
@@ -222,8 +277,15 @@ class HumanoidRetargeter:
                     local.translation = parent.inverted() @ pos
                 # OSF owns anchor placement; export Root stays at its identity/rest origin.
                 local_out[i] = decompose(local)
+                if diagnostics is not None:
+                    values = local_out[i]["scale"]
+                    diagnostics["output_scale_range"][0] = min(diagnostics["output_scale_range"][0], *values)
+                    diagnostics["output_scale_range"][1] = max(diagnostics["output_scale_range"][1], *values)
+                    diagnostics["non_unit_target_samples"] += any(abs(v - 1) > 1e-3 for v in values)
                 models[i] = parent @ local
                 pending.remove(i)
+        if diagnostics is not None:
+            diagnostics["checked_frames"] += 1
         return local_out
 
     @property
