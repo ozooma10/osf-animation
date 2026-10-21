@@ -46,18 +46,29 @@ namespace
 		struct Fixture
 		{
 			OSF::API::BrowserSessionQueue session{ [](auto task) { Queue::Post(std::move(task)); } };
+			Sequence::Requests requests;
 			std::vector<std::int32_t> owners, stopped;
+			std::vector<int> startedRequests, failedRequests;
 			int starts{}, failures{};
 			bool acceptStop = true;
 			Sequence::Clock::time_point now{};
 			Fixture() { session.Visibility(true, [] {}); Queue::Drain(); }
 			void Begin(std::shared_ptr<int> pin = {})
 			{
-				Sequence::Begin({
-					.owners = [this] { return owners; },
-					.stop = [this](auto owner) { stopped.push_back(owner); return acceptStop; },
-					.start = [this, pin] { ++starts; },
-					.fail = [this](const char*) { ++failures; },
+				BeginFor({ 10 }, owners, 0, std::move(pin));
+			}
+			void BeginFor(std::vector<std::uint32_t> cast, std::vector<std::int32_t>& currentOwners,
+				int request, std::shared_ptr<int> pin = {})
+			{
+				Sequence::Begin(requests, std::move(cast), {
+					.owners = [&currentOwners] { return currentOwners; },
+					.stop = [this](auto owner) {
+						const bool alreadyStopping = std::find(stopped.begin(), stopped.end(), owner) != stopped.end();
+						stopped.push_back(owner);
+						return acceptStop && !alreadyStopping;
+					},
+					.start = [this, pin, request] { ++starts; startedRequests.push_back(request); },
+					.fail = [this, request](const char*) { ++failures; failedRequests.push_back(request); },
 					.post = [this](auto task) { session.Post(std::move(task)); },
 					.now = [this] { return now; }
 				});
@@ -91,14 +102,44 @@ namespace
 			Fixture f; f.owners = { 17 }; f.Begin(); f.owners = { 29 }; Queue::Drain(); Queue::Drain();
 			Check(!f.starts && f.failures == 1 && f.stopped == std::vector<std::int32_t>{ 17 }, "competing launch is neither stopped nor stolen");
 		}
+		{
+			Fixture f;
+			std::vector<std::int32_t> older{ 17, 23 }, newer{ 17, 0 };
+			f.BeginFor({ 10, 20 }, older, 1);
+			f.BeginFor({ 10, 30 }, newer, 2);
+			Check(f.stopped == std::vector<std::int32_t>{ 17, 23 }, "overlapping replacement inherits accepted stops without stopping an ending scene twice");
+			older = { 0, 0 }; newer = { 0, 0 };
+			Queue::Drain(); Queue::Drain();
+			Check(f.startedRequests == std::vector<int>{ 2 } && f.failedRequests.empty(), "only the newest overlapping launch starts and the older request sends no stale reply");
+		}
+		for (const bool sharedOwner : { false, true }) {
+			Fixture f;
+			std::vector<std::int32_t> left{ 17 }, right{ sharedOwner ? 17 : 23 };
+			f.BeginFor({ 10 }, left, 1);
+			f.BeginFor({ 20 }, right, 2);
+			Check(f.stopped.size() == (sharedOwner ? 1u : 2u), "disjoint pending launches share already accepted scene stops");
+			left = { 0 }; right = { 0 };
+			Queue::Drain(); Queue::Drain();
+			Check(f.startedRequests == std::vector<int>({ 1, 2 }) && f.failedRequests.empty(), "disjoint pending launches remain independent and both start once");
+		}
+		{
+			Fixture f; f.owners = { 17 };
+			f.BeginFor({ 10 }, f.owners, 1);
+			f.BeginFor({ 10 }, f.owners, 2);
+			f.owners = { 29 };
+			Queue::Drain(); Queue::Drain();
+			Check(f.startedRequests.empty() && f.failedRequests == std::vector<int>{ 2 } && f.stopped == std::vector<std::int32_t>{ 17 }, "newest overlapping request still refuses an outside owner without reviving the old request");
+		}
 		for (const bool reset : { false, true }) {
 			Fixture f; f.owners = { 17 };
-			auto pin = std::make_shared<int>(1); std::weak_ptr<int> weak = pin;
-			f.Begin(pin); pin.reset();
+			auto priorPin = std::make_shared<int>(1), pin = std::make_shared<int>(2);
+			std::weak_ptr<int> priorWeak = priorPin, weak = pin;
+			f.BeginFor({ 10 }, f.owners, 1, priorPin); priorPin.reset();
+			f.BeginFor({ 10 }, f.owners, 2, pin); pin.reset();
 			Check(!weak.expired(), "pending launch retains its request and reference pins");
 			if (reset) f.session.Reset([] {}); else f.session.Visibility(false, [] {});
 			f.owners = { 0 }; Queue::Drain(); Queue::Drain();
-			Check(!f.starts && !f.failures && weak.expired(), "hide or world reset cancels the launch and releases retained references");
+			Check(!f.starts && !f.failures && weak.expired() && priorWeak.expired(), "hide or world reset releases both superseded and newest request pins despite the weak request group");
 		}
 	}
 }

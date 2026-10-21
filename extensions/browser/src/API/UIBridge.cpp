@@ -423,6 +423,7 @@ namespace OSF::API
 			std::int32_t                             locationToken = 0;
 			std::vector<std::string>                 roleNames;
 		};
+		BrowserLaunchSequence::Requests g_launchRequests;
 
 		std::optional<std::string> ResolveLaunchCast(const json& a_payload, BrowserLaunchPlan& a_plan)
 		{
@@ -654,7 +655,11 @@ namespace OSF::API
 			}
 
 			// Retain both request data and references across deferred scene teardown.
-			for (auto* actor : plan.actors) plan.pins.emplace_back(actor);
+			std::vector<std::uint32_t> cast;
+			for (auto* actor : plan.actors) {
+				plan.pins.emplace_back(actor);
+				cast.push_back(actor->GetFormID());
+			}
 			if (plan.options.anchorRef) plan.pins.emplace_back(plan.options.anchorRef);
 			auto pending = std::make_shared<BrowserLaunchPlan>(std::move(plan));
 			const std::string sourceView = a_srcView ? a_srcView : "";
@@ -663,7 +668,7 @@ namespace OSF::API
 				SendJson(sourceView.c_str(), "osf.animation.launchResult",
 					json{ { "sceneId", pending->sceneId }, { "ok", false }, { "handle", 0 }, { "error", reason } });
 			};
-			BrowserLaunchSequence::Begin({
+			BrowserLaunchSequence::Begin(g_launchRequests, std::move(cast), {
 				.owners = [pending, api] {
 					std::vector<std::int32_t> owners;
 					for (auto* actor : pending->actors) owners.push_back(api->GetSceneForActor(actor));
