@@ -30,7 +30,8 @@ namespace OSF::Audio
 			}
 
 			struct Job {
-				std::uint64_t channel{}; // nonzero only for latest-pending channels
+				std::uint64_t channel{}; // owner for cancellation; zero only for legacy playback
+				std::uint64_t coalescingKey{}; // nonzero only for latest-pending channels
 				std::function<void()> run;
 				std::function<void(bool)> discard; // true = coalesced, false = revoked
 			};
@@ -42,8 +43,8 @@ namespace OSF::Audio
 			{
 				{
 					std::lock_guard lock{ _mutex };
-					if (a_job.channel) {
-						for (auto& waiting : _jobs) if (waiting.channel == a_job.channel) {
+					if (a_job.coalescingKey) {
+						for (auto& waiting : _jobs) if (waiting.coalescingKey == a_job.coalescingKey) {
 							waiting.discard(true);
 							waiting = std::move(a_job); // retains FIFO position; no extra queue slot
 #ifdef OSF_ANIMATION_SMOKE
@@ -73,7 +74,7 @@ namespace OSF::Audio
 			void Revoke(std::uint64_t channel = 0) {
 				std::lock_guard l{_mutex};
 				std::erase_if(_jobs, [&](const Job& job) {
-					if (!job.channel || (channel && job.channel != channel)) return false;
+					if (channel && job.channel != channel) return false;
 					job.discard(false);
 #ifdef OSF_AUDIO_TEST
 					--_pending;
@@ -339,7 +340,7 @@ namespace OSF::Audio
 		}
 		const auto key = a_channel && channels.at(a_channel).latestPending ? a_channel : 0;
 		const bool queued = AudioWorker::GetSingleton().Enqueue(
-			{key,
+			{a_channel, key,
 			[this, ticket, a_slot, a_channel, a_gameObject, rel, path = a_dataRelPath
 #ifdef OSF_ANIMATION_SMOKE
 			, d3

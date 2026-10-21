@@ -40,6 +40,12 @@ namespace
         Check(fakeCV.wait_for(l, std::chrono::seconds(5), [=] { return submission ? postEntered : prepareEntered; }),
             "audio job reached deterministic gate");
     }
+    void AwaitPreparations(std::size_t count)
+    {
+        std::unique_lock l(fakeLock);
+        Check(fakeCV.wait_for(l, std::chrono::seconds(5), [=] { return prepareCount == count; }),
+            "audio workers reached deterministic preparation gates");
+    }
     void Release()
     {
         { std::lock_guard l(fakeLock); holdPrepare = holdPost = false; }
@@ -154,16 +160,69 @@ void TestSoundService()
     Check(service.BindSlot(91,competitor), "closing releases actor binding for a fresh scope");
     service.StopAll();
 
+    // Reclaim a default owner's waiting jobs before either worker can finish decoding,
+    // while preserving the unrelated job that already occupies the queue.
+    const auto blockedA = service.CreateChannel(), blockedB = service.CreateChannel();
+    const auto cancelledOwner = service.CreateChannel(), survivingOwner = service.CreateChannel();
+    const auto replacementOwner = service.CreateChannel();
+    Arm();
+    Check(service.PlayChannel(blockedA, "blocked-a.wav") && service.PlayChannel(blockedB, "blocked-b.wav"),
+        "default capacity workers admitted");
+    AwaitPreparations(2);
+    bool filled = true;
+    for (int i = 0; i < 255; ++i) filled &= service.PlayChannel(cancelledOwner, "cancelled-waiting.wav");
+    Check(filled && service.PlayChannel(survivingOwner, "surviving-waiting.wav") &&
+        !service.PlayChannel(replacementOwner, "overflow.wav"), "default requests fill the bounded queue without coalescing");
+    Check(service.CloseChannel(cancelledOwner), "closing default owner reclaims its waiting jobs");
+    filled = true;
+    for (int i = 0; i < 255; ++i) filled &= service.PlayChannel(replacementOwner, "replacement-waiting.wav");
+    Check(filled && !service.PlayChannel(replacementOwner, "overflow.wav"),
+        "default close immediately restores exactly its queue capacity");
+    Release();
+    Check(service.WaitIdleForTest(), "default capacity run completed");
+    {
+        std::lock_guard l(fakeLock);
+        Check(std::ranges::find(preparedPaths, std::wstring(L"Data\\cancelled-waiting.wav")) == preparedPaths.end() &&
+            std::ranges::find(preparedPaths, std::wstring(L"Data\\surviving-waiting.wav")) != preparedPaths.end(),
+            "close skips cancelled preparation and preserves unrelated queued work");
+    }
+    service.StopAll();
+
+    // World replacement also clears legacy jobs, which have no owned channel.
+    const auto oldWorldA = service.CreateChannel(), oldWorldB = service.CreateChannel();
+    Arm(); before = Posts();
+    Check(service.PlayChannel(oldWorldA, "old-world-a.wav") && service.PlayChannel(oldWorldB, "old-world-b.wav"),
+        "world capacity workers admitted");
+    AwaitPreparations(2);
+    filled = true;
+    for (int i = 0; i < 128; ++i) {
+        filled &= service.PlayChannel(oldWorldA, "old-world-owned.wav");
+        service.Play(1000 + i, "old-world-legacy.wav");
+    }
+    Check(filled && !service.PlayChannel(oldWorldB, "overflow.wav"), "owned and legacy requests fill the old-world queue");
+    service.StopAll();
+    const auto newWorld = service.CreateChannel();
+    filled = true;
+    for (int i = 0; i < 256; ++i) filled &= service.PlayChannel(newWorld, "new-world.wav");
+    Check(filled && !service.PlayChannel(newWorld, "overflow.wav"),
+        "world reset immediately restores the entire queue capacity");
+    Release();
+    Check(service.WaitIdleForTest() && Posts() > before, "new-world playback proceeds after reclaimed capacity");
+    {
+        std::lock_guard l(fakeLock);
+        Check(std::ranges::find(preparedPaths, std::wstring(L"Data\\old-world-owned.wav")) == preparedPaths.end() &&
+            std::ranges::find(preparedPaths, std::wstring(L"Data\\old-world-legacy.wav")) == preparedPaths.end(),
+            "world reset removes owned and legacy waiting jobs before preparation");
+    }
+    service.StopAll();
+
     // Both workers are executing. Hundreds of replacements must occupy only one waiting
     // slot per opted channel, leaving admission capacity for an unrelated default owner.
     const auto latest = service.CreateChannel(true), latestPeer = service.CreateChannel(true);
     const auto defaultOwner = service.CreateChannel();
     Arm(); before=Posts();
     Check(service.PlayChannel(latest,"running-a.wav") && service.PlayChannel(latestPeer,"running-b.wav"),"coalescing workers admitted");
-    {
-        std::unique_lock l(fakeLock);
-        Check(fakeCV.wait_for(l,std::chrono::seconds(5),[]{return prepareCount==2;}),"both workers held before coalescing");
-    }
+    AwaitPreparations(2);
     bool allAccepted=true;
     for(int i=0;i<400;++i) allAccepted &= service.PlayChannel(latest,"queued-"+std::to_string(i)+".wav");
     Check(allAccepted && service.PlayChannel(latestPeer,"peer-latest.wav") &&
