@@ -2,6 +2,7 @@
 #ifdef OSF_ANIMATION_SMOKE
 #include "Testing/D3AudioProbe.h"
 #include "Testing/D3OutputBuffers.h"
+#include "Testing/D3QualificationState.h"
 #include "API/OSFEngineAPI.h"
 #include <Windows.h>
 #include <array>
@@ -31,12 +32,14 @@ namespace {
     std::array<std::uint8_t,16> outputSettings{};
     bool removed{},running{},suspendRequested{};
     std::uint32_t voices{},batches{},refused{};
-    std::uint64_t deadline{},nextBatch{},restoreDeadline{},wakeDeadline{},startNs{},cpuStart{},oldOutput{};
+    std::uint64_t deadline{},nextBatch{},restoreDeadline{},wakeDeadline{},startNs{},oldOutput{};
+    D3QualificationState::CpuWindow cpuWindow;
     Json events=Json::array();
     void Event(const char* name,Json detail=Json::object()) { detail["name"]=name;detail["atNs"]=D3AudioProbe::NowNs();events.push_back(detail); }
     void Render(void*,std::uint32_t location,void*) noexcept {
         thread_local std::uint64_t begin{};
         thread_local std::uint32_t gen{};
+        if(location==16) threadID.store(GetCurrentThreadId());
         if(!measuring.load(std::memory_order_relaxed)) return;
         const auto now=D3AudioProbe::NowNs();
         if(location==2048 || location==4096) {
@@ -45,7 +48,7 @@ namespace {
                 auto& e=lifecycle[index];e.at=now;e.location=location;e.generation=generation.load();e.thread=GetCurrentThreadId();
                 e.ready.store(true,std::memory_order_release);
             }
-        } else if(location==16) {begin=now;gen=generation.load();threadID.store(GetCurrentThreadId());}
+        } else if(location==16) {begin=now;gen=generation.load();}
         else if(location==32 && begin && gen==generation.load()) {
             const auto index=next.fetch_add(1);
             if(index<frames.size()) {
@@ -55,13 +58,20 @@ namespace {
             begin=0;
         }
     }
-    std::uint64_t CPU() {
-        const auto thread=OpenThread(THREAD_QUERY_LIMITED_INFORMATION,FALSE,threadID.load());
-        if(!thread) return 0;
+    std::optional<D3QualificationState::CpuReading> CPU() {
+        const auto id=threadID.load();
+        if(!id) return std::nullopt;
+        const auto thread=OpenThread(THREAD_QUERY_LIMITED_INFORMATION,FALSE,id);
+        if(!thread) return std::nullopt;
         FILETIME create{},exit{},kernel{},user{};
         const auto ok=GetThreadTimes(thread,&create,&exit,&kernel,&user);CloseHandle(thread);
-        if(!ok)return 0;
-        return ((std::uint64_t(kernel.dwHighDateTime)<<32)|kernel.dwLowDateTime)+((std::uint64_t(user.dwHighDateTime)<<32)|user.dwLowDateTime);
+        if(!ok)return std::nullopt;
+        const auto ticks=((std::uint64_t(kernel.dwHighDateTime)<<32)|kernel.dwLowDateTime)+
+            ((std::uint64_t(user.dwHighDateTime)<<32)|user.dwLowDateTime);
+        return D3QualificationState::CpuReading{id,D3AudioProbe::NowNs(),ticks};
+    }
+    void SampleCPU() {
+        if(const auto reading=CPU()) cpuWindow.Observe(*reading);
     }
     template<class T,std::size_t N> T Bind(std::uint64_t id,std::uintptr_t rva,const std::array<std::uint8_t,N>& bytes) {
         const auto address=REL::ID(id).address();
@@ -122,15 +132,25 @@ namespace {
             if(e.ready.load(std::memory_order_acquire)&&e.generation==gen)
                 transitions.push_back({{"atNs",e.at},{"location",e.location},{"thread",e.thread}});
         }
-        const auto now=D3AudioProbe::NowNs(),cpu=CPU();
-        return {{"running",running},{"removed",removed},{"voices",voices},{"batches",batches},{"refused",refused},
-            {"startNs",startNs},{"snapshotNs",now},{"cpuStart100ns",cpuStart},{"cpuNow100ns",cpu},{"threadID",threadID.load()},
+        if(measuring.load()) SampleCPU();
+        const auto& cpu=cpuWindow.Snapshot();
+        Json result={{"running",running},{"removed",removed},{"voices",voices},{"batches",batches},{"refused",refused},
+            {"startNs",startNs},{"snapshotNs",D3AudioProbe::NowNs()},
+            {"cpuAvailable",cpu.has_value()},{"cpuStart100ns",nullptr},{"cpuNow100ns",nullptr},
+            {"cpuStartNs",nullptr},{"cpuSampleNs",nullptr},{"cpuThreadID",nullptr},{"threadID",threadID.load()},
             {"suspendRequested",suspendRequested},{"lifecycle",transitions},{"lifecycleOverflow",lifecycleCount>lifecycle.size()},
             {"outputID",outputID?outputID(0,0):0},{"events",events},{"renderFrames",rows},{"overflow",count>frames.size()}};
+        if(cpu) {
+            result["cpuStart100ns"]=cpu->first.ticks100ns;result["cpuNow100ns"]=cpu->last.ticks100ns;
+            result["cpuStartNs"]=cpu->first.atNs;result["cpuSampleNs"]=cpu->last.atNs;
+            result["cpuThreadID"]=cpu->last.thread;
+        }
+        return result;
     }
 }
 void Tick() {
     const auto now=D3AudioProbe::NowNs();
+    if(measuring.load() && !cpuWindow.Started()) SampleCPU();
     if(removed && now>=restoreDeadline)Restore();
     if(suspendRequested && now>=wakeDeadline)WakeOutput();
     if(!running)return;
@@ -147,7 +167,7 @@ Json Command(const Json& args) {
     Init();const auto action=args.at("action").get<std::string>();
     if(action=="begin") {
         if(running||removed||suspendRequested)throw std::runtime_error("D3 qualification already running");
-        Close();measuring=false;++generation;startNs=D3AudioProbe::NowNs();cpuStart=CPU();measuring=true;
+        Close();measuring=false;++generation;startNs=D3AudioProbe::NowNs();cpuWindow.Reset();SampleCPU();measuring=true;
         batches=refused=0;voices=0;events=Json::array();Event("begin");
     } else if(action=="post") {
         const auto slot=args.value("slot",0u);const auto media=args.at("media").get<std::string>();
@@ -177,7 +197,7 @@ Json Command(const Json& args) {
         Event("output-remove",{{"result",result},{"id",oldOutput}});
     } else if(action=="restore")Restore();
     else if(action=="close")Close();
-    else if(action=="end"){Close();WakeOutput();Restore();measuring=false;Event("end");}
+    else if(action=="end"){Close();WakeOutput();Restore();if(measuring.load())SampleCPU();measuring=false;Event("end");}
     else if(action!="status")throw std::runtime_error("Unknown D3 qualification action");
     return Snapshot();
 }

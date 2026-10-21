@@ -1,6 +1,7 @@
 #include "Audio/SoundService.h"
 #include "Audio/WwiseBackend.h"
 #include "Check.h"
+#include "Testing/D3QualificationState.h"
 #include "Util/MonotonicClock.h"
 #include <condition_variable>
 #include <future>
@@ -88,6 +89,26 @@ namespace OSF::Audio::Wwise
 
 void TestSoundService()
 {
+    {
+        OSF::Testing::D3QualificationState::CpuWindow window;
+        Check(!window.Started() && !window.Snapshot(), "D3 CPU baseline is unavailable until the render thread is known");
+        window.Observe({17, 1000, 5000});
+        window.Observe({17, 1600, 5050});
+        const auto interval = *window.Snapshot();
+        Check(interval.first.ticks100ns == 5000 && interval.last.ticks100ns - interval.first.ticks100ns == 50 &&
+            interval.first.atNs == 1000 && interval.last.atNs == 1600,
+            "first D3 trial excludes historical thread CPU and reports the actual sampled time window");
+        window.Reset();
+        Check(!window.Started() && !window.Snapshot(), "new D3 trial cannot reuse the previous CPU baseline");
+        window.Observe({17, 2000, 0});
+        Check(window.Started() && window.Snapshot()->first.ticks100ns == 0, "a measured zero counter is distinct from an unavailable reading");
+        window.Observe({18, 2400, 6000});
+        Check(window.Snapshot()->first.thread == 18 && window.Snapshot()->first.ticks100ns == 6000,
+            "a replaced render thread starts its own CPU measurement window");
+        window.Observe({18, 2600, 10});
+        Check(window.Snapshot()->first.atNs == 2600 && window.Snapshot()->first.ticks100ns == 10,
+            "a reset CPU counter cannot produce an unsigned measurement delta");
+    }
     auto& service = OSF::Audio::SoundService::GetSingleton();
     service.StopAll();
     const auto voice = service.CreateChannel(), contact = service.CreateChannel(), unrelated = service.CreateChannel();
