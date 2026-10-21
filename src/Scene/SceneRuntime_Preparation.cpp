@@ -144,7 +144,10 @@ namespace OSF::Scene
 		}
 		Hooks hooks;
 		hooks.valid = [this, p] { return PreparationValid(p); };
-		hooks.invalidReason = [p] { return p->reset ? Outcome::WorldReset : p->interrupted ? Outcome::Failed : Outcome::Cancelled; };
+		hooks.invalidReason = [p] {
+			return p->reset ? Outcome::WorldReset : p->failureReason == "transition-cover-timeout" ? Outcome::TimedOut :
+				p->interrupted ? Outcome::Failed : Outcome::Cancelled;
+		};
 		hooks.preflight = [this, p] { return BuildPreparationPlan(p); };
 		hooks.apply = [this, p] {
 			// Exit effects precede entry equipment. A callback can cancel/reset before any target mutation.
