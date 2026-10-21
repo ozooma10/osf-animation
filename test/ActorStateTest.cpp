@@ -36,19 +36,20 @@ int main()
 {
 	{
 		Fake f;
-		auto state = ReadEquipment(f,10,1);
+		Store store(f);
+		auto state = store.InspectEquipment(10,1);
 		CHECK(state && state->item.slots == 1 && !state->item.count && !state->item.worn);
 		f.Seed(10,1); f.Seed(10,2); f.Seed(10,3);
-		state = ReadEquipment(f,10,1);
+		state = store.InspectEquipment(10,1);
 		CHECK(state && state->item.worn && state->conflictingWornSlots == 1);
 		f.Get(10,2).skin = true;
-		CHECK(ReadEquipment(f,10,1)->conflictingWornSlots == 0);
+		CHECK(store.InspectEquipment(10,1)->conflictingWornSlots == 0);
 		f.Get(10,2).skin = false; f.Get(10,2).worn = false;
-		CHECK(ReadEquipment(f,10,1)->conflictingWornSlots == 0);
+		CHECK(store.InspectEquipment(10,1)->conflictingWornSlots == 0);
 		CHECK(f.writes == 0);
 		f.unavailable = true;
-		CHECK(!ReadEquipment(f,10,1));
-		CHECK(!ReadEquipment(f,10,999) && !ReadEquipment(f,0,1));
+		CHECK(!store.InspectEquipment(10,1));
+		CHECK(!store.InspectEquipment(10,999) && !store.InspectEquipment(0,1));
 	}
 	{
 		Fake f; f.Seed(10,1); Store s(f);
@@ -319,6 +320,38 @@ int main()
 		auto writes = f.writes;
 		CHECK(store.PreviewPlan({ { scene, Equip(2), false, false, false, {} } }) == Status::Conflict);
 		CHECK(f.writes == writes && f.Get(10, 1).worn);  // refusal never displaces a persistent owner
+	}
+	{
+		Fake f;
+		f.Seed(10, 1);
+		Store store(f);
+		const auto scene = store.CreateScope("preview", Lifetime::Session, 1);
+		const auto device = store.CreateScope("device", Lifetime::Persistent);
+		CHECK(store.Acquire(scene, Equip(2)));
+		CHECK(store.Acquire(device, Equip(3)));
+		const auto edit = store.BeginEdit({ scene });
+		const auto revision = store.ReadRevision(10);
+		const auto cursor = store.Since(0).cursor;
+		const auto writes = f.writes;
+		const std::vector<Store::Change> changes{
+			{ scene, { 0, 0, Operation::Equip, 1 }, true },
+			{ scene, Equip(1) },
+			{ scene, { 10, 3, Operation::Hide, 5 }, false, false, true },
+			{ scene, Equip(4) }
+		};
+		const auto marker = store.CreateScope("marker", Lifetime::Persistent);
+		CHECK(store.PreviewPlan(changes) == Status::Ok);
+		CHECK(store.CreateScope("after-preview", Lifetime::Persistent) == marker + 1);
+		CHECK(store.ClaimCount() == 2 && store.PendingActorCount() == 1);
+		CHECK(store.Owns(scene, 10, 2, 1) && !store.Owns(scene, 10, 1, 1));
+		CHECK(f.writes == writes && f.Get(10, 2).worn && !f.Get(10, 1).worn);
+		CHECK(store.ReadRevision(10) == revision && store.Since(cursor).events.empty());
+		CHECK(store.FinishEdit(edit, false) == Status::Ok);
+		CHECK(store.SetSaveWindow(true) == Status::Ok);
+		CHECK(store.PreviewPlan({ { scene, Equip(4) } }) == Status::Unavailable);
+		CHECK(store.PreviewPlan({ { device, Equip(4) } }) == Status::Ok);
+		CHECK(store.SetSaveWindow(false) == Status::Ok);
+		CHECK(store.ApplyPlan(changes) == Status::Ok && f.Get(10, 1).worn && f.Get(10, 4).worn);
 	}
 	{
 		Fake f;

@@ -45,7 +45,6 @@ namespace OSF::ActorState
 	};
 
 	struct EquipmentObservation { Item item; std::uint64_t conflictingWornSlots{}; };
-	std::optional<EquipmentObservation> ReadEquipment(Backend& backend, Actor actor, Object object);
 
 	struct Revision { std::uint64_t world{}, ownership{}, equipment{}; auto operator<=>(const Revision&) const = default; };
 	enum class RevisionCause : std::uint32_t { Ownership, Equipment, Reset };

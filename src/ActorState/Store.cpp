@@ -17,19 +17,6 @@ namespace OSF::ActorState
 		void Merge(Status& result, Status next) { if (next != Status::Ok) result = next; }
 	}
 
-	std::optional<EquipmentObservation> ReadEquipment(Backend& backend, Actor actor, Object object)
-	{
-		if (!actor || !object) return {};
-		const auto description = backend.Describe(object);
-		if (!description) return {};
-		const auto inventory = backend.Read(actor);
-		if (!inventory) return {};
-		EquipmentObservation out{Find(*inventory, object, *description)};
-		for (const auto& item : *inventory)
-			if (item.worn && Overlap(out.item, item)) out.conflictingWornSlots |= out.item.slots & item.slots;
-		return out;
-	}
-
 	Revision Store::ReadRevision(Actor actor) const
 	{
 		const auto it = _revisions.find(actor);
@@ -161,7 +148,7 @@ namespace OSF::ActorState
 		}
 		const auto id = Next();
 		if (!id) return {Status::Unavailable};
-		_records[request.actor].try_emplace(item.object, Record{item, item.worn});
+		if (!_preview) _records[request.actor].try_emplace(item.object, Record{item, item.worn});
 		for (const auto& [old, c] : replaced) _claims.erase(old);
 		_claims.emplace(id, Claim{scope, request}); // ownership precedes all engine mutation
 		Changed(request.actor, RevisionCause::Ownership);
@@ -382,8 +369,13 @@ namespace OSF::ActorState
 	}
     Status Store::PreviewPlan(const std::vector<Change>& changes)
     {
-        Store preview(*this);
+        // Admission needs ownership and token/save state, not reconciliation or observation history.
+        Store preview(_backend);
         preview._preview = true;
+        preview._next = _next;
+        preview._saving = _saving;
+        preview._scopes = _scopes;
+        preview._claims = _claims;
         return preview.ApplyPlan(changes);
     }
     Status Store::ApplyPlan(const std::vector<Change>& changes)
