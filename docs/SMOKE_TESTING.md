@@ -90,7 +90,7 @@ GLTF/GLB/gzip decoding and ozz sampling without copyrighted game assets or a
 developer's local clip library. Existing standalone `osf-import-test` and
 `osf-af-import-test` remain useful for specific content.
 
-The game suite currently has **69 assertions** across the 18 areas in the coverage
+The game suite currently has **69 assertions** across the 19 areas in the coverage
 manifest. It uses installed vanilla assets plus generated test content:
 
 - Native API validation; compiled Papyrus calls, scene callbacks and post-load rebind.

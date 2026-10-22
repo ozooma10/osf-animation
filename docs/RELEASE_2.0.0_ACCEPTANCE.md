@@ -25,6 +25,22 @@ options were restored off, with production output under `build`. Compiler and su
 retained locally in `%TEMP%/osf-v2-01a164fd`. Earlier compilation failures exposed stale API
 callers and were repaired before the passing runs recorded here.
 
+## Offline release gate, 2026-10-22
+
+`tools/test-release.ps1 -Offline -Jobs 1` passed with exit code 0 against commit `a98ffb0`.
+The retained run is `build/smoke/v2-offline-20261022-01`: `result.json` reports `offline-passed`
+and `completeAutomatedSuite=false`. All eleven required offline stages passed, including:
+
+- 16 native suites, 166 Browser tests, typecheck/build, private Papyrus fixtures and importer checks;
+- 98 smoke-bench contract checks, 28 release-validation checks, SDK locks and Browser isolation;
+- engine and Browser 2.0.0 archives, compiled Papyrus signatures, source/build receipts and hashes;
+- all five disposable FOMOD combinations installed twice, preserving synthetic user and other-mod files;
+- restoration of production configuration and an unchanged source fingerprint during the run.
+
+The Browser build helper now receives the gate's job limit; it no longer silently uses four
+compiler jobs. No game or MO2 action ran. Each later candidate needs its own fresh report and
+matching archive hashes; this dated result does not qualify subsequent source changes.
+
 ## Contract coverage
 
 - The depth-one composer delegates to `PoseMath`. Its fixture uses byte comparisons for
@@ -54,6 +70,6 @@ not qualify the 2.0 candidate.
 Release packaging and the disposable install matrix require a fresh
 `tools/test-release.ps1 -Offline -Jobs 1` report with outcome `offline-passed`. The report under
 `build/smoke` binds both archives to the exact source fingerprint and binary hashes and records
-each installer combination. The migration checkpoint above did not run that gate. Actual MO2
+each installer combination. The dated gate result above supplies that evidence for its recorded source. Actual MO2
 installation/upgrade, binary distribution and third-party consumer acceptance remain separate. Old alignment files are preserved but refused by the v2 reader; users must review
 and reauthor global-node alignment entries. Multi-layer runtime playback remains deferred.
