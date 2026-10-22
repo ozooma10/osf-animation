@@ -79,11 +79,15 @@ void AdvanceFoundation()
 		if (!Check("foundation.query", found && std::string_view(match.sceneId) == "osf.smoke.foundation.start" &&
 			match.roleIndex[0] == 0 && match.roleIndex[1] == 1 && g.scene && g.callback,
 			"Public query find/start selected the tagged scene with the requested actor-to-role mapping")) return;
+		Phase(209); break;
+	}
+	case 209:
+		// Speed and manual progression act on the published playback, which exists once the start is prepared.
+		if (!AwaitSettled("foundation.manual-hold", 6, "Query-started scene did not finish preparation within 6 seconds")) break;
 		if (!engine->SetSceneSpeed(g.scene, 0.5f) || !engine->SetSceneAutoAdvance(g.scene, false)) {
 			Check("foundation.manual-hold", false, "Could not arm persistent speed/manual progression"); return;
 		}
 		Phase(201); break;
-	}
 	case 201: {
 		if (!WaitFeature("foundation.manual-hold", PoseStamped(actor) && PoseStamped(peer) &&
 			Worn(actor) == WornAfterFullHide(actor) && Worn(actor) != foundation.worn &&
@@ -119,11 +123,11 @@ void AdvanceFoundation()
 		Phase(203); break;
 	}
 	case 203:
-		if (PhaseSeconds() < 0.15f) break;
+		if (PhaseSeconds() < 0.15f || !AwaitSettled("foundation.alignment-revisit", 6, "Paused node transition did not finish preparation")) break;
 		if (!g.sceneAPI->Navigate(g.scene, "back")) { Check("foundation.alignment-revisit", false, "Return edge failed"); return; }
 		Phase(204); break;
 	case 204: {
-		if (PhaseSeconds() < 0.15f) break;
+		if (PhaseSeconds() < 0.15f || !AwaitSettled("foundation.alignment-revisit", 6, "Return transition did not finish preparation")) break;
 		float delta[4]{}; const auto controls = SceneControls();
 		if (!Check("foundation.alignment-revisit", engine->GetSceneAlignment(g.scene, "lead", delta) && delta[0] == 0.25f &&
 			NearPosition(actor->GetPosition(), foundation.aligned) && engine->GetSceneSpeed(g.scene) == 0 &&
@@ -135,7 +139,7 @@ void AdvanceFoundation()
 		Phase(205); break;
 	}
 	case 205: {
-		if (PhaseSeconds() < 0.2f) break;
+		if (PhaseSeconds() < 0.2f || !AwaitSettled("foundation.handoff", 6, "Handoff did not finish preparation")) break;
 		std::array<RE::Actor*,2> cast{}; const auto controls = SceneControls();
 		if (!Check("foundation.handoff", g.sceneAPI->GetSceneParticipants(g.scene, cast.data(), 2) == 2 && cast[0] == peer && cast[1] == actor &&
 			controls.value("sceneId", "") == "osf.smoke.foundation.target" && !controls.value("automatic", true) &&
@@ -179,16 +183,21 @@ void AdvanceFoundation()
 			float delta[4]{};
 			if (!Check("foundation.alignment-reload", g.scene && engine->GetSceneAlignment(g.scene, "lead", delta) && delta[0] == 0.125f,
 				"A new scene reads the saved delta instead of the previous scene's unsaved value")) return;
-			if (!engine->ResetSceneAlignment(g.scene, "lead") || !engine->SaveSceneAlignment(g.scene)) {
-				Check("foundation.alignment-reload", false, "Private alignment reset/save failed"); return;
-			}
-			Scene::Alignment::SetFileForSmoke(g.directory / "alignment-overrides.json");
-			if (!Check("foundation.alignment-reload", Scene::Alignment::Read("osf.smoke.foundation.start", "held", {"lead"})[0].x == 0,
-				"Saved reset removes the persisted override on reload")) return;
-			g.sceneAPI->StopScene(g.scene); Phase(208);
+			Phase(210);
 		}
 		break;
 	}
+	case 210:
+		// Reset/save refuse while the fresh start is still preparing.
+		if (!AwaitSettled("foundation.alignment-reload", 6, "Restarted scene did not finish preparation within 6 seconds")) break;
+		if (!engine->ResetSceneAlignment(g.scene, "lead") || !engine->SaveSceneAlignment(g.scene)) {
+			Check("foundation.alignment-reload", false, "Private alignment reset/save failed"); return;
+		}
+		Scene::Alignment::SetFileForSmoke(g.directory / "alignment-overrides.json");
+		if (!Check("foundation.alignment-reload", Scene::Alignment::Read("osf.smoke.foundation.start", "held", {"lead"})[0].x == 0,
+			"Saved reset removes the persisted override on reload")) return;
+		g.sceneAPI->StopScene(g.scene); Phase(208);
+		break;
 	case 208:
 		if (!WaitFeature("foundation.restore", !manager.IsPlaying(actor) && !manager.IsPlaying(peer), 8, "Explicit stop retained cast playback")) break;
 		if (!Check("foundation.restore", InputFlags() == foundation.input && Worn(actor) == foundation.worn &&

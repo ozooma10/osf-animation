@@ -75,6 +75,7 @@ namespace OSF::Testing::AnimationSmoke
 			std::mutex eventsMutex;
 			std::vector<Event> events;
 			int phase = 0;
+			std::size_t step = 0;  // progress within a phase that issues several queued scene actions
 			float pausedTime = 0;
 			RE::NiPoint3 anchorPosition{};
 			RE::NiPoint3 anchorOriginalPosition{};
@@ -288,6 +289,7 @@ namespace OSF::Testing::AnimationSmoke
 		void Phase(int a_phase)
 		{
 			g.phase = a_phase;
+			g.step = 0;
 			g.phaseAt = Clock::now();
 			g.snapshot["phase"]=a_phase;
 		}
@@ -295,6 +297,37 @@ namespace OSF::Testing::AnimationSmoke
 		float PhaseSeconds()
 		{
 			return std::chrono::duration<float>(Clock::now() - g.phaseAt).count();
+		}
+
+		// Starts, stage changes, edges and handoffs are prepared across frames (shared preparation):
+		// the handle exists at once, but begin/enter callbacks, the new node and playback publish only
+		// after the preparation commits, and another edge is refused while one is in flight.
+		bool SceneSettled(std::int32_t a_scene)
+		{
+			const auto text = Scene::SceneRuntime::GetSingleton().ReadPreparation(a_scene);
+			const auto state = text.empty() ? Json() : Json::parse(text, nullptr, false);
+			return state.is_object() && !state.value("pending", true) && state.value("playing", false);
+		}
+
+		// True once g.scene has no preparation in flight and is playing; fails a_name after a_seconds.
+		bool AwaitSettled(const char* a_name, float a_seconds, const char* a_failure)
+		{
+			if (SceneSettled(g.scene)) return true;
+			if (PhaseSeconds() > a_seconds) Check(a_name, false, a_failure);
+			return false;
+		}
+
+		// Issues graph actions one per settled tick ("" = Advance, else a named edge); true once all were accepted.
+		bool DriveScene(const char* a_name, std::initializer_list<const char*> a_edges, float a_seconds, const char* a_failure)
+		{
+			if (g.step >= a_edges.size()) return true;
+			if (!AwaitSettled(a_name, a_seconds, a_failure)) return false;
+			const char* edge = a_edges.begin()[g.step];
+			if (!(*edge ? g.sceneAPI->Navigate(g.scene, edge) : g.sceneAPI->Advance(g.scene))) {
+				Check(a_name, false, a_failure);
+				return false;
+			}
+			return ++g.step >= a_edges.size();
 		}
 
 #include "Testing/AnimationFeatures.inl"
@@ -496,7 +529,12 @@ namespace OSF::Testing::AnimationSmoke
 				if (!Check("solo.stop", true, "Solo fade-out completed and released the graph")) return;
 				if (!ActorUnclaimed(actor)) { Finish("blocked", "Player became occupied before linear scene start"); return; }
 				g.scene = g.sceneAPI->StartScene(&actor, 1, "osf.smoke.linear", options);
-				if (!Check("scene.start", g.scene != 0 && g.sceneAPI->GetSceneForActor(actor) == g.scene &&
+				if (!g.scene) { Check("scene.start", false, "Registered scene start was rejected"); return; }
+				Phase(30);
+				break;
+			case 30:
+				if (!AwaitSettled("scene.start", 6, "Registered scene start did not finish preparation within 6 seconds")) break;
+				if (!Check("scene.start", g.sceneAPI->GetSceneForActor(actor) == g.scene &&
 					g.sceneAPI->GetSceneParticipants(g.scene, nullptr, 0) == 1 && g.sceneAPI->GetSceneStage(g.scene) == 0 &&
 					Count(g.scene, API::SceneEventType::kSceneBegin) == 1,
 					"Registered scene starts with one participant, stage zero, and one begin callback")) return;
@@ -506,8 +544,15 @@ namespace OSF::Testing::AnimationSmoke
 				Phase(4);
 				break;
 			case 4:
-				if (!Check("scene.stage", g.sceneAPI->SetStage(g.scene, 1) && g.sceneAPI->GetSceneStage(g.scene) == 1 &&
-					!g.sceneAPI->SetStage(g.scene, 99) && g.sceneAPI->GetSceneStage(g.scene) == 1,
+				if (!g.sceneAPI->SetStage(g.scene, 1)) { Check("scene.stage", false, "Stage 1 request was refused"); return; }
+				Phase(40);
+				break;
+			case 40:
+				if (!(SceneSettled(g.scene) && g.sceneAPI->GetSceneStage(g.scene) == 1)) {
+					if (PhaseSeconds() > 6) Check("scene.stage", false, "Stage 1 did not finish preparation within 6 seconds");
+					break;
+				}
+				if (!Check("scene.stage", !g.sceneAPI->SetStage(g.scene, 99) && g.sceneAPI->GetSceneStage(g.scene) == 1,
 					"Stage selection changes the stage and out-of-range requests preserve it")) return;
 				if (!g.sceneAPI->Advance(g.scene)) { Check("scene.navigate", false, "Advance from final linear stage failed"); return; }
 				Phase(5);
@@ -519,12 +564,35 @@ namespace OSF::Testing::AnimationSmoke
 				}
 				if (!ActorUnclaimed(actor)) { Finish("blocked", "Player became occupied before graph scene start"); return; }
 				g.scene = g.sceneAPI->StartScene(&actor, 1, "osf.smoke.graph", options);
-				if (!Check("scene.navigate", g.scene && !g.sceneAPI->Navigate(g.scene, "missing") &&
-					g.sceneAPI->Navigate(g.scene, "next") && runtime.GetNode(g.scene) == "middle" &&
-					g.sceneAPI->Advance(g.scene) && runtime.GetNode(g.scene) == "timed",
-					"Named navigation and default advance follow graph edges; unknown edge is rejected")) return;
+				if (!g.scene) { Check("scene.navigate", false, "Graph scene start was rejected"); return; }
+				Phase(50);
+				break;
+			case 50:
+				if (!AwaitSettled("scene.navigate", 6, "Graph scene start did not finish preparation within 6 seconds")) break;
+				if (g.sceneAPI->Navigate(g.scene, "missing") || !g.sceneAPI->Navigate(g.scene, "next")) {
+					Check("scene.navigate", false, "Unknown edge was accepted or the named edge was refused"); return;
+				}
+				Phase(51);
+				break;
+			case 51:
+				if (!(SceneSettled(g.scene) && runtime.GetNode(g.scene) == "middle")) {
+					if (PhaseSeconds() > 6) Check("scene.navigate", false, "Named edge did not reach 'middle' within 6 seconds");
+					break;
+				}
+				if (!g.sceneAPI->Advance(g.scene)) { Check("scene.navigate", false, "Default advance from 'middle' was refused"); return; }
+				Phase(52);
+				break;
+			case 52: {
+				// The timed node's authored timer may end the scene quickly; event order is verified after it ends.
+				const bool reached = runtime.GetNode(g.scene) == "timed" || g.sceneAPI->GetSceneForActor(actor) == 0;
+				if (!reached) {
+					if (PhaseSeconds() > 6) Check("scene.navigate", false, "Default advance did not reach 'timed' within 6 seconds");
+					break;
+				}
+				if (!Check("scene.navigate", true, "Named navigation and default advance follow graph edges; unknown edge is rejected")) return;
 				Phase(6);
 				break;
+			}
 			case 6:
 				if (g.sceneAPI->GetSceneForActor(actor) != 0) {
 					if (PhaseSeconds() > 6) Check("scene.timer-events", false, "Authored timer did not end the scene within 6 seconds");
