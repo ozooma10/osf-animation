@@ -229,7 +229,7 @@ void FailFeature(const char* description)
 	const int next = phase >= 10 && phase <= 16 ? 100 : phase >= 100 && phase <= 102 ? 110 :
 		phase >= 110 && phase <= 112 ? 120 : phase >= 120 && phase <= 121 ? 130 : phase >= 130 && phase <= 132 ? 135 :
 		phase >= 135 && phase <= 137 ? 140 : phase >= 140 && phase <= 143 ? 160 :
-		phase >= 160 && phase <= 161 ? 180 :
+		phase >= 160 && phase <= 162 ? 180 :
 		phase >= 180 && phase <= 184 ? 190 : phase >= 200 && phase <= 219 ? 190 :
 		phase >= 190 && phase <= 192 ? 170 : 0;
 	if (!next) { Finish("failed", description); return; }
@@ -274,10 +274,11 @@ void AdvanceFeatures()
 		if (!Check("papyrus.binding",true,"Shipped OSF.pex natives return readiness/version and a callback token through Papyrus")) return;
 		auto options = Options();
 		g.scene = g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph",options);
-		if (!g.scene || !g.sceneAPI->Navigate(g.scene,"next") || !g.sceneAPI->Advance(g.scene)) { Check("papyrus.callbacks",false,"Could not start the Papyrus event fixture"); return; }
+		if (!g.scene) { Check("papyrus.callbacks",false,"Could not start the Papyrus event fixture"); return; }
 		Phase(102); break;
 	}
 	case 102: {
+		if (!DriveScene("papyrus.callbacks",{"next",""},8,"Papyrus event fixture could not navigate its graph")) break;
 		bool delivered{};
 		{
 			std::lock_guard lock(feature.mutex);
@@ -399,7 +400,12 @@ void AdvanceFeatures()
 		if (!WaitFeature("scene.files-roles",!manager.IsPlaying(actor),6,"Previous playback retained its graph after stop")) break;
 		auto options=Options(); const char* file=kClip;
 		g.scene=g.sceneAPI->StartSceneFiles(&actor,&file,1,options);
-		if (!Check("scene.files-roles",g.scene && g.sceneAPI->SetSpeed(actor,0),"Ad-hoc files scene supports shared-clock pause")) return;
+		if (!g.scene) { Check("scene.files-roles",false,"Ad-hoc files scene start was rejected"); return; }
+		Phase(162); break;
+	}
+	case 162: {
+		if (!AwaitSettled("scene.files-roles",6,"Ad-hoc files scene did not finish preparation within 6 seconds")) break;
+		if (!Check("scene.files-roles",g.sceneAPI->SetSpeed(actor,0),"Ad-hoc files scene supports shared-clock pause")) return;
 		const auto playback=manager.GetScenePlayback(actor);
 		if (!Check("scene.transport",playback && playback->duration > 0 && std::isfinite(playback->time) && playback->speed == 0 && g.sceneAPI->SetSpeed(actor,1),"Shared scene clock reports pause and accepts resume")) return;
 		g.sceneAPI->StopSceneForActor(actor); Phase(161); break;
@@ -551,13 +557,14 @@ void AdvanceFeatures()
 		if (!Check("papyrus.rebind",true,"OSF readiness native executed through Papyrus after a real quickload")) return;
 		{ std::scoped_lock lock(g.eventsMutex); g.events.clear(); }
 		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph",options);
-		if (!g.scene || g.scene == feature.beforeLoadScene || !g.sceneAPI->Navigate(g.scene,"next") || !g.sceneAPI->Advance(g.scene)) {
+		if (!g.scene || g.scene == feature.beforeLoadScene) {
 			Check("api.callbacks-after-load",false,"Could not start a distinct fresh graph after quickload"); return;
 		}
 		Phase(174);
 		break;
 	}
 	case 174:
+		if (!DriveScene("api.callbacks-after-load",{"next",""},8,"Fresh post-load graph could not navigate its edges")) break;
 		if (!WaitFeature("api.callbacks-after-load",!manager.IsPlaying(actor) && g.sceneAPI->GetSceneForActor(actor) == 0,8,
 			"Post-load graph did not complete its timer and release playback")) break;
 		if (!Check("api.callbacks-after-load",GraphEventOrder(g.scene),
