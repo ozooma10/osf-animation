@@ -261,12 +261,12 @@ int main()
 		Near(second.heading, 0.25f, "new heading does not accumulate old heading");
 	});
 	Run("furniture offsets follow Starfield's native yaw basis", [] {
-		// Native yaw maps model +Y to world -X at +90 degrees. In particular,
+		// Live rig composition maps model +Y to world +X at +90 degrees. In particular,
 		// the GE ShipLadder root correction is +1 local Y, not +1 world Y.
 		struct Case { float degrees, x, y; };
 		constexpr std::array cases{
-			Case{ 0, 100, 201 }, Case{ 90, 99, 200 }, Case{ 180, 100, 199 },
-			Case{ 270, 101, 200 }, Case{ -90, 101, 200 }
+			Case{ 0, 100, 201 }, Case{ 90, 101, 200 }, Case{ 180, 100, 199 },
+			Case{ 270, 99, 200 }, Case{ -90, 99, 200 }
 		};
 		for (const auto& expected : cases) {
 			const OSF::Scene::WorldAnchor base{ true, { 100, 200, 300 }, expected.degrees * OSF::Util::kDegToRadF };
@@ -278,13 +278,26 @@ int main()
 		}
 		const OSF::Scene::WorldAnchor quarterTurn{ true, { 100, 200, 300 }, 90 * OSF::Util::kDegToRadF };
 		const auto anchor = OSF::Scene::ComposeSceneAnchor(quarterTurn, { 2, 3, 4, 90 * OSF::Util::kDegToRadF });
-		Near(anchor.pos.x, 97, "offset uses original furniture heading before heading correction");
-		Near(anchor.pos.y, 202, "local X uses the same native basis as local Y");
+		Near(anchor.pos.x, 103, "offset uses original furniture heading before heading correction");
+		Near(anchor.pos.y, 198, "local X uses the same native basis as local Y");
 		Near(anchor.pos.z, 304, "local Z remains world up");
 		Near(anchor.heading, 180 * OSF::Util::kDegToRadF, "relative facing is applied once");
 		const auto participant = PlacementToWorld(anchor.pos, anchor.heading, { 0, 0.5f, 0, 0 });
-		Near(participant.x, 97, "participant offset composes from corrected anchor X");
-		Near(participant.y, 201.5f, "participant offset follows corrected heading");
+		Near(participant.x, 103, "participant offset composes from corrected anchor X");
+		Near(participant.y, 197.5f, "participant offset follows corrected heading");
+	});
+	Run("placement agrees with captured in-game rig composition", [] {
+		// Starfield 1.16.244, Key frame 614, yaw 2.400000095. Values captured through
+		// read-only process access: actor pin, COM local slot, and composed COM world slot.
+		// An independent engine result catches a sign error that cardinal tests alone
+		// can accidentally encode as the expected convention.
+		const RE::NiPoint3 anchor{ -474.822814941f, 2142.642578125f, 7.446841717f };
+		const auto actual = PlacementToWorld(anchor, 2.400000095f,
+			{ -0.113525391f, 0.077636719f, 1.063476563f, 0 });
+		Check(std::abs(actual.x - -474.686584473f) < 0.0005f &&
+			std::abs(actual.y - 2142.662109375f) < 0.0005f &&
+			std::abs(actual.z - 8.510310173f) < 0.0005f,
+			"local placement follows the rendered COM within one millimeter");
 	});
 	Run("alignment persistence and working-copy ownership", [] {
 		using namespace OSF::Scene::Alignment;

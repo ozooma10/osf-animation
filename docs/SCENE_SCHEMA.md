@@ -350,7 +350,9 @@ segments are an implementation detail and are not addressed by these indexes.
   Generated vanilla/reference-catalog scenes and emotes are excluded because they already populate
   Animations.
 - **`offset`** (a placement) corrects alignment relative to the scene's world anchor: `x`/`y`/`z` (local units)
-  and `heading` (degrees). A role-level `offset` is the default for all stages; a clip-level `offset`
+  and `heading` (degrees). Offsets rotate with the actor's rendered basis: positive heading is
+  clockwise viewed from above, so local `+Y` becomes world `+X` at a 90-degree anchor heading.
+  A role-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.
 - **Clip paths are Data-relative** and load directly (they do **not** have to live under `Data/OSF` —
   e.g. `OSF/Animations/...` resolves to `Data/OSF/Animations/...`). Only *content JSON discovery* is

@@ -112,7 +112,7 @@ namespace OSF::Camera
 			return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 		}
 
-		// forward = (-sin yaw, cos yaw), as Scene::PlacementToWorld; +pitch tilts up.
+		// Free-camera quaternion convention: forward = (-sin yaw, cos yaw); +pitch tilts up.
 		RE::NiPoint3 LookDirection(float a_yaw, float a_pitch)
 		{
 			const float cp = std::cos(a_pitch);
