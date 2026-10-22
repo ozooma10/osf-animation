@@ -27,6 +27,24 @@ Built (`releasedbg`, smoke off, deployed to MO2), `xmake test` 14/14 passed, UI 
   sites); #18 search debounce and shared `visiblePlayables` memo (behavioral change to typing feel; the
   per-item cost is gone). Per-branch `RunAction` debug lines left ungated (cheap scalar args).
 
+## Tier 2 applied on 2026-10-22 (uncommitted, after d4832cf)
+
+Built (`releasedbg`, deployed to MO2), `xmake test` 14/14, UI `verify` 166/166, Skyrim importer
+51/51 plain Python (2 Blender-only suites skipped there) and 22/22 inside Blender 5.1. Not verified in game.
+
+- **Applied:** #1 (`GLTFImport::TryCached` / `AFImport::TryCached` probed before the BSResource read),
+  #2 (library entries feed the load's shared installed cache; `current_path()` once per resolve; a
+  process-wide Data-dir cache was rejected because suites chdir), #4 (per-actor facts with memoized keyword
+  hits plus a per-def role×actor table; `RoleAccepts` shares the same filter), #5, #6 header-only `.af`
+  probe read (BA2 index left for later), #8, #9 AF half only (single rotation per key, reserved unfolds),
+  #11 (table CRC with the same polynomial; records written straight into the file buffer, format unchanged),
+  #12, #15–#19, #21, #24 (bone order resolved once per hierarchy; preflight hands decoded clips to the
+  worker).
+- **Not applied:** #3, #7, #10, #22, #23 (medium risk); #6 BA2 name index; #9 GLTF lowercasing;
+  #13 and #14 (negligible: parser `reserve`s, a few-pointer copy per rare API call); #20 (one lookup per
+  stage per catalog refresh); #25 (needs a regeneration run against game archives to diff the committed
+  packs); #26 (exact user-log subfolder unconfirmed).
+
 Frequency legend: **per frame** = animation hook / frame drain / input hook; **per mark** =
 each fired cue/action/sound/camera; **per start** = scene start, handoff, node transition;
 **load** = pack load, reload, catalog build, save/load.

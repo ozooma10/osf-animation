@@ -137,13 +137,11 @@ namespace OSF::API::CatalogBuilder
 						out.sourceClips.push_back({def.id, clip.file, clip.animId,
 							Util::ClipSpecDisplay(std::filesystem::path{clip.file}), Util::SpeciesFromAnimPath(clip.file),
 							n, s, c, clip.sec, available != a_registry.clipAvailability.end() && available->second});
+						if (def.clipsAvailable && !clip.file.empty() && clip.sec <= 0) {
+							auto key = Serialization::ClipDurations::KeyFor(clip.file, clip.animId);
+							if (seen.insert(key).second) out.clips.push_back({std::move(key), clip.file, clip.animId});
+						}
 					}
-			if (!def.clipsAvailable) continue;
-			for (const auto& node : def.nodes) for (const auto& stage : node.stages) for (const auto& clip : stage.clips) {
-				if (clip.file.empty() || clip.sec > 0) continue;
-				auto key = Serialization::ClipDurations::KeyFor(clip.file, clip.animId);
-				if (seen.insert(key).second) out.clips.push_back({std::move(key), clip.file, clip.animId});
-			}
 		}
 		out.files.reserve(a_registry.files.size());
 		for (const auto& file : a_registry.files) out.files.push_back(BuildFile(file));

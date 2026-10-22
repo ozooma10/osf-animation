@@ -77,8 +77,11 @@ def inspect_animation(anim, converter):
     return result
 
 
-def inspect_plan(plan, decoder, converters):
-    """Inspect every stage/role, retaining individual failures for pack review."""
+def inspect_plan(plan, decoder, converters, decoded_clips=None):
+    """Inspect every stage/role, retaining individual failures for pack review.
+
+    A supplied `decoded_clips` dict receives each successfully decoded clip, keyed by its source path string.
+    """
     clips, errors = [], []
     for stage_index, stage in enumerate(plan["stages"], 1):
         stage_clips = []
@@ -87,7 +90,10 @@ def inspect_plan(plan, decoder, converters):
             row = {"stage": stage_index, "actor": actor, "path": str(path), "errors": []}
             try:
                 row["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
-                row.update(inspect_animation(decoder.load_skyrim_animation(str(path)), converter))
+                anim = decoder.load_skyrim_animation(str(path))
+                if decoded_clips is not None:
+                    decoded_clips[str(path)] = anim
+                row.update(inspect_animation(anim, converter))
             except Exception as error:
                 row["errors"].append(f"{type(error).__name__}: {error}")
             clips.append(row)

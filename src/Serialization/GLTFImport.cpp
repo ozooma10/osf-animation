@@ -615,6 +615,17 @@ namespace OSF::Serialization
 		return result;
 	}
 
+	std::optional<LoadResult> GLTFImport::TryCached(std::string_view a_cacheKey, std::string_view a_animId)
+	{
+		const auto key = ClipCacheKey(a_cacheKey, a_animId);
+		std::scoped_lock l{ g_clipCacheLock };
+		auto& cache = ClipCache();
+		if (auto it = cache.find(key); it != cache.end()) {
+			return it->second;
+		}
+		return std::nullopt;
+	}
+
 	void GLTFImport::ClearCache()
 	{
 		std::scoped_lock l{ g_clipCacheLock };

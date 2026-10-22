@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <cstdint>
 #include <format>
+#include <numeric>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -377,10 +378,24 @@ namespace OSF::API::UIBridgeCatalog
 			cards.push_back(std::move(c));
 		});
 
-		std::sort(cards.begin(), cards.end(), [](const Card& a, const Card& b) {
-			const auto la = Util::ToLower(a.title), lb = Util::ToLower(b.title);
-			return la != lb ? la < lb : a.id < b.id;
-		});
+		{
+			std::vector<std::string> titleKeys;
+			titleKeys.reserve(cards.size());
+			for (const auto& card : cards) {
+				titleKeys.push_back(Util::ToLower(card.title));
+			}
+			std::vector<std::size_t> order(cards.size());
+			std::iota(order.begin(), order.end(), std::size_t{ 0 });
+			std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+				return titleKeys[a] != titleKeys[b] ? titleKeys[a] < titleKeys[b] : cards[a].id < cards[b].id;
+			});
+			std::vector<Card> sorted;
+			sorted.reserve(cards.size());
+			for (const auto index : order) {
+				sorted.push_back(std::move(cards[index]));
+			}
+			cards = std::move(sorted);
+		}
 
 		json arr = cards;
 		REX::DEBUG("[UI] {} built -> {} entr{}", a_library ? "library" : "catalog", cards.size(), cards.size() == 1 ? "y" : "ies");
@@ -393,7 +408,7 @@ namespace OSF::API::UIBridgeCatalog
 	// osf.animation.imports.data: per file, so files that produced no cards still appear.
 	json BuildFileReport()
 	{
-		const auto stats = EngineClient::CatalogData::GetSingleton().FileStats();
+		const auto& stats = EngineClient::CatalogData::GetSingleton().FileStats();
 
 		json files = json::array();
 		std::uint64_t totalDeclared = 0, totalScenes = 0, totalRejectedScenes = 0;
@@ -481,7 +496,7 @@ namespace OSF::API::UIBridgeCatalog
 	}
 	std::optional<std::string> BuildImportTextReport(std::string_view a_path)
 	{
-		const auto stats = EngineClient::CatalogData::GetSingleton().FileStats();
+		const auto& stats = EngineClient::CatalogData::GetSingleton().FileStats();
 		const auto found = std::find_if(stats.begin(), stats.end(), [&](const Catalog::File& a_stats) {
 			return a_stats.path == a_path;
 		});

@@ -161,29 +161,46 @@ namespace OSF::Animation
 					return out;
 				}
 
-				auto bytes = ReadResourceFile(cand.resourcePath);
-				if (!bytes) {
-					continue;
+				// Every node transition re-prepares the plan's clips; a cache hit skips the resource read entirely.
+				// Keys match the byte overloads below, so a hit is exactly what those calls would return.
+				bool cached = false;
+				if (isAf) {
+					if (auto hit = Serialization::AFImport::TryCached(cand.resourcePath, rigKey)) {
+						out.skeleton = std::move(hit->skeleton);
+						out.anim = std::move(hit->anim);
+						cached = true;
+					}
+				} else if (auto hit = Serialization::GLTFImport::TryCached(cand.resourcePath, a_animId)) {
+					out.skeleton = std::move(hit->skeleton);
+					out.anim = std::move(hit->anim);
+					cached = true;
 				}
 
-				if (isAf) {
-					auto r = Serialization::AFImport::LoadAnimation(cand.resourcePath, *bytes, rigKey, rigProvider);
-					if (r.error != Serialization::AFError::kSuccess) {
-						out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
-						out.source = cand.resourcePath;
-						return out;
+				if (!cached) {
+					auto bytes = ReadResourceFile(cand.resourcePath);
+					if (!bytes) {
+						continue;
 					}
-					out.skeleton = std::move(r.skeleton);
-					out.anim = std::move(r.anim);
-				} else {
-					auto r = Serialization::GLTFImport::LoadAnimation(cand.resourcePath, ToByteVector(*bytes), cand.filePath.parent_path(), a_animId);
-					if (r.error != Serialization::GLTFError::kSuccess) {
-						out.detail = std::format("gltf error {}: {}", static_cast<int>(r.error), r.detail);
-						out.source = cand.resourcePath;
-						return out;
+
+					if (isAf) {
+						auto r = Serialization::AFImport::LoadAnimation(cand.resourcePath, *bytes, rigKey, rigProvider);
+						if (r.error != Serialization::AFError::kSuccess) {
+							out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
+							out.source = cand.resourcePath;
+							return out;
+						}
+						out.skeleton = std::move(r.skeleton);
+						out.anim = std::move(r.anim);
+					} else {
+						auto r = Serialization::GLTFImport::LoadAnimation(cand.resourcePath, ToByteVector(*bytes), cand.filePath.parent_path(), a_animId);
+						if (r.error != Serialization::GLTFError::kSuccess) {
+							out.detail = std::format("gltf error {}: {}", static_cast<int>(r.error), r.detail);
+							out.source = cand.resourcePath;
+							return out;
+						}
+						out.skeleton = std::move(r.skeleton);
+						out.anim = std::move(r.anim);
 					}
-					out.skeleton = std::move(r.skeleton);
-					out.anim = std::move(r.anim);
 				}
 				out.ok = true;
 				out.source = cand.resourcePath;

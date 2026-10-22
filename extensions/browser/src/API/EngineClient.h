@@ -14,6 +14,13 @@ namespace OSF::API::EngineClient
 	nlohmann::json ActiveScenes();
 	nlohmann::json MatchAnchor(RE::TESObjectREFR* ref);
 	nlohmann::json MatchCast(const std::vector<RE::Actor*>& actors);
+	struct ActorIdentityInfo
+	{
+		std::string species;
+		std::string gender;
+	};
+	// One engine JSON round trip for both fields; prefer it when a caller needs species and sex.
+	ActorIdentityInfo ActorIdentity(RE::Actor* actor);
 	std::string ActorSpecies(RE::Actor* actor);
 	std::string ActorGender(RE::Actor* actor);
 

@@ -417,6 +417,7 @@ namespace OSF::Serialization
 		std::vector<RotPrefix> UnfoldRot(const std::vector<RotPrefix>& a_folded, size_t a_maxKeys)
 		{
 			std::vector<RotPrefix> out;
+			out.reserve(a_maxKeys);  // a_maxKeys is the real key count, already bounded by the file
 			for (const auto& p : a_folded) {
 				for (int i = 0; i <= static_cast<int>(p.count); i++) {
 					if (out.size() >= a_maxKeys) {
@@ -430,6 +431,7 @@ namespace OSF::Serialization
 		std::vector<TransPrefix> UnfoldTrans(const std::vector<TransPrefix>& a_folded, size_t a_maxKeys)
 		{
 			std::vector<TransPrefix> out;
+			out.reserve(a_maxKeys);
 			for (const auto& p : a_folded) {
 				for (uint32_t i = 0; i < p.count; i++) {
 					if (out.size() >= a_maxKeys) {
@@ -581,10 +583,11 @@ namespace OSF::Serialization
 				const size_t nTr = std::min({ blk.transKeys.size(), blk.transEntries.size(), transPrefixes.size() });
 				for (size_t i = 0; i < nTr; i++) {
 					const ozz::math::Float3 trackTr = DequantTranslation(transPrefixes[i], blk.transEntries[i], a_rig.lowPrecision, a_rig.highPrecision);
+					const ozz::math::Float3 rotated = QRotate(bone.bindRot, trackTr);
 					const ozz::math::Float3 absTr = {
-						bone.bindTrans.x + QRotate(bone.bindRot, trackTr).x,
-						bone.bindTrans.y + QRotate(bone.bindRot, trackTr).y,
-						bone.bindTrans.z + QRotate(bone.bindRot, trackTr).z
+						bone.bindTrans.x + rotated.x,
+						bone.bindTrans.y + rotated.y,
+						bone.bindTrans.z + rotated.z
 					};
 					const float t = blk.transKeys[i] / AFImport::kAfFps;
 					track.translations.push_back({ t, absTr });
@@ -750,6 +753,17 @@ namespace OSF::Serialization
 		std::scoped_lock l{ g_cacheLock };
 		ClipCache().emplace(cacheKey, result);
 		return result;
+	}
+
+	std::optional<AFLoadResult> AFImport::TryCached(std::string_view a_clipKey, std::string_view a_rigKey)
+	{
+		const std::string cacheKey = LowerKey(a_clipKey) + '|' + std::string(a_rigKey);
+		std::scoped_lock l{ g_cacheLock };
+		auto& cc = ClipCache();
+		if (auto it = cc.find(cacheKey); it != cc.end()) {
+			return it->second;
+		}
+		return std::nullopt;
 	}
 
 	void AFImport::ClearCache()

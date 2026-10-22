@@ -55,8 +55,12 @@ def scale_diagnostics():
             "non_unit_target_samples": 0, "checked_frames": 0}
 
 
-def model_matrices(locals_, parents):
-    result = [None] * len(parents)
+def hierarchy_order(parents):
+    """Parent-before-child visit order; rejects out-of-table parents and cycles.
+
+    Parents are fixed per skeleton, so callers that compose many frames resolve this once.
+    """
+    order, done = [], [False] * len(parents)
     pending = set(range(len(parents)))
     while pending:
         progressed = False
@@ -64,19 +68,28 @@ def model_matrices(locals_, parents):
             p = parents[i]
             if p < -1 or p >= len(parents):
                 raise ValueError("Skeleton parent index outside bone table")
-            if p == -1 or result[p] is not None:
-                result[i] = locals_[i] if p == -1 else result[p] @ locals_[i]
+            if p == -1 or done[p]:
+                order.append(i)
+                done[i] = True
                 pending.remove(i)
                 progressed = True
         if not progressed:
             raise ValueError("Skeleton hierarchy contains a cycle")
+    return order
+
+
+def model_matrices(locals_, parents, order=None):
+    result = [None] * len(parents)
+    for i in hierarchy_order(parents) if order is None else order:
+        p = parents[i]
+        result[i] = locals_[i] if p == -1 else result[p] @ locals_[i]
     return result
 
 
-def model_rotations(locals_, parents):
+def model_rotations(locals_, parents, order=None):
     """Compose rotations separately so source scale cannot introduce shear."""
     rotation_locals = [m.decompose()[1].to_matrix().to_4x4() for m in locals_]
-    return [m.to_quaternion() for m in model_matrices(rotation_locals, parents)]
+    return [m.to_quaternion() for m in model_matrices(rotation_locals, parents, order)]
 
 
 def profile_mapping(source_names, target_names):
@@ -127,13 +140,15 @@ class HumanoidRetargeter:
             for bone, pose in zip(skeleton.bones, skeleton.reference_pose):
                 self._validate_scale(pose.scale, bone)
         self.source_rest_local = [matrix(p.translation, p.rotation, p.scale) for p in skeleton.reference_pose]
-        self.source_rest = model_matrices(self.source_rest_local, skeleton.parents)
+        self.source_order = hierarchy_order(skeleton.parents)
+        self.source_rest = model_matrices(self.source_rest_local, skeleton.parents, self.source_order)
         self.source_rest_linear_inverse = ([m.to_3x3().inverted() for m in self.source_rest]
                                            if scale_profile == POSITIVE_AFFINE else None)
-        self.source_rest_rotations = model_rotations(self.source_rest_local, skeleton.parents)
+        self.source_rest_rotations = model_rotations(self.source_rest_local, skeleton.parents, self.source_order)
         self.target_rest_local = [matrix(b.translation, b.rotation_xyzw) for b in rig.bones]
         self.target_parents = [b.parent for b in rig.bones]
-        self.target_rest = model_matrices(self.target_rest_local, self.target_parents)
+        self.target_order = hierarchy_order(self.target_parents)
+        self.target_rest = model_matrices(self.target_rest_local, self.target_parents, self.target_order)
         self.mapping = profile_mapping(skeleton.bones, [b.name for b in rig.bones])
         self.source_pelvis = skeleton.bones.index("NPC Pelvis [Pelv]")
         self.target_com = [b.name for b in rig.bones].index("COM")
@@ -251,39 +266,35 @@ class HumanoidRetargeter:
             scale = sample(track.scales)
             self._validate_scale(scale, self.source.bones[bone_id])
             locals_[bone_id] = matrix(sample(track.translations), sample(track.rotations), scale)
-        source_models = model_matrices(locals_, self.source.parents)
-        source_rotations = model_rotations(locals_, self.source.parents) if self.scale_profile == UNIT_SCALE else None
+        source_models = model_matrices(locals_, self.source.parents, self.source_order)
+        source_rotations = (model_rotations(locals_, self.source.parents, self.source_order)
+                            if self.scale_profile == UNIT_SCALE else None)
         c = self.source_to_target.to_quaternion()
         models, local_out = [None] * len(self.rig.bones), [None] * len(self.rig.bones)
-        pending = set(range(len(self.rig.bones)))
-        while pending:
-            for i in sorted(pending):
-                p = self.target_parents[i]
-                if p != -1 and models[p] is None:
-                    continue
-                parent = Matrix.Identity(4) if p == -1 else models[p]
-                local = self.target_rest_local[i].copy()
-                if i in self.mapping and self.scale_profile == POSITIVE_AFFINE:
-                    local = self._affine_local(source_models, i, parent, frame, diagnostics)
-                elif i in self.mapping:
-                    s = self.mapping[i]
-                    delta = source_rotations[s] @ self.source_rest_rotations[s].inverted()
-                    desired = c @ delta @ c.inverted() @ self.target_rest[i].to_quaternion()
-                    local_rotation = parent.to_quaternion().inverted() @ desired
-                    local = Matrix.LocRotScale(local.translation, local_rotation, Vector((1, 1, 1)))
-                if i == self.target_com:
-                    displacement = source_models[self.source_pelvis].translation - self.source_rest[self.source_pelvis].translation
-                    pos = self.target_rest[i].translation + self.source_to_target @ displacement * self.unit_scale
-                    local.translation = parent.inverted() @ pos
-                # OSF owns anchor placement; export Root stays at its identity/rest origin.
-                local_out[i] = decompose(local)
-                if diagnostics is not None:
-                    values = local_out[i]["scale"]
-                    diagnostics["output_scale_range"][0] = min(diagnostics["output_scale_range"][0], *values)
-                    diagnostics["output_scale_range"][1] = max(diagnostics["output_scale_range"][1], *values)
-                    diagnostics["non_unit_target_samples"] += any(abs(v - 1) > 1e-3 for v in values)
-                models[i] = parent @ local
-                pending.remove(i)
+        for i in self.target_order:
+            p = self.target_parents[i]
+            parent = Matrix.Identity(4) if p == -1 else models[p]
+            local = self.target_rest_local[i].copy()
+            if i in self.mapping and self.scale_profile == POSITIVE_AFFINE:
+                local = self._affine_local(source_models, i, parent, frame, diagnostics)
+            elif i in self.mapping:
+                s = self.mapping[i]
+                delta = source_rotations[s] @ self.source_rest_rotations[s].inverted()
+                desired = c @ delta @ c.inverted() @ self.target_rest[i].to_quaternion()
+                local_rotation = parent.to_quaternion().inverted() @ desired
+                local = Matrix.LocRotScale(local.translation, local_rotation, Vector((1, 1, 1)))
+            if i == self.target_com:
+                displacement = source_models[self.source_pelvis].translation - self.source_rest[self.source_pelvis].translation
+                pos = self.target_rest[i].translation + self.source_to_target @ displacement * self.unit_scale
+                local.translation = parent.inverted() @ pos
+            # OSF owns anchor placement; export Root stays at its identity/rest origin.
+            local_out[i] = decompose(local)
+            if diagnostics is not None:
+                values = local_out[i]["scale"]
+                diagnostics["output_scale_range"][0] = min(diagnostics["output_scale_range"][0], *values)
+                diagnostics["output_scale_range"][1] = max(diagnostics["output_scale_range"][1], *values)
+                diagnostics["non_unit_target_samples"] += any(abs(v - 1) > 1e-3 for v in values)
+            models[i] = parent @ local
         if diagnostics is not None:
             diagnostics["checked_frames"] += 1
         return local_out

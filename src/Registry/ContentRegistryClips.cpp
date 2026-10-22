@@ -157,7 +157,7 @@ namespace OSF::Registry::ContentRegistryClips
 
 	std::size_t AddRegisteredClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
 		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems,
-		std::map<std::string, std::uint32_t>& a_addedByFile)
+		std::map<std::string, std::uint32_t>& a_addedByFile, ClipInstalledCache& a_cache)
 	{
 		struct ClipEntry
 		{
@@ -200,9 +200,12 @@ namespace OSF::Registry::ContentRegistryClips
 			}
 
 			const std::string installKey = ToLower(display);
+			// Keyed by display so spellings of one clip probe once; mirrored into a_cache under the raw spec.
 			auto [installedIt, fresh] = installed.try_emplace(installKey, false);
 			if (fresh) {
-				installedIt->second = ClipSpecInstalled(registration.clip.file);
+				installedIt->second = ClipInstalled(a_cache, registration.clip.file);
+			} else {
+				a_cache.try_emplace(registration.clip.file, installedIt->second);
 			}
 			if (!installedIt->second) {
 				a_problems.Push("[warn] '" + registration.sourceFile.filename().string() +

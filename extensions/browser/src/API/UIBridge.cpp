@@ -34,6 +34,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 
 namespace OSF::API
@@ -117,9 +118,10 @@ namespace OSF::API
 			if (!g_ui) {
 				return;
 			}
-			const std::string text = a_payload.dump(-1, ' ', false, json::error_handler_t::replace);
-			if (!g_jsonTransport.Send(a_view, a_type, text)) {
-				REX::ERROR("[UI] refused '{}' delivery to '{}' ({} bytes)", a_type, a_view, text.size());
+			std::string text = a_payload.dump(-1, ' ', false, json::error_handler_t::replace);
+			const auto  bytes = text.size();
+			if (!g_jsonTransport.Send(a_view, a_type, std::move(text))) {
+				REX::ERROR("[UI] refused '{}' delivery to '{}' ({} bytes)", a_type, a_view, bytes);
 			}
 		}
 
@@ -929,11 +931,13 @@ namespace OSF::API
 						json p;
 						p["slot"] = isActor ? "actor" : "furniture";
 						p["token"] = g_openPickToken;
-						p["name"] = ScanLabel(ref);
+						const std::string name = ScanLabel(ref);
+						const auto identity = isActor ? EngineClient::ActorIdentity(static_cast<RE::Actor*>(ref)) : EngineClient::ActorIdentityInfo{};
+						p["name"] = name;
 						p["formId"] = ref->GetFormID();
-						p["species"] = isActor ? EngineClient::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
-						p["sex"] = RefSexTag(ref);
-						REX::DEBUG("[UI] OnOpened: seeding view with crosshair target '{}' as {}", ScanLabel(ref), p["slot"].get<std::string>());
+						p["species"] = identity.species;
+						p["sex"] = identity.gender;
+						REX::DEBUG("[UI] OnOpened: seeding view with crosshair target '{}' as {}", name, p["slot"].get<std::string>());
 						SendJson(a_srcView, "osf.animation.openTarget", p);
 					}
 				}
@@ -1113,7 +1117,9 @@ namespace OSF::API
 			g_openPickToken = 0;
 			if (RE::TESObjectREFR* ref = CrosshairRef()) {
 				g_openPickToken = AllocToken(ref);
-				REX::DEBUG("[UI] OpenBrowser: captured crosshair target '{}' ({:08X}) for PICK", ScanLabel(ref), ref->GetFormID());
+				if (spdlog::should_log(spdlog::level::debug)) {
+					REX::DEBUG("[UI] OpenBrowser: captured crosshair target '{}' ({:08X}) for PICK", ScanLabel(ref), ref->GetFormID());
+				}
 			}
 			auto* ui = RE::UI::GetSingleton();
 			auto* queue = RE::UIMessageQueue::GetSingleton();

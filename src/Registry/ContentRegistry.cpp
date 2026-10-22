@@ -2436,7 +2436,7 @@ namespace OSF::Registry
 		const auto sceneCount = loaded.size();
 		AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
 		std::map<std::string, std::uint32_t> clipEntriesByFile;
-		const auto clipEntryCount = AddRegisteredClipEntries(loaded, clipLibrary, problems, clipEntriesByFile);
+		const auto clipEntryCount = AddRegisteredClipEntries(loaded, clipLibrary, problems, clipEntriesByFile, clipCache);
 		for (const auto& [path, count] : clipEntriesByFile) {
 			if (const auto it = fileIndex.find(path); it != fileIndex.end()) {
 				fileStats[it->second].clipEntries = count;
@@ -2614,9 +2614,14 @@ namespace OSF::Registry
 
 	std::vector<std::string> ContentRegistry::MissingClipRefs() const
 	{
-		// Same BSResource-aware probe as the load-time sweep, so archive-resident clips aren't false positives.
+		// The snapshot already holds the load-time BSResource-aware probe for every clip (the same view the
+		// catalog and matchmaking use); probe only clips it doesn't know.
+		const auto current = snapshot.load(std::memory_order_acquire);
 		std::unordered_map<std::string, bool> cache;
-		const auto installed = [&cache](const std::string& a_file) {
+		const auto installed = [&cache, &current](const std::string& a_file) {
+			if (const auto known = current->clipAvailability.find(a_file); known != current->clipAvailability.end()) {
+				return known->second;
+			}
 			auto [it, fresh] = cache.try_emplace(a_file, false);
 			if (fresh) {
 				it->second = ClipSpecInstalled(a_file);
@@ -2625,7 +2630,6 @@ namespace OSF::Registry
 		};
 
 		std::vector<std::string> out;
-		const auto current = snapshot.load(std::memory_order_acquire);
 		for (const auto& [key, def] : current->scenes) {
 			for (const auto& node : def.nodes) {
 				for (const auto& stage : node.stages) {

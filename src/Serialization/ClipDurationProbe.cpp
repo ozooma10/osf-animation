@@ -8,6 +8,7 @@
 #include <charconv>
 #include <cstring>
 #include <fstream>
+#include <limits>
 #include <nlohmann/json.hpp>
 
 namespace OSF::Serialization::ClipDurationProbe
@@ -173,16 +174,19 @@ namespace OSF::Serialization::ClipDurationProbe
 			return std::max(maxTime, 0.001f);  // matches the importer's duration floor
 		}
 
-		std::optional<std::vector<std::byte>> ReadWholeFile(const std::filesystem::path& a_file)
+		// a_prefix caps the read (an .af duration lives in its 64-byte header); the size limit still applies.
+		std::optional<std::vector<std::byte>> ReadWholeFile(const std::filesystem::path& a_file,
+			std::uintmax_t a_prefix = std::numeric_limits<std::uintmax_t>::max())
 		{
 			std::error_code ec;
 			const auto      sz = std::filesystem::file_size(a_file, ec);
 			if (ec || sz > Util::kMaxClipBytes) {
 				return std::nullopt;
 			}
+			const auto             readSize = std::min(sz, a_prefix);
 			std::ifstream          f(a_file, std::ios::binary);
-			std::vector<std::byte> buf(sz);
-			if (!f || (sz > 0 && !f.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(sz)))) {
+			std::vector<std::byte> buf(readSize);
+			if (!f || (readSize > 0 && !f.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(readSize)))) {
 				return std::nullopt;
 			}
 			return buf;
@@ -216,7 +220,8 @@ namespace OSF::Serialization::ClipDurationProbe
 				result.status = API::ClipProbeStatus::Unchanged;
 				return result;
 			}
-			if (auto b = ReadWholeFile(cand.filePath)) {
+			constexpr std::uintmax_t kAfHeaderBytes = 64;  // ProbeAfBytes reads frameCount from the header only
+			if (auto b = isAf ? ReadWholeFile(cand.filePath, kAfHeaderBytes) : ReadWholeFile(cand.filePath)) {
 				bytes = std::move(*b);
 				found = true;
 			}

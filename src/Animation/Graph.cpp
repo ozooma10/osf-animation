@@ -50,7 +50,8 @@ namespace OSF::Animation
 		}
 
 		const auto nextJointCount = static_cast<std::size_t>(a_skeleton->data->num_joints());
-		bool sameJointLayout = skeleton == a_skeleton;
+		const bool sameSkeleton = skeleton == a_skeleton;  // rest pose and joint names are immutable per skeleton
+		bool sameJointLayout = sameSkeleton;
 		if (!sameJointLayout && skeleton && skeleton->data->num_joints() == a_skeleton->data->num_joints()) {
 			const auto oldNames = skeleton->data->joint_names();
 			const auto newNames = a_skeleton->data->joint_names();
@@ -101,16 +102,18 @@ namespace OSF::Animation
 			displayedPose.assign(numJoints, ozz::math::Float4x4::identity());
 			displayedDriven.assign(numJoints, 0);
 		}
-		referencePose.assign(numJoints, ozz::math::Float4x4::identity());
 		rigIndexByJoint.assign(numJoints, UINT16_MAX);
-		const auto restPose = skeleton->data->joint_rest_poses();
-		UnpackSoaTransforms({ restPose.data(), restPose.size() },
-			{ referencePose.data(), referencePose.size() }, skeleton->data.get());
+		if (!sameSkeleton || referencePose.size() != nextJointCount) {
+			referencePose.assign(numJoints, ozz::math::Float4x4::identity());
+			const auto restPose = skeleton->data->joint_rest_poses();
+			UnpackSoaTransforms({ restPose.data(), restPose.size() },
+				{ referencePose.data(), referencePose.size() }, skeleton->data.get());
 
-		jointMap.clear();
-		auto jointNames = skeleton->data->joint_names();
-		for (size_t i = 0; i < jointNames.size(); i++) {
-			jointMap[ToLower(jointNames[i])] = static_cast<uint16_t>(i);
+			jointMap.clear();
+			auto jointNames = skeleton->data->joint_names();
+			for (size_t i = 0; i < jointNames.size(); i++) {
+				jointMap[ToLower(jointNames[i])] = static_cast<uint16_t>(i);
+			}
 		}
 
 		InvalidateBinding(sameJointLayout);

@@ -81,11 +81,12 @@ namespace OSF::Util
 		}
 
 		const std::string& primary = out.display;
-		out.candidates.push_back({ primary, std::filesystem::current_path() / "Data" / primary, true });
+		const auto data = std::filesystem::current_path() / "Data";
+		out.candidates.push_back({ primary, data / primary, true });
 		out.candidates.push_back({ NormalizeResourcePath(std::string{ "NAF\\" } + primary),
-			std::filesystem::current_path() / "Data" / "NAF" / primary, true });
+			data / "NAF" / primary, true });
 		out.candidates.push_back({ NormalizeResourcePath(std::string{ "OSF\\Animations\\" } + a_spec.filename().string()),
-			std::filesystem::current_path() / "Data" / "OSF" / "Animations" / a_spec.filename(), true });
+			data / "OSF" / "Animations" / a_spec.filename(), true });
 		return out;
 	}
 

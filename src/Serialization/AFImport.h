@@ -53,6 +53,9 @@ namespace OSF::Serialization
 		static AFLoadResult LoadAnimation(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_afBytes,
 			std::string_view a_rigKey, const RigBytesProvider& a_rigProvider);
 
+		// Cache probe with the byte overload's key; lets callers skip reading bytes a hit would discard.
+		static std::optional<AFLoadResult> TryCached(std::string_view a_clipKey, std::string_view a_rigKey);
+
 		static void ClearCache();
 	};
 }

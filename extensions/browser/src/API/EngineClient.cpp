@@ -36,12 +36,13 @@ namespace OSF::API::EngineClient
 	nlohmann::json MatchCast(const std::vector<RE::Actor*>& actors) {
 		auto result=nlohmann::json::array(); Get().MatchCast(actors.data(),static_cast<std::uint32_t>(actors.size()),ReadJson,&result); return result;
 	}
-	std::string ActorSpecies(RE::Actor* actor) {
-		nlohmann::json result=nlohmann::json::object(); Get().ReadActorIdentity(actor,ReadJson,&result); return result.is_object() ? result.value("species",std::string{}) : std::string{};
+	ActorIdentityInfo ActorIdentity(RE::Actor* actor) {
+		nlohmann::json result=nlohmann::json::object(); Get().ReadActorIdentity(actor,ReadJson,&result);
+		if (!result.is_object()) return {};
+		return { result.value("species",std::string{}), result.value("gender",std::string{}) };
 	}
-	std::string ActorGender(RE::Actor* actor) {
-		nlohmann::json result=nlohmann::json::object(); Get().ReadActorIdentity(actor,ReadJson,&result); return result.is_object() ? result.value("gender",std::string{}) : std::string{};
-	}
+	std::string ActorSpecies(RE::Actor* actor) { return ActorIdentity(actor).species; }
+	std::string ActorGender(RE::Actor* actor) { return ActorIdentity(actor).gender; }
 	CatalogData& CatalogData::GetSingleton() { static auto* value = new CatalogData(); return *value; }
 	void CatalogData::Refresh()
 	{

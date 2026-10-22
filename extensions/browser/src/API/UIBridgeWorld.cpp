@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 namespace OSF::API::UIBridgeWorld
 {
@@ -717,8 +718,9 @@ namespace OSF::API::UIBridgeWorld
 				reply["token"] = token;
 				reply["name"] = ScanLabel(a_ref);
 				reply["formId"] = a_ref->GetFormID();
-				reply["species"] = a_ref->IsActor() ? EngineClient::ActorSpecies(static_cast<RE::Actor*>(a_ref)) : std::string{};
-				reply["sex"] = RefSexTag(a_ref);
+				const auto identity = a_ref->IsActor() ? EngineClient::ActorIdentity(static_cast<RE::Actor*>(a_ref)) : EngineClient::ActorIdentityInfo{};
+				reply["species"] = identity.species;
+				reply["sex"] = identity.gender;
 				if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 					reply["distance"] = std::sqrt(player->GetPosition().GetSquaredDistance(a_ref->GetPosition())) / 70.0f;
 				}
@@ -749,8 +751,10 @@ namespace OSF::API::UIBridgeWorld
 			} else {
 				ref = nullptr;
 			}
-			REX::DEBUG("[UI] world PICK {} token={} -> {}", slot, token,
-				ref ? std::format("'{}' ({:08X})", ScanLabel(ref), ref->GetFormID()) : "no longer a valid target");
+			if (spdlog::should_log(spdlog::level::debug)) {
+				REX::DEBUG("[UI] world PICK {} token={} -> {}", slot, token,
+					ref ? std::format("'{}' ({:08X})", ScanLabel(ref), ref->GetFormID()) : "no longer a valid target");
+			}
 			SendScreenPick(a_srcView, slot, ref);
 		}
 
@@ -1053,6 +1057,7 @@ namespace OSF::API::UIBridgeWorld
 				}
 				count++;
 				const std::int32_t token = AllocToken(h.ref);
+				const auto         identity = h.ref->IsActor() ? EngineClient::ActorIdentity(static_cast<RE::Actor*>(h.ref)) : EngineClient::ActorIdentityInfo{};
 				json               item = {
 					{ "token", token },
 					{ "name", ScanLabel(h.ref, h.matchedKw) },
@@ -1060,8 +1065,8 @@ namespace OSF::API::UIBridgeWorld
 					{ "distance", std::sqrt(h.distSq) / 70.0f },  // game units -> ~meters
 					{ "isActor", h.ref->IsActor() },
 					{ "marker", marker },
-					{ "species", h.ref->IsActor() ? EngineClient::ActorSpecies(static_cast<RE::Actor*>(h.ref)) : std::string{} },
-					{ "sex", RefSexTag(h.ref) },
+					{ "species", identity.species },
+					{ "sex", identity.gender },
 				};
 				if (h.sceneCount >= 0) {
 					item["sceneCount"] = h.sceneCount;

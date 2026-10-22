@@ -388,8 +388,7 @@ export function matchesSearch(state: BrowserState, scene: SceneModel): boolean {
   if (!unlistedVisible(state, scene)) return false;
   if (!state.filters.search) return true;
   const roles = scene.roles.map((role) => `${role.name} ${role.gender}`).join(" ");
-  const stages = scene.library ? ` ${scene.stageHay ?? ""}` : "";
-  return `${scene.title} ${scene.id} ${scene.tags.join(" ")} ${roles} ${scene.pack} ${scene.folder} ${scene.sourceFile} ${scene.sourcePath}${stages}`
+  return `${scene.title} ${scene.id} ${scene.tags.join(" ")} ${roles} ${scene.pack} ${scene.folder} ${scene.sourceFile} ${scene.sourcePath}`
     .toLowerCase()
     .includes(state.filters.search);
 }

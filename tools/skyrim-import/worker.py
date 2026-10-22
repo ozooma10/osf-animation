@@ -143,7 +143,8 @@ def run(job):
                               "No external HKX extracted-motion conversion", "Only this humanoid skeleton profile is supported"],
               "clips": [], "warnings": [*plan.get("warnings", []), *plan.get("source", {}).get("warnings", [])]}
     from preflight import inspect_plan
-    preflight = inspect_plan(plan, decoder, converters)
+    decoded = {}  # source path -> clip preflight already decoded (spline decode is the slow step)
+    preflight = inspect_plan(plan, decoder, converters, decoded)
     (output / "preflight.json").write_text(json.dumps(preflight, indent=2), encoding="utf-8")
     report["preflight"] = {"status": preflight["status"], "report": "preflight.json"}
     report["validation"] = {"source_preflight": "passed" if preflight["status"] == "compatible" else "failed",
@@ -157,7 +158,10 @@ def run(job):
     clips_dir.mkdir(parents=True)
     preview_stage = len(plan["stages"]) // 2
     for stage_id, stage in enumerate(plan["stages"]):
-        animations = [load_skyrim_animation(p) for p in stage["clips"]]
+        animations = []
+        for source_path in stage["clips"]:
+            anim = decoded.pop(str(Path(source_path)), None)
+            animations.append(anim if anim is not None else load_skyrim_animation(source_path))
         first = animations[0]
         if any(a.num_frames != first.num_frames or abs(a.duration - first.duration) > 1e-4 for a in animations):
             raise ValueError(f"Stage {stage_id + 1}: participant clip lengths differ; automatic resampling is not implemented")

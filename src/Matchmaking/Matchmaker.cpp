@@ -59,6 +59,48 @@ namespace OSF::Matchmaking
 			return false;
 		}
 
+		// What role filters read from one actor, resolved once per query instead of per role x permutation.
+		struct ActorFacts
+		{
+			explicit ActorFacts(RE::Actor* a_actor) :
+				actor(a_actor), sex(SexOf(a_actor)), race(a_actor ? a_actor->race : nullptr)
+			{}
+
+			bool HasKeyword(RE::TESFormID a_keyword)
+			{
+				auto [it, fresh] = keywordHits.try_emplace(a_keyword, false);
+				if (fresh) {
+					// The registry stores FormIDs, not pointers.
+					it->second = ActorHasKeyword(actor, RE::TESForm::LookupByID<RE::BGSKeyword>(a_keyword));
+				}
+				return it->second;
+			}
+
+			RE::Actor*                                actor;
+			RE::SEX                                   sex;
+			RE::TESRace*                              race;
+			std::unordered_map<RE::TESFormID, bool>   keywordHits;
+		};
+
+		bool RoleAcceptsFacts(const Registry::SceneRole& a_role, ActorFacts& a_facts)
+		{
+			if (!a_facts.actor) {
+				return false;
+			}
+			if (a_role.gender != Registry::RoleGender::kAny && !RoleGenderAccepts(a_role.gender, a_facts.sex)) {
+				return false;
+			}
+			if (!a_role.keywords.empty() &&
+				std::ranges::none_of(a_role.keywords, [&](const auto a_kw) { return a_facts.HasKeyword(a_kw); })) {
+				return false;
+			}
+			if (!a_role.races.empty() &&
+				(!a_facts.race || std::ranges::find(a_role.races, a_facts.race->GetFormID()) == a_role.races.end())) {
+				return false;
+			}
+			return true;
+		}
+
 		std::vector<std::string> Lower(const std::vector<std::string>& a_in)
 		{
 			std::vector<std::string> out;
@@ -110,6 +152,15 @@ namespace OSF::Matchmaking
 			// Vanilla packs share a handful of AnimFurn* keywords across thousands of defs.
 			AnchorMatchCache anchorCache(a_anchor);
 
+			std::vector<ActorFacts> facts;
+			facts.reserve(a_actors.size());
+			for (auto* actor : a_actors) {
+				facts.emplace_back(actor);
+			}
+			// compatible[role * count + actor]: evaluated once per def so permutations are table lookups.
+			const auto n = static_cast<std::size_t>(count);
+			std::vector<std::uint8_t> compatible;
+
 			std::vector<Candidate> pool;
 
 			Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
@@ -135,11 +186,16 @@ namespace OSF::Matchmaking
 				c.id = a_def.id;
 				c.priority = a_def.priority;
 				c.weight = a_def.weight;
-				auto order = FindRoleOrder(static_cast<std::size_t>(count),
-					[&](std::size_t a_role, std::size_t a_actorIndex) {
-						return (a_roles.empty() || RoleNameMatches(a_roles[a_actorIndex], a_def.roles[a_role].name)) &&
-						       RoleAccepts(a_def.roles[a_role], a_actors[a_actorIndex]);
-					});
+				compatible.assign(n * n, 0);
+				for (std::size_t role = 0; role < n; ++role) {
+					for (std::size_t actorIndex = 0; actorIndex < n; ++actorIndex) {
+						compatible[role * n + actorIndex] =
+							(a_roles.empty() || RoleNameMatches(a_roles[actorIndex], a_def.roles[role].name)) &&
+							RoleAcceptsFacts(a_def.roles[role], facts[actorIndex]);
+					}
+				}
+				auto order = FindRoleOrder(n,
+					[&](std::size_t a_role, std::size_t a_actorIndex) { return compatible[a_role * n + a_actorIndex] != 0; });
 				if (!order) {
 					return;
 				}
@@ -218,36 +274,8 @@ namespace OSF::Matchmaking
 		if (!a_actor) {
 			return false;
 		}
-		if (a_role.gender != Registry::RoleGender::kAny && !RoleGenderAccepts(a_role.gender, SexOf(a_actor))) {
-			return false;
-		}
-		if (!a_role.keywords.empty()) {
-			bool ok = false;
-			for (const auto kwId : a_role.keywords) {
-				// The registry stores FormIDs, not pointers.
-				if (ActorHasKeyword(a_actor, RE::TESForm::LookupByID<RE::BGSKeyword>(kwId))) {
-					ok = true;
-					break;
-				}
-			}
-			if (!ok) {
-				return false;
-			}
-		}
-		if (!a_role.races.empty()) {
-			bool ok = false;
-			auto* race = a_actor->race;
-			for (const auto rcId : a_role.races) {
-				if (race && race->GetFormID() == rcId) {
-					ok = true;
-					break;
-				}
-			}
-			if (!ok) {
-				return false;
-			}
-		}
-		return true;
+		ActorFacts facts{ a_actor };
+		return RoleAcceptsFacts(a_role, facts);
 	}
 
 	bool BindSceneRoles(const Registry::SceneDef& a_def, const std::vector<RE::Actor*>& a_actors,

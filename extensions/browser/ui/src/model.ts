@@ -52,7 +52,6 @@ export interface SceneModel {
   openEnded: boolean;
   library?: boolean;
   /** Lower-cased stage-name search index. */
-  stageHay?: string;
 }
 
 type Raw = Record<string, any>;
@@ -113,7 +112,7 @@ export function safeNormalizeScene(raw: unknown): SceneModel | null {
 export function normalizeCatalog(payload: unknown, library = false): SceneModel[] {
   if (!Array.isArray(payload)) return [];
   return payload.map(safeNormalizeScene).filter((scene): scene is SceneModel => !!scene).map((scene) => library
-    ? { ...scene, library: true, sourceKind: scene.sourceKind === "authoredScene" ? "referenceAnimation" : scene.sourceKind, stageHay: scene.stages.map((stage) => stage.name).join(" ").toLowerCase() }
+    ? { ...scene, library: true, sourceKind: scene.sourceKind === "authoredScene" ? "referenceAnimation" : scene.sourceKind }
     : scene);
 }
 

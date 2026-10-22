@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -41,6 +42,9 @@ namespace OSF::Serialization
 		// `a_parentPath` resolves external buffers of a text .gltf.
 		static LoadResult LoadAnimation(std::string_view a_cacheKey, std::vector<std::byte> a_bytes,
 			const std::filesystem::path& a_parentPath, std::string_view a_animId);
+
+		// Cache probe with the byte overload's key; lets callers skip reading bytes a hit would discard.
+		static std::optional<LoadResult> TryCached(std::string_view a_cacheKey, std::string_view a_animId);
 
 		static void ClearCache();
 

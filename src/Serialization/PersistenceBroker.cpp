@@ -67,14 +67,24 @@ namespace OSF::Serialization
 			return true;
 		}
 
+		// Reflected CRC-32 (poly 0xEDB88320), one table step per byte instead of eight bit steps.
+		constexpr auto kCrc32Table = [] {
+			std::array<std::uint32_t, 256> table{};
+			for (std::uint32_t i = 0; i < 256; ++i) {
+				std::uint32_t crc = i;
+				for (int bit = 0; bit < 8; ++bit) {
+					crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+				}
+				table[i] = crc;
+			}
+			return table;
+		}();
+
 		std::uint32_t CRC32(std::span<const std::byte> bytes)
 		{
 			std::uint32_t crc = 0xFFFFFFFFu;
 			for (const std::byte b : bytes) {
-				crc ^= static_cast<std::uint8_t>(b);
-				for (int bit = 0; bit < 8; ++bit) {
-					crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
-				}
+				crc = (crc >> 8) ^ kCrc32Table[(crc ^ static_cast<std::uint8_t>(b)) & 0xFFu];
 			}
 			return ~crc;
 		}
@@ -366,25 +376,32 @@ namespace OSF::Serialization
 				continue;
 			}
 
-			std::vector<std::byte> payload;
+			std::size_t payloadSize = 0;
 			for (const auto& record : state.records) {
-				AppendU32(payload, record.type);
-				AppendU32(payload, record.version);
-				AppendU32(payload, static_cast<std::uint32_t>(record.data.size()));
-				payload.insert(payload.end(), record.data.begin(), record.data.end());
+				payloadSize += kRecordHeaderSize + record.data.size();
 			}
-			if (payload.size() > kMaxClientBytes || output.size() + kClientHeaderSize + payload.size() > kMaxFileBytes) {
+			if (payloadSize > kMaxClientBytes || output.size() + kClientHeaderSize + payloadSize > kMaxFileBytes) {
 				++stats.clientsFailed;
 				Log(LogLevel::kError, "omitted oversized save block for " + ClientIDText(client->id));
 				continue;
 			}
 
+			// Serialize records in place and patch the CRC once the payload bytes exist (format unchanged).
 			AppendU32(output, client->id);
 			AppendU32(output, static_cast<std::uint32_t>(state.records.size()));
-			AppendU32(output, static_cast<std::uint32_t>(payload.size()));
-			AppendU32(output, CRC32(payload));
+			AppendU32(output, static_cast<std::uint32_t>(payloadSize));
+			const std::size_t crcOffset = output.size();
+			AppendU32(output, 0);  // CRC patched below
 			AppendU32(output, 0);
-			output.insert(output.end(), payload.begin(), payload.end());
+			const std::size_t payloadBegin = output.size();
+			output.reserve(payloadBegin + payloadSize);
+			for (const auto& record : state.records) {
+				AppendU32(output, record.type);
+				AppendU32(output, record.version);
+				AppendU32(output, static_cast<std::uint32_t>(record.data.size()));
+				output.insert(output.end(), record.data.begin(), record.data.end());
+			}
+			PatchU32(output, crcOffset, CRC32(std::span<const std::byte>{ output }.subspan(payloadBegin)));
 			++stats.clientsWritten;
 			stats.recordsWritten += static_cast<std::uint32_t>(state.records.size());
 		}
