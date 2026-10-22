@@ -32,8 +32,7 @@ _spec.loader.exec_module(libsnap)
 
 # Scene keys the shared build_card rejects but main-lane packs legitimately
 # carry — stripped before the call, folded back into the card afterwards.
-SCENE_SIDE_KEYS = {"roles", "stripActors", "lockPlayer", "fade", "camera",
-                   "inPlace", "priority", "weight", "playerControl", "equip"}
+SCENE_SIDE_KEYS = {"roles", "camera", "priority", "weight", "sceneControls", "playerControl", "equip"}
 
 
 def default_sources():
@@ -61,6 +60,8 @@ def build_file(path, kw_by_formid, cards, seen):
         "anchor": data.get("anchor"),
         "pack": data.get("pack", ""),
         "sourceFile": os.path.basename(path),
+        "sourceKind": "authoredScene",
+        **libsnap.read_policy(data),
     }
     pack_roles = data.get("roles")
 
@@ -97,7 +98,8 @@ def build_file(path, kw_by_formid, cards, seen):
 
 
 def main():
-    kw_raw = json.load(open(libsnap.KEYWORD_MAP, encoding="utf-8"))
+    with open(libsnap.KEYWORD_MAP, encoding="utf-8") as source:
+        kw_raw = json.load(source)
     kw_by_formid = {v["formid"].lower(): v["name"] for v in kw_raw.values()}
 
     roots = default_sources() + sys.argv[1:]

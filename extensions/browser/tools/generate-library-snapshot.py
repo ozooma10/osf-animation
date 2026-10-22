@@ -25,11 +25,34 @@ OUT = os.path.join(REPO, "extensions", "browser", "ui", "fixtures", "live", "lib
 HOLD_LOOP_ESTIMATE = 2.0
 
 # Modeled keys; anything else aborts.
-SCENE_KEYS = {"id", "name", "tags", "stages", "anchor", "clipRoot", "unlisted"}
+POLICY_KEYS = {"hideApparel", "stripActors", "playerInputLock", "lockPlayer", "placement", "inPlace", "fade"}
+POLICY_DEFAULTS = {"hideApparel": True, "playerInputLock": True, "placement": "anchorAndPin", "fade": False}
+SCENE_KEYS = {"id", "name", "tags", "stages", "anchor", "clipRoot", "unlisted"} | POLICY_KEYS
 STAGE_KEYS = {"name", "tags", "loops", "timer", "clips"}
 CLIP_KEYS = {"file", "sec", "anim", "offset"}
 ANCHOR_KEYS = {"keyword", "base"}
-FILE_KEYS = {"schema", "name", "pack", "section", "unlisted", "clipRoot", "scenes", "stripActors", "fade", "anchor"}
+FILE_KEYS = {"schema", "name", "pack", "section", "unlisted", "clipRoot", "scenes", "anchor"} | POLICY_KEYS
+
+
+def read_policy(owner, defaults=None):
+    """Content aliases remain supported; Browser cards always use canonical fields."""
+    if defaults is None:
+        defaults = {**POLICY_DEFAULTS, "hideApparel": str(owner.get("section", "")).lower() != "library"}
+
+    def value(canonical, alias):
+        if canonical in owner and alias in owner:
+            raise ValueError(f"use either '{canonical}' or '{alias}', not both")
+        return owner.get(canonical, owner.get(alias, defaults[canonical]))
+
+    placement = value("placement", "inPlace")
+    if "inPlace" in owner:
+        placement = "followActor" if placement else "anchorAndPin"
+    return {
+        "hideApparel": value("hideApparel", "stripActors"),
+        "playerInputLock": value("playerInputLock", "lockPlayer"),
+        "placement": placement,
+        "fade": owner.get("fade", defaults["fade"]),
+    }
 
 
 def f32(x):
@@ -39,7 +62,8 @@ def f32(x):
 
 def load_jsonc(path):
     """Pack JSONs may carry // comments (the registry parses with ignore_comments)."""
-    text = open(path, encoding="utf-8-sig").read()
+    with open(path, encoding="utf-8-sig") as source:
+        text = source.read()
     out, i, n, in_str = [], 0, len(text), False
     while i < n:
         c = text[i]
@@ -225,16 +249,14 @@ def build_card(scene, file_defaults, kw_by_formid):
         "title": scene.get("name") or sid,
         "pack": file_defaults["pack"],
         "sourceFile": file_defaults["sourceFile"],
+        "sourceKind": file_defaults["sourceKind"],
         "species": species or "human",
         "tags": scene.get("tags", []),
         "actorCount": actor_count,
         "roles": [{"name": "", "gender": "any"} for _ in range(actor_count)],
         "priority": 0,
         "weight": 1,
-        # BuildCatalog emits the def's resolved policy; library packs default to no strip.
-        "stripActors": False,
-        "lockPlayer": True,
-        "fade": False,
+        **read_policy(scene, file_defaults),
         "requiresFurniture": bool(anchor),
         "anchors": anchor_names,
         "unlisted": unlisted,
@@ -247,7 +269,8 @@ def build_card(scene, file_defaults, kw_by_formid):
 
 
 def main():
-    kw_raw = json.load(open(KEYWORD_MAP, encoding="utf-8"))
+    with open(KEYWORD_MAP, encoding="utf-8") as source:
+        kw_raw = json.load(source)
     kw_by_formid = {v["formid"].lower(): v["name"] for v in kw_raw.values()}
 
     cards = []
@@ -264,6 +287,8 @@ def main():
             "anchor": data.get("anchor"),
             "pack": data.get("pack", ""),
             "sourceFile": os.path.basename(path),
+            "sourceKind": "referenceAnimation",
+            **read_policy(data),
         }
         for scene in data["scenes"]:
             cards.append(build_card(scene, defaults, kw_by_formid))

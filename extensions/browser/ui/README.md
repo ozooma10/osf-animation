@@ -205,6 +205,9 @@ mock catalog — status reads `standalone · live snapshot`. `library.json` (the
 vanilla-packs lane) is generated offline by
 `python extensions/browser/tools/generate-library-snapshot.py`, which replicates the DLL's
 `BuildCatalog(library)` over `dist/OSF` — re-run it after regenerating packs.
+Both snapshot generators accept supported content-file policy aliases and emit only canonical
+Browser fields, including explicit `sourceKind`. Check them and the committed snapshots with
+`python extensions/browser/tools/test-snapshot-generators.py` from the repo root.
 `catalog.json` is a one-time in-game dump (the runtime mirror code has since
 been removed; est times for hand-authored packs come from the in-game probe, so
 refreshing it would need a temporary re-add of that dump or hand-editing).
