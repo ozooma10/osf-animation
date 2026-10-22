@@ -40,7 +40,7 @@ export interface BrowserCommands {
   toggleBriefAnimations(): void;
   toggleOptions(): void;
   setOption(field: "hideApparel" | "playerInputLock" | "camera" | "speed", value: string): void;
-  launch(stage?: number, singleAnimation?: boolean, sceneId?: string): void;
+  launch(stage?: number, singleAnimation?: boolean, nodeId?: string): void;
   stop(handle?: number): void;
   stopAll(): void;
   advance(handle?: number): void;

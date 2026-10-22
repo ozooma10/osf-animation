@@ -77,7 +77,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return {
         ...state,
         lastHandle: action.handle,
-        lastSceneId: action.sceneId,
+        lastSceneId: action.nodeId,
         minimized: !state.wheel && action.afterLaunch === "minimize",
         mode: state.mode,
       };
@@ -237,7 +237,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "selection/changed":
       return {
         ...state,
-        selectedId: action.sceneId,
+        selectedId: action.nodeId,
         selectedStage: action.stage ?? null,
         briefFullAnims: false,
       };

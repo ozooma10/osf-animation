@@ -3,14 +3,14 @@
 
 namespace OSF::API
 {
-	inline constexpr std::uint32_t kPreparationVersion = 1;
+	inline constexpr std::uint32_t kPreparationVersion = 2;
 	enum class PreparationKind : std::uint32_t
 	{
 		Start,
-		Handoff,
-		Node,
+		Transition,
 		Stage
 	};
+	enum class PreparationOrigin : std::uint32_t { Caller, ManualEdge, TimedCue, PlaybackCompletion };
 	enum class PreparationPhase : std::uint32_t
 	{
 		Plan,
@@ -40,15 +40,15 @@ namespace OSF::API
 		std::uint64_t        attempt{}, provider{};
 		std::int32_t         scene{};
 		PreparationKind      kind{};
-		const char*          fromScene{};
+		PreparationOrigin    origin{};
+		bool                 covered{};
 		const char*          fromNode{};
-		const char*          toScene{};
 		const char*          toNode{};
 		std::int32_t         fromStage{ -1 }, toStage{ -1 };
 		const std::uint32_t* actors{};  // exact destination role order, world-local form IDs
 		std::uint32_t        actorCount{};
 	};
-    // Services 3.14: register once from this provider's Validate callback.
+    // Register once from this provider's Validate callback.
     // acquire runs after every Validate and final H2 reconciliation; false refuses playback.
     // release is called once for each entered acquire (including false/throw), in reverse order,
     // before finish/rollback/events. Unentered guards receive no release. No pending/polling.

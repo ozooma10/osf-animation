@@ -55,15 +55,15 @@ namespace OSF::Testing::D3AudioProbe
             if (!e) return;
             {
                 std::lock_guard lock(mutex);
-                if (active && !scene && e->eventType==API::SceneEventType::kSceneBegin && e->sceneId &&
-                    std::string_view(e->sceneId).starts_with("osf.intimacy.audio")) scene=e->sceneHandle;
+                if (active && !scene && e->eventType==API::SceneEventType::kSceneBegin && e->node &&
+                    std::string_view(e->node).starts_with("osf.intimacy.audio")) scene=e->sceneHandle;
                 if (!active || e->sceneHandle != scene) return;
             }
             if (e->eventType == API::SceneEventType::kSceneEnd) Event("scene-end");
-            if (e->eventType == API::SceneEventType::kSceneHandoff) Event("scene-handoff");
+            if (e->eventType == API::SceneEventType::kNodeTransition) Event("scene-handoff");
             if (e->eventType == API::SceneEventType::kNodeEnter) Event("node-enter");
             if (e->eventType == API::SceneEventType::kSceneEnd ||
-                e->eventType == API::SceneEventType::kSceneHandoff ||
+                e->eventType == API::SceneEventType::kNodeTransition ||
                 e->eventType == API::SceneEventType::kNodeEnter) CloseVoice();
             if (e->eventType != API::SceneEventType::kCue) return;
             const std::string_view cue = e->cue ? e->cue : "";
@@ -342,8 +342,8 @@ namespace OSF::Testing::D3AudioProbe
                 deadline = std::chrono::steady_clock::now() + std::chrono::seconds(180);
             }
             API::OSFStartOptions options;
-            options.stripMode = options.lockPlayerMode = options.playerControlMode = options.fadeMode = 0;
-            options.inPlaceMode = 1;
+            options.hideApparelMode = options.playerInputLockMode = options.sceneControlsMode = options.fadeMode = 0;
+            options.followActorMode = 1;
             std::memcpy(options.camera,"none",5);
             auto* actor = static_cast<RE::Actor*>(player);
             const auto handle = api->StartScene(&actor,1,id.c_str(),options);
@@ -365,7 +365,7 @@ namespace OSF::Testing::D3AudioProbe
             const auto* services = API::RequestEngineAPI();
             bool ok = false;
             if (mode == "stop") ok = scene && api->StopScene(scene);
-            else if (mode == "handoff") ok = scene && services->ReplaceScene(scene,"osf.d3.silent",nullptr);
+            else if (mode == "handoff") ok = scene && services->ReplaceNode(scene,"osf.d3.silent",nullptr,0,nullptr);
             else if (mode == "authored") ok = scene && api->Navigate(scene,"authored");
             else throw std::runtime_error("D3 cancellation mode must be stop/handoff/authored");
             if (!ok) throw std::runtime_error("D3 cancellation operation refused");

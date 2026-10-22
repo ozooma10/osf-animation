@@ -74,21 +74,21 @@ namespace OSF::API::EngineClient
 	{
 		if (!m_durationDirty.exchange(false, std::memory_order_acq_rel)) return;
 		Browser::ClipDurationCache::RefreshDecoded();
-		for (auto& scene : m_snapshot->scenes) for (auto& stage : scene.stages) {
+		for (auto& scene : m_snapshot->nodes) for (auto& stage : scene.stages) {
 			if (!stage.durationKey.empty()) {
 				stage.loopSec = Browser::ClipDurationCache::Lookup(stage.durationKey).value_or(-1.0f);
 			}
 		}
 	}
-	const Catalog::Scene* CatalogData::Find(std::string_view id)
+	const Catalog::Node* CatalogData::Find(std::string_view id)
 	{
 		Refresh();
 		const auto equal=[](char a,char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); };
-		const auto it=std::ranges::find_if(m_snapshot->scenes,[&](const auto& s) { return std::ranges::equal(s.id,id,equal); });
-		return it == m_snapshot->scenes.end() ? nullptr : &*it;
+		const auto it=std::ranges::find_if(m_snapshot->nodes,[&](const auto& s) { return std::ranges::equal(s.id,id,equal); });
+		return it == m_snapshot->nodes.end() ? nullptr : &*it;
 	}
-	void CatalogData::ForEachDef(const std::function<void(const Catalog::Scene&)>& fn) { Refresh(); for (const auto& scene:m_snapshot->scenes) fn(scene); }
+	void CatalogData::ForEachDef(const std::function<void(const Catalog::Node&)>& fn) { Refresh(); for (const auto& scene:m_snapshot->nodes) fn(scene); }
 	const std::vector<Catalog::File>& CatalogData::FileStats() { Refresh(); return m_snapshot->files; }
 	const std::vector<std::string>& CatalogData::LoadErrors() { Refresh(); return m_snapshot->errors; }
-	std::size_t CatalogData::Size() { Refresh(); return m_snapshot->scenes.size(); }
+	std::size_t CatalogData::Size() { Refresh(); return m_snapshot->nodes.size(); }
 }

@@ -7,7 +7,7 @@ namespace OSF::Scene
 {
 	namespace
 	{
-		std::vector<std::string> RoleNames(const Registry::SceneDef& def)
+		std::vector<std::string> RoleNames(const Registry::NodeDef& def)
 		{
 			std::vector<std::string> names;
 			for (const auto& role : def.roles) names.push_back(role.name);
@@ -25,7 +25,7 @@ namespace OSF::Scene
 		if (role == names.end() || names.size() != s->participants.size()) return false;
 		const auto index = static_cast<std::size_t>(role - names.begin());
 		if (!Animation::GraphManager::GetSingleton().SetAlignmentDelta(s->participants[index], a_delta, s->playbackId)) return false;
-		s->align.Enter(s->node, Alignment::Read(s->id, s->node, names))[index] = a_delta;
+		s->align.Enter(s->node, Alignment::Read(s->node, names))[index] = a_delta;
 		return true;
 	}
 	std::optional<Alignment::Delta> SceneRuntime::GetAlignment(std::int32_t a_scene, std::string_view a_role)
@@ -36,7 +36,7 @@ namespace OSF::Scene
 		const auto names = RoleNames(*s->definition);
 		const auto role = Alignment::FindRole(names, a_role);
 		if (role == names.end() || names.size() != s->participants.size()) return std::nullopt;
-		return s->align.Enter(s->node, Alignment::Read(s->id, s->node, names))[role - names.begin()];
+		return s->align.Enter(s->node, Alignment::Read(s->node, names))[role - names.begin()];
 	}
 	bool SceneRuntime::SaveAlignment(std::int32_t a_scene)
 	{
@@ -45,7 +45,7 @@ namespace OSF::Scene
 		if (!s || !s->definition || s->transitioning ||
 			s->worldPlacement.value_or(s->definition->worldPlacement) == Animation::WorldPlacementMode::kFollowActor) return false;
 		const auto names = RoleNames(*s->definition);
-		return Alignment::Save(s->id, s->node, names, s->align.Enter(s->node, Alignment::Read(s->id, s->node, names)));
+		return Alignment::Save(s->node, names, s->align.Enter(s->node, Alignment::Read(s->node, names)));
 	}
 	void SceneRuntime::AlignmentInput(std::int32_t a_scene, Input::Verb a_verb)
 	{
@@ -63,7 +63,7 @@ namespace OSF::Scene
 			if (a_verb == Verb::kAlignStep) s->alignFine = !s->alignFine;
 			fine = s->alignFine;
 			role = names[s->alignSelected];
-			value = s->align.Enter(s->node, Alignment::Read(s->id, s->node, names))[s->alignSelected];
+			value = s->align.Enter(s->node, Alignment::Read(s->node, names))[s->alignSelected];
 		}
 		const float step = fine ? 0.1f : 1.0f;
 		const float angle = (fine ? 1.0f : 5.0f) * Util::kDegToRadF;
@@ -84,7 +84,7 @@ namespace OSF::Scene
 			std::lock_guard l{ _lock };
 			auto* s = Resolve(a_scene);
 			if (!s) return;
-			const auto saved = Alignment::Read(s->id, s->node, RoleNames(*s->definition));
+			const auto saved = Alignment::Read(s->node, RoleNames(*s->definition));
 			const auto& working = s->align.nodes.at(s->node);
 			dirty = !std::equal(working.begin(), working.end(), saved.begin(), saved.end(), Alignment::Equal);
 		}

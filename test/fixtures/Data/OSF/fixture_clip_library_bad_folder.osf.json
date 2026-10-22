@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "pack": "Test Clip Bad Folder",
   "clipLibrary": [
     { "file": "bad.af", "folder": "Standing//Furniture" }

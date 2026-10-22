@@ -1,12 +1,12 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Immersion — Emotes",
   "clipRoot": "meshes/actors/human/animations",
-  "stripActors": false,
-  "lockPlayer": false, 
+  "hideApparel": false,
+  "playerInputLock": false,
   "camera": "none",
-  "inPlace": true,
-  "scenes": [
+  "placement": "followActor",
+  "nodes": [
     {
       "id": "immersion/emote/wave",
       "name": "Wave",

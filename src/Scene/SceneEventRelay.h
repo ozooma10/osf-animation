@@ -11,7 +11,7 @@ namespace OSF::Scene
 		inline constexpr std::int32_t kAction = 0x08;
 		inline constexpr std::int32_t kSceneEnd = 0x10;
 		inline constexpr std::int32_t kSceneBegin = 0x20;
-		inline constexpr std::int32_t kSceneHandoff = 0x40;
+		inline constexpr std::int32_t kNodeTransition = 0x40;
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 
@@ -31,7 +31,6 @@ namespace OSF::Scene
 		std::string  trackPosition;    // "", "enter", "exit", "end"; Papyrus field `anchor`
 		std::int32_t result = 0;       // RESULT_*
 		std::int32_t cause = -1;       // SCENE_END only: completed=0, cancelled=1, interrupted=2
-		std::string sceneId;
 		std::uint64_t detectedNs{}; // native only; Papyrus payload is unchanged
 		bool nativeOnly = false; // internal routing for opt-in cues; not a public payload field
 	};

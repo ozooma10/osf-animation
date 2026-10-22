@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Quadrupedb (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/quadrupedb/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/quadrupedb/bleedout",
       "name": "Vanilla · Quadrupedb / Bleedout",

@@ -1,36 +1,99 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "Hold Fixture",
   "unlisted": true,
-  "roles": [{ "name": "solo" }],
-  "scenes": [
+  "roles": [
+    {
+      "name": "solo"
+    }
+  ],
+  "nodes": [
     {
       "id": "test.hold.frame",
       "stages": [
-        { "clips": ["Fixture/gesture.glb"] },
+        {
+          "clips": [
+            "Fixture/gesture.glb"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "when": "end",
+          "to": "test.hold.frame/stage-1"
+        },
+        {
+          "id": "advance",
+          "label": "Next",
+          "when": "advance",
+          "default": true,
+          "to": "test.hold.frame/stage-1"
+        }
+      ]
+    },
+    {
+      "id": "test.hold.frame/stage-1",
+      "cue": [
+        {
+          "at": 0,
+          "id": "test.hold.entered"
+        }
+      ],
+      "stages": [
         {
           "hold": true,
-          "clips": ["Fixture/gesture.glb"],
-          "cue": [{ "at": 0, "id": "test.hold.entered" }]
+          "clips": [
+            "Fixture/gesture.glb"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "when": "end",
+          "to": "$end"
+        },
+        {
+          "id": "advance",
+          "label": "Next",
+          "when": "advance",
+          "default": true,
+          "to": "$end"
         }
       ]
     },
     {
       "id": "test.hold.timed",
       "stages": [
-        { "hold": 0.25, "timer": 2.0, "clips": ["Fixture/gesture.glb"] }
+        {
+          "hold": 0.25,
+          "timer": 2.0,
+          "clips": [
+            "Fixture/gesture.glb"
+          ]
+        }
       ]
     },
     {
       "id": "test.hold.loops",
       "stages": [
-        { "hold": true, "loops": 3, "clips": ["Fixture/gesture.glb"] }
+        {
+          "hold": true,
+          "loops": 3,
+          "clips": [
+            "Fixture/gesture.glb"
+          ]
+        }
       ]
     },
     {
       "id": "test.hold.range",
       "stages": [
-        { "hold": 1.5, "clips": ["Fixture/gesture.glb"] }
+        {
+          "hold": 1.5,
+          "clips": [
+            "Fixture/gesture.glb"
+          ]
+        }
       ]
     }
   ]

@@ -13,13 +13,13 @@ namespace OSF::API::BrowserClipLibrary
 	std::vector<ClipScene> Build(const Catalog::ClipSourceSnapshot& source)
 	{
 		struct Source {
-			const Catalog::ClipSourceScene* scene;
+			const Catalog::ClipSourceNode* scene;
 			std::string file, group;
 			bool excluded;
 		};
 		std::map<std::string, Source> scenes;
 		std::set<std::string> reserved, curated;
-		for (const auto& scene : source.scenes) {
+		for (const auto& scene : source.nodes) {
 			auto id = Util::ToLower(scene.id);
 			auto file = Util::ToLower(scene.sourceFile);
 			auto group = scene.pack.empty() ? "file:" + file : "pack:" + Util::ToLower(scene.pack);
@@ -32,7 +32,7 @@ namespace OSF::API::BrowserClipLibrary
 			const Catalog::SourceClip* clip;
 			const std::string* source;
 			const Source* info;
-			auto Order() const { return std::tie(info->file, *source, clip->node, clip->stage, clip->clip); }
+			auto Order() const { return std::tie(info->file, *source, clip->stage, clip->clip); }
 		};
 		// Select the same minimum source address directly for each identity. There is no need to
 		// sort every occurrence or normalize/resolve scene metadata inside a sort comparator.
@@ -66,7 +66,7 @@ namespace OSF::API::BrowserClipLibrary
 			if (!clip->animId.empty()) name += " · " + clip->animId;
 			ClipScene entry;
 			entry.id = std::move(id); entry.source = clip->source; entry.name = std::move(name);
-			entry.node = clip->node; entry.stage = clip->stage; entry.clip = clip->clip;
+			entry.stage = clip->stage; entry.clip = clip->clip;
 			entry.tags = {"scene.clip"};
 			entry.unlisted = entry.library = entry.followActor = entry.clearOffset = true;
 			entry.playerInputLock = entry.hideApparel = entry.fade = false;
@@ -78,12 +78,12 @@ namespace OSF::API::BrowserClipLibrary
 	std::vector<ClipScene> BuildFromCatalogJson(const char* text)
 	{
 		const auto source = nlohmann::json::parse(text).get<Catalog::ClipSourceSnapshot>();
-		if (source.schema != 1) throw std::runtime_error("unsupported clip-source catalog schema");
+		if (source.schema != 2) throw std::runtime_error("unsupported clip-source catalog schema");
 		return Build(source);
 	}
 	void Decorate(Catalog::Snapshot& catalog)
 	{
-		for (auto& scene : catalog.scenes) {
+		for (auto& scene : catalog.nodes) {
 			if (scene.provider != kOwner) continue;
 			scene.sourceKind = "derivedDebugAnimation";
 			for (auto& file : catalog.files) if (file.path == scene.sourcePath) { ++file.clipEntries; break; }

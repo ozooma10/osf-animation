@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "pack": "Test Clip Library",
   "folder": "Poses",
   "clipRoot": "Clips/Test",
@@ -18,7 +18,7 @@
       "tags": ["pose"]
     }
   ],
-  "scenes": [
+  "nodes": [
     {
       "id": "test.clip.source",
       "stages": [

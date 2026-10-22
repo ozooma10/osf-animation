@@ -42,7 +42,7 @@ export interface ActiveCastMember {
 
 export interface ActiveLaunch {
   handle: number;
-  sceneId: string;
+  nodeId: string;
   stage: number;
   player: boolean;
   cast: ActiveCastMember[];
@@ -51,8 +51,6 @@ export interface ActiveLaunch {
   speed: number;
 }
 
-/** Name used by the frozen `activeScenes` bridge event. */
-export type ActiveScene = ActiveLaunch;
 
 export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";
 

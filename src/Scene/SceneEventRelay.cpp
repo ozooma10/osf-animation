@@ -58,7 +58,6 @@ namespace OSF::Scene
 			v = RE::BSFixedString(a_event.trackPosition.c_str()); set("anchor", v);  // frozen Papyrus field
 			v = a_event.result;                                 set("result", v);
 			v = a_event.cause;                                  set("cause", v);
-			v = RE::BSFixedString(a_event.sceneId.c_str());       set("sceneId", v);
 			if (a_event.actor) {
 				RE::BSScript::Variable actorVar;
 				RE::BSScript::detail::PackVariable(actorVar, a_event.actor);

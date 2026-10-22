@@ -247,11 +247,11 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
   if (!launches.length) return <Empty>Nothing active.</Empty>;
   return <><div class="browse-note"><Dot active/><span class="lbl">ACTIVE · {launches.length}</span>{launches.length > 1 && <button class="reveal inline stop-all" onClick={commands.stopAll}>■ STOP ALL</button>}</div>
     <div class="active-list">{launches.map((active) => {
-      const scene = sceneById(state, active.sceneId);
+      const scene = sceneById(state, active.nodeId);
       const stages = scene?.stages ?? [];
       const clock = (value: number) => `${Math.floor(value / 60)}:${(value % 60).toFixed(2).padStart(5, "0")}`;
-      return <div class={`active-card ${state.selectedId === active.sceneId ? "selected" : ""}`} key={active.handle}>
-        <button class="active-main" onClick={() => commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{scene ? playableSceneTitle(scene) : active.sceneId}</span><span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
+      return <div class={`active-card ${state.selectedId === active.nodeId ? "selected" : ""}`} key={active.handle}>
+        <button class="active-main" onClick={() => commands.selectScene(active.nodeId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{scene ? playableSceneTitle(scene) : active.nodeId}</span><span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
           {stages.length > 1 && active.stage >= 0 && active.stage < stages.length && <div class="active-stage mono">STAGE {active.stage + 1}/{stages.length} · {stageLabel(scene!, active.stage).toUpperCase()}</div>}
           {!!active.cast.length && <div class="active-cast">{active.cast.map((member) => <span class={`active-actor ${member.player ? "player" : ""}`} key={member.token}>{member.name}{member.player ? " · YOU" : ""}</span>)}</div>}
         </button>

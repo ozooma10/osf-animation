@@ -52,7 +52,6 @@ namespace OSF::Testing::AnimationSmoke
 			std::int32_t type;
 			std::string node;
 			std::string cue;
-			std::string sceneId;
 			std::string edge;
 			std::int32_t cause = -1;
 		};
@@ -245,7 +244,7 @@ namespace OSF::Testing::AnimationSmoke
 			if (g.events.size() < 256)
 				g.events.push_back({ a_event->sceneHandle, a_event->eventType,
 					a_event->node ? a_event->node : "", a_event->cue ? a_event->cue : "",
-					a_event->sceneId ? a_event->sceneId : "", a_event->edge ? a_event->edge : "", a_event->cause });
+					a_event->edge ? a_event->edge : "", a_event->cause });
 		}
 
 		std::size_t Count(std::int32_t a_handle, std::int32_t a_type, std::string_view a_cue = {})
@@ -259,19 +258,22 @@ namespace OSF::Testing::AnimationSmoke
 		bool GraphEventOrder(std::int32_t a_handle)
 		{
 			using namespace API::SceneEventType;
-			const std::array<Event, 9> expected{{
-				{a_handle, kSceneBegin, "first", ""}, {a_handle, kNodeEnter, "first", ""},
-				{a_handle, kNodeExit, "first", ""}, {a_handle, kNodeEnter, "middle", ""},
-				{a_handle, kNodeExit, "middle", ""}, {a_handle, kNodeEnter, "timed", ""},
-				{a_handle, kCue, "timed", "smoke.tick"}, {a_handle, kNodeExit, "timed", ""},
-				{a_handle, kSceneEnd, "timed", ""}
+			const std::array<Event, 11> expected{{
+				{a_handle, kSceneBegin, "osf.smoke.graph/first", ""}, {a_handle, kNodeEnter, "osf.smoke.graph/first", ""},
+				{a_handle, kNodeExit, "osf.smoke.graph/first", ""},
+				{a_handle, kNodeTransition, "osf.smoke.graph/middle", "", "osf.smoke.graph/first"}, {a_handle, kNodeEnter, "osf.smoke.graph/middle", ""},
+				{a_handle, kNodeExit, "osf.smoke.graph/middle", ""},
+				{a_handle, kNodeTransition, "osf.smoke.graph/timed", "", "osf.smoke.graph/middle"}, {a_handle, kNodeEnter, "osf.smoke.graph/timed", ""},
+				{a_handle, kCue, "osf.smoke.graph/timed", "smoke.tick"}, {a_handle, kNodeExit, "osf.smoke.graph/timed", ""},
+				{a_handle, kSceneEnd, "osf.smoke.graph/timed", ""}
 			}};
 			std::scoped_lock lock(g.eventsMutex);
 			std::size_t index = 0;
 			for (const auto& event : g.events) {
 				if (event.handle != a_handle) continue;
 				if (index == expected.size() || event.type != expected[index].type ||
-					event.node != expected[index].node || event.cue != expected[index].cue) return false;
+					event.node != expected[index].node || event.cue != expected[index].cue ||
+					(event.type == kNodeTransition && event.edge != expected[index].edge)) return false;
 				++index;
 			}
 			return index == expected.size();
@@ -280,8 +282,8 @@ namespace OSF::Testing::AnimationSmoke
 		API::OSFStartOptions Options()
 		{
 			API::OSFStartOptions options;
-			options.stripMode = options.lockPlayerMode = options.playerControlMode = options.fadeMode = 0;
-			options.inPlaceMode = 1;
+			options.hideApparelMode = options.playerInputLockMode = options.sceneControlsMode = options.fadeMode = 0;
+			options.followActorMode = 1;
 			std::memcpy(options.camera, "none", 5);
 			return options;
 		}
@@ -368,7 +370,7 @@ namespace OSF::Testing::AnimationSmoke
 			}
 			if (BrowserProbe::Visible()) { Finish("blocked", "Close the Animation Browser before starting the run"); return; }
 			auto& registry = Registry::ContentRegistry::GetSingleton();
-			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph") ||
+			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph/first") ||
 				!registry.Find("osf.smoke.defaults") || !registry.Find("osf.smoke.optout")) {
 				Finish("blocked", "Live smoke fixture is not installed or failed registry validation");
 				return;
@@ -563,7 +565,7 @@ namespace OSF::Testing::AnimationSmoke
 					break;
 				}
 				if (!ActorUnclaimed(actor)) { Finish("blocked", "Player became occupied before graph scene start"); return; }
-				g.scene = g.sceneAPI->StartScene(&actor, 1, "osf.smoke.graph", options);
+				g.scene = g.sceneAPI->StartScene(&actor, 1, "osf.smoke.graph/first", options);
 				if (!g.scene) { Check("scene.navigate", false, "Graph scene start was rejected"); return; }
 				Phase(50);
 				break;
@@ -575,7 +577,7 @@ namespace OSF::Testing::AnimationSmoke
 				Phase(51);
 				break;
 			case 51:
-				if (!(SceneSettled(g.scene) && runtime.GetNode(g.scene) == "middle")) {
+				if (!(SceneSettled(g.scene) && runtime.GetNode(g.scene) == "osf.smoke.graph/middle")) {
 					if (PhaseSeconds() > 6) Check("scene.navigate", false, "Named edge did not reach 'middle' within 6 seconds");
 					break;
 				}
@@ -584,7 +586,7 @@ namespace OSF::Testing::AnimationSmoke
 				break;
 			case 52: {
 				// The timed node's authored timer may end the scene quickly; event order is verified after it ends.
-				const bool reached = runtime.GetNode(g.scene) == "timed" || g.sceneAPI->GetSceneForActor(actor) == 0;
+				const bool reached = runtime.GetNode(g.scene) == "osf.smoke.graph/timed" || g.sceneAPI->GetSceneForActor(actor) == 0;
 				if (!reached) {
 					if (PhaseSeconds() > 6) Check("scene.navigate", false, "Default advance did not reach 'timed' within 6 seconds");
 					break;
@@ -726,7 +728,7 @@ namespace OSF::Testing::AnimationSmoke
 			}
 			auto& runtime = Scene::SceneRuntime::GetSingleton();
 			const auto handle = runtime.GetSceneForActor(player);
-			Json result{ { "handle", handle }, { "sceneId", runtime.GetSceneId(handle) },
+			Json result{ { "handle", handle }, { "node", runtime.GetNode(handle) },
 				{ "gameMenuPaused", RE::Main::GetSingleton() && RE::Main::GetSingleton()->isGameMenuPaused },
 				{ "pauseRequestCount", ui->pauseRequestCount }, { "menus", Json::array() } };
 			for (const char* name : { "PauseMenu", "InventoryMenu", "DataMenu" })

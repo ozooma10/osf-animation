@@ -31,34 +31,14 @@ namespace OSF::Scene
 			return true;
 		}
 
-		std::optional<std::string> ResolveStageEntry(const Registry::SceneDef& a_def,
-			const DefLaunchOptions& a_opts, const char* a_logTag)
+		std::optional<std::int32_t> ResolveStage(const Registry::NodeDef& def,
+			const DefLaunchOptions& options, const char* logTag)
 		{
-            if (!a_opts.node.empty()) {
-                if (a_opts.stage != 0) return std::nullopt;
-                const auto* node = a_def.FindNode(a_opts.node);
-                if (!node) return std::nullopt;
-                return node->id;
-            }
-			if (a_opts.stage <= 0) {
-				return std::string{};
-			}
-			if (a_def.linearStages.empty()) {
-				REX::WARN("{}: scene '{}' has no linear stages — stage {} ignored", a_logTag, a_def.id, a_opts.stage);
-				return std::string{};
-			}
-			if (a_opts.stage >= static_cast<std::int32_t>(a_def.linearStages.size())) {
-				REX::WARN("{}: stage {} out of range for scene '{}' ({} stages)",
-					a_logTag, a_opts.stage, a_def.id, a_def.linearStages.size());
-				if (a_opts.invalidStage == InvalidStagePolicy::kUseEntry) {
-					return std::string{};
-				}
-				if (a_opts.emitHud) {
-					UI::HudMessage::Error(std::format("scene '{}' has no stage {}", a_def.id, a_opts.stage));
-				}
-				return std::nullopt;
-			}
-			return a_def.linearStages[a_opts.stage];
+			if (options.stage >= 0 && static_cast<std::size_t>(options.stage) < def.stages.size()) return options.stage;
+			REX::WARN("{}: stage {} out of range for node '{}' ({} stages)", logTag, options.stage, def.id, def.stages.size());
+			if (options.invalidStage == InvalidStagePolicy::kUseEntry && !def.stages.empty()) return 0;
+			if (options.emitHud) UI::HudMessage::Error(std::format("node '{}' has no stage {}", def.id, options.stage));
+			return std::nullopt;
 		}
 	}
 
@@ -138,8 +118,8 @@ namespace OSF::Scene
 			REX::ERROR("{}: no scene '{}'", a_logTag, a_sceneId);
 			return 0;
 		}
-		const auto entryNode = ResolveStageEntry(*def, a_opts, a_logTag);
-		if (!entryNode) {
+		const auto stage = ResolveStage(*def, a_opts, a_logTag);
+		if (!stage) {
 			return 0;
 		}
 		auto anchor = a_opts.worldAnchor;
@@ -157,11 +137,11 @@ namespace OSF::Scene
 		if (a_opts.speed) overrides.speed = a_opts.speed;
 		std::int32_t handle;
 		if (a_roles) {
-			handle = rt.StartFromDefRoles(a_sceneId, a_actors, *a_roles, anchor, overrides, *entryNode);
+			handle = rt.StartFromDefRoles(a_sceneId, a_actors, *a_roles, anchor, overrides, *stage);
 		} else if (anchor.set) {
-			handle = rt.StartFromDefAt(a_sceneId, a_actors, anchor.pos, anchor.heading, overrides, *entryNode);
+			handle = rt.StartFromDefAt(a_sceneId, a_actors, anchor.pos, anchor.heading, overrides, *stage);
 		} else {
-			handle = rt.StartFromDef(a_sceneId, a_actors, overrides, *entryNode);
+			handle = rt.StartFromDef(a_sceneId, a_actors, overrides, *stage);
 		}
 		return handle;
 	}
@@ -197,7 +177,6 @@ namespace OSF::Scene
 			ordered[slot] = a_actors[pick->order[slot]];
 		}
 		const bool anchored = a_launch.anchorRef != nullptr;
-		a_launch.node.clear();
 		a_launch.stage = 0;  // Matchmade starts have always entered at the authored entry.
 		const std::int32_t handle = LaunchDef(pick->id, ordered, a_launch, a_logTag);
 		if (handle) {

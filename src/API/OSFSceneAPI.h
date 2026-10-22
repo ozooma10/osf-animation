@@ -13,9 +13,15 @@
 namespace OSF::API
 {
 	// Packed (MAJOR << 16) | MINOR. MINOR bumps append vmethods or OSFStartOptions fields.
-	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 7u;
+	inline constexpr std::uint32_t kOSFSceneAPIVersion = (2u << 16) | 0u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
 	inline constexpr std::uint32_t kOSFSceneAPIMinor   = kOSFSceneAPIVersion & 0xFFFFu;
+
+	inline constexpr bool SceneRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
+	{
+		return (requested >> 16) == (provided >> 16) &&
+			(requested & 0xFFFFu) <= (provided & 0xFFFFu);
+	}
 
 	inline constexpr const wchar_t* kOSFModuleName     = L"OSF Animation.dll";
 	inline constexpr const char*    kRequestExportName = "OSF_RequestSceneAPI";
@@ -96,9 +102,9 @@ namespace OSF::API
 	{
 		std::uint32_t size = sizeof(OSFStartOptions);  // stamped by your compiler; OSF reads only this many bytes
 
-		std::int32_t stripMode         = -1;    // hide apparel
-		std::int32_t lockPlayerMode    = -1;    // player input lock
-		std::int32_t playerControlMode = -1;    // scene controls; 0 = revoke advance/navigate/end
+		std::int32_t hideApparelMode         = -1;    // hide apparel
+		std::int32_t playerInputLockMode    = -1;    // player input lock
+		std::int32_t sceneControlsMode = -1;    // scene controls; 0 = revoke advance/navigate/end
 		std::int32_t fadeMode          = -1;    // screen fade
 
 		char  camera[64] = {};                  // "" = inherit, e.g. "thirdperson_hold"
@@ -118,18 +124,14 @@ namespace OSF::API
 		// and apply the authored offset; free scenes world-anchor here. nullptr = none.
 		RE::TESObjectREFR* anchorRef = nullptr;
 
-		// Since minor 2. 1 = follow actors (no teleport or root/heading pin; vanilla camera untouched),
+		// 1 = follow actors (no teleport or root/heading pin; vanilla camera untouched),
 		// 0 = force anchored, else inherit.
-		std::int32_t inPlaceMode = -1;
+		std::int32_t followActorMode = -1;
 
-        // Since minor 7. Borrowed for the call; copied before asynchronous preparation.
-        // StartScene/StartSceneRoles enter this exact node, retaining the containing route.
-        // Null/empty uses the scene entry or startStage. Unknown node or nonzero startStage
-        // together with startNode refuses; never falls back. Query starts use route entry.
-        const char* startNode = nullptr;
+
 	};
 
-	// Since minor 5. Matchmaking input for FindSceneByQuery / StartSceneByQuery and engine-services ReplaceSceneByQuery.
+	// Matchmaking input for FindSceneByQuery / StartSceneByQuery and engine-services ReplaceSceneByQuery.
 	// Arrays are borrowed for the call only. A null array needs a zero count; null or "" entries are skipped.
 	struct OSFSceneQuery
 	{
@@ -156,13 +158,13 @@ namespace OSF::API
 
 	inline constexpr std::uint32_t kOSFSceneMatchMaxActors = 8;
 
-	// Since minor 5. FindSceneByQuery output, indexed by the caller's actor order.
+	// FindSceneByQuery output, indexed by the caller's actor order.
 	struct OSFSceneMatch
 	{
 		std::uint32_t size = sizeof(OSFSceneMatch);  // must cover this whole struct
 		std::uint32_t actorCount = 0;
 
-		char sceneId[256] = {};
+		char nodeId[256] = {};
 		// roleIndex[i] = declared role index actor i binds to. Start positionally by ordering actors by this index,
 		// or by name with roles[] via StartSceneRoles when the scene's role names are distinct.
 		std::int32_t roleIndex[kOSFSceneMatchMaxActors] = {};
@@ -178,7 +180,7 @@ namespace OSF::API
 		inline constexpr std::int32_t kAction = 0x08;
 		inline constexpr std::int32_t kSceneEnd = 0x10;
 		inline constexpr std::int32_t kSceneBegin = 0x20;
-		inline constexpr std::int32_t kSceneHandoff = 0x40; // sceneId=new, node=entry, edge=old scene id
+		inline constexpr std::int32_t kNodeTransition = 0x40; // node=new global ID, edge=previous global ID
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 
@@ -198,10 +200,9 @@ namespace OSF::API
 		float time = -1.0f;
 		const char* anchor = "";  // named track position (enter/exit/end), not a world anchor
 		std::int32_t result = 0;
-		std::uint32_t reserved = 0; // preserves the v1.3 tail padding; new fields begin after its size
-		std::int32_t cause = -1; // v1.4: SCENE_END only, completed=0 / cancelled=1 / interrupted=2
-		const char* sceneId = ""; // v1.4: definition id at dispatch, empty for ad-hoc scenes
-		// v1.6: monotonic mark-detection ns, in services AudioClockNs domain. Zero for non-timed
+		std::uint32_t reserved = 0; // reserved; initialize to zero
+		std::int32_t cause = -1; // SCENE_END only, completed=0 / cancelled=1 / interrupted=2
+		// monotonic mark-detection ns, in services AudioClockNs domain. Zero for non-timed
 		// events. Preserved across the frame queue; not an authored due time or clip fraction.
 		std::uint64_t detectedNs = 0;
 	};
@@ -250,14 +251,14 @@ namespace OSF::API
 		// Any thread.
 		virtual bool         IsPlaying(RE::Actor* a_actor) = 0;
 		virtual std::int32_t GetSceneForActor(RE::Actor* a_actor) = 0;
-		virtual std::int32_t GetSceneStage(std::int32_t a_handle) = 0;  // linear scenes; -1 otherwise
+		virtual std::int32_t GetSceneStage(std::int32_t a_handle) = 0;  // current node timeline segment; -1 for a stale handle
 
 		// Writes up to a_cap actors into caller-owned a_out; returns the total. Ended handles keep their roster briefly
 		// so end handlers can read it. Touch the actors only on the game thread.
 		virtual std::uint32_t GetSceneParticipants(std::int32_t a_handle,
 			RE::Actor** a_out, std::uint32_t a_cap) = 0;
 
-		// Since minor 3. Thread-safe; tokens persist until unregistered. a_sceneFilter 0 = all scenes, a_eventMask 0 = kAll.
+		// Thread-safe; tokens persist until unregistered. a_sceneFilter 0 = all scenes, a_eventMask 0 = kAll.
 		// Returns 0 for a null callback. Unregister waits for callbacks on other threads, never the calling one.
 		virtual std::uint64_t RegisterSceneEventCallback(
 			OSFSceneEventCallback a_callback, void* a_context,
@@ -266,13 +267,13 @@ namespace OSF::API
 
 		virtual bool UnregisterSceneEventCallback(std::uint64_t a_token) = 0;
 
-		// Since minor 5. Game thread. Matchmakes without side effects: tags, per-role filters, a_query.roles and the
+		// Game thread. Matchmakes without side effects: tags, per-role filters, a_query.roles and the
 		// anchor, then priority tier and weighted random, so repeated calls may differ. False = no fit or bad input
 		// (null actor, more than kOSFSceneMatchMaxActors actors, undersized structs, a scene id over 255 bytes).
 		virtual bool FindSceneByQuery(RE::Actor* const* a_actors, std::uint32_t a_count, const OSFSceneQuery& a_query,
 			OSFSceneMatch& a_out) = 0;
 
-		// Since minor 5. Game thread; returns a handle, 0 on failure. Matchmakes like FindSceneByQuery and starts the
+		// Game thread; returns a handle, 0 on failure. Matchmakes like FindSceneByQuery and starts the
 		// pick at its authored entry (startStage is ignored). a_query.anchor places the scene; a different non-null
 		// a_opts.anchorRef is rejected. No HUD messages.
 		virtual std::int32_t StartSceneByQuery(RE::Actor* const* a_actors, std::uint32_t a_count, const OSFSceneQuery& a_query,
@@ -292,6 +293,7 @@ namespace OSF::API
 			return nullptr;
 		}
 		const auto fn = reinterpret_cast<RequestSceneAPI_t>(REX::W32::GetProcAddress(mod, kRequestExportName));
-		return fn ? fn(a_abiVersion) : nullptr;  // older OSF or MAJOR mismatch -> nullptr
+		auto* api = fn ? fn(a_abiVersion) : nullptr;
+		return api && SceneRequestSupported(a_abiVersion, api->GetInterfaceVersion()) ? api : nullptr;
 	}
 }

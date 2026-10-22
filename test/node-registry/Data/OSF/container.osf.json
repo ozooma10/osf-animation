@@ -1,0 +1,9 @@
+{
+  "schema": 2,
+  "scenes": [
+    {
+      "id": "old/container",
+      "clip": "Fixture/x.glb"
+    }
+  ]
+}

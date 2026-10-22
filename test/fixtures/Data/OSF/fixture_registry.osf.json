@@ -1,120 +1,292 @@
 {
-  "schema": 1,
-  "name": "fixture roles registry",
   // OBJECT form: a file-local registry of reusable role definitions, NOT a default cast.
+  // No roles key: the registry must NOT act as a default cast — plain inference (2 anonymous slots).
+  "schema": 2,
+  "name": "fixture roles registry",
   "roles": {
     "m-equipped": {
       "name": "m",
-      "equip": { "male": "Robert S Body Replacer.esm|0x804", "female": "Dick.esm|0x81D" }
+      "equip": {
+        "male": "Robert S Body Replacer.esm|0x804",
+        "female": "Dick.esm|0x81D"
+      }
     },
     "f": {},
-    "anonymous": { "name": "" },
-    "f-preserved": { "name": "f", "preserveBones": ["C_GenitalsRoot"] }
+    "anonymous": {
+      "name": ""
+    },
+    "f-preserved": {
+      "name": "f",
+      "preserveBones": [
+        "C_GenitalsRoot"
+      ]
+    }
   },
-  "scenes": [
+  "nodes": [
     {
       "id": "test.reg.refs",
-      "roles": ["m-equipped", "f-preserved"],
-      "stages": [{ "allowManualHold": true, "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
+      "roles": [
+        "m-equipped",
+        "f-preserved"
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/m.glb",
+            "Fixture/f.glb"
+          ]
+        }
+      ]
     },
     {
       "id": "test.reg.mixed",
-      "roles": ["m-equipped", "f", { "name": "extra", "offset": { "y": 1.0 } }],
-      "stages": [{ "clips": ["Fixture/m.glb", "Fixture/f.glb", "Fixture/x.glb"] }]
+      "roles": [
+        "m-equipped",
+        "f",
+        {
+          "name": "extra",
+          "offset": {
+            "y": 1.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/m.glb",
+            "Fixture/f.glb",
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
-      // No roles key: the registry must NOT act as a default cast — plain inference (2 anonymous slots).
       "id": "test.reg.infer",
-      "stages": [{ "allowManualHold": true, "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
+      "stages": [
+        {
+          "clips": [
+            "Fixture/m.glb",
+            "Fixture/f.glb"
+          ]
+        }
+      ]
     },
     {
       "id": "test.reg.anonymous",
-      "roles": ["anonymous"],
+      "roles": [
+        "anonymous"
+      ],
       "clip": "Fixture/x.glb"
     },
     {
       "id": "test.reg.props",
-      "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "action": [
-          {
-            "at": 0.1, "type": "osf.prop.attach", "role": "player", "prop": "helmet",
-            "source": {
-              "equippedArmor": {
-                "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"]
-              }
-            },
-            "node": "R_Wrist", "position": [1, 2, 3],
-            "rotation": [0, -90, -90], "scale": 0.75
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.1,
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": {
+            "equippedArmor": {
+              "keyword": [
+                "ArmorTypeSpacesuitHelmet",
+                "ArmorTypeHelmet"
+              ]
+            }
           },
-          { "at": 0.8, "type": "osf.prop.destroy", "prop": "helmet" },
-          {
-            "at": 0.2, "type": "osf.voice.play", "role": "player",
-            "set": "Sound/OSF/test-voice.wem", "emitter": "role"
-          }
-        ],
-        "sound": [
-          {
-            "at": 0.15, "spec": "Sound/OSF/test-flat.wem", "role": "player",
-            "emitter": "role"
-          },
-          {
-            "spec": "$test,voice", "role": "player", "emitter": "role",
-            "at": [0.25, { "at": 0.5, "emitter": "listener" }]
-          }
-        ]
-      }]
+          "attachmentNode": "R_Wrist",
+          "position": [
+            1,
+            2,
+            3
+          ],
+          "rotation": [
+            0,
+            -90,
+            -90
+          ],
+          "scale": 0.75
+        },
+        {
+          "at": 0.8,
+          "type": "osf.prop.destroy",
+          "prop": "helmet"
+        },
+        {
+          "at": 0.2,
+          "type": "osf.voice.play",
+          "role": "player",
+          "set": "Sound/OSF/test-voice.wem",
+          "emitter": "role"
+        }
+      ],
+      "sound": [
+        {
+          "at": 0.15,
+          "spec": "Sound/OSF/test-flat.wem",
+          "role": "player",
+          "emitter": "role"
+        },
+        {
+          "spec": "$test,voice",
+          "role": "player",
+          "emitter": "role",
+          "at": [
+            0.25,
+            {
+              "at": 0.5,
+              "emitter": "listener"
+            }
+          ]
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
       "id": "test.reg.props.defaults",
-      "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "action": [
-          {
-            "at": 0.1, "type": "osf.prop.attach", "role": "player", "prop": "helmet",
-            "source": {
-              "equippedArmor": { "keyword": ["ArmorTypeSpacesuitHelmet"] }
-            },
-            "node": "R_Wrist"
-          }
-        ]
-      }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.1,
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": {
+            "equippedArmor": {
+              "keyword": [
+                "ArmorTypeSpacesuitHelmet"
+              ]
+            }
+          },
+          "attachmentNode": "R_Wrist"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
       "id": "test.reg.cue.badrole",
-      "roles": [{ "name": "player" }],
-      "stages": [{ "clips": ["Fixture/x.glb"], "cue": [{ "at": 0.5, "id": "c", "role": "ghost" }] }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "cue": [
+        {
+          "at": 0.5,
+          "id": "c",
+          "role": "ghost"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
       "id": "test.reg.cue.rolenumber",
-      "roles": [{ "name": "player" }],
-      "stages": [{ "clips": ["Fixture/x.glb"], "cue": [{ "at": 0.5, "id": "c", "role": 3 }] }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "cue": [
+        {
+          "at": 0.5,
+          "id": "c",
+          "role": 3
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
       "id": "test.reg.frames",
-      "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "cue": [
-          { "atFrame": 0, "id": "frames.start" },
-          { "atFrame": 24, "id": "frames.beat", "role": "PLAYER", "delivery": "native" },
-          { "at": 0.5, "id": "frames.fraction", "delivery": "both" }
-        ],
-        "action": [
-          { "atFrame": 15, "type": "osf.fade.out" }
-        ],
-        "camera": [
-          { "atFrame": 9, "state": "thirdperson_hold" }
-        ],
-        "sound": [
-          {
-            "spec": "$test,voice", "role": "player",
-            "atFrame": [12, { "atFrame": 30, "emitter": "listener" }, { "at": 0.9 }]
-          }
-        ]
-      }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "cue": [
+        {
+          "atFrame": 0,
+          "id": "frames.start"
+        },
+        {
+          "atFrame": 24,
+          "id": "frames.beat",
+          "role": "PLAYER",
+          "delivery": "native"
+        },
+        {
+          "at": 0.5,
+          "id": "frames.fraction",
+          "delivery": "both"
+        }
+      ],
+      "action": [
+        {
+          "atFrame": 15,
+          "type": "osf.fade.out"
+        }
+      ],
+      "sound": [
+        {
+          "spec": "$test,voice",
+          "role": "player",
+          "atFrame": [
+            12,
+            {
+              "atFrame": 30,
+              "emitter": "listener"
+            },
+            {
+              "at": 0.9
+            }
+          ]
+        }
+      ],
+      "camera": [
+        {
+          "atFrame": 9,
+          "state": "thirdperson_hold"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     }
   ]
 }

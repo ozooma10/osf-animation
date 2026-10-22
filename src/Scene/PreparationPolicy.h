@@ -4,11 +4,18 @@
 
 namespace OSF::Scene
 {
-	enum class TransitionOrigin { Manual, TimedCue, PlaybackCompletion };
+	using TransitionOrigin = Preparation::Origin;
 
 	constexpr bool IsAutomaticTransition(TransitionOrigin origin)
 	{
-		return origin != TransitionOrigin::Manual;
+		return origin == TransitionOrigin::TimedCue || origin == TransitionOrigin::PlaybackCompletion;
+	}
+
+	// Attempt zero denotes an already committed lease. A refusal before coordinator
+	// admission has no attempt and therefore owns no reservations to roll back.
+	constexpr bool OwnsPendingResource(Preparation::Token leaseAttempt, Preparation::Token attempt)
+	{
+		return attempt != 0 && leaseAttempt == attempt;
 	}
 
 	// An automatic boundary is consumed once. Resuming after refusal would strand a

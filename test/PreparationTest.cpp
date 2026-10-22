@@ -7,9 +7,17 @@ using namespace OSF::Preparation;
 
 int main()
 {
+	{
+		using OSF::Scene::OwnsPendingResource;
+		CHECK(!OwnsPendingResource(0, 0)); // cover unavailable before admission must keep committed leases
+		CHECK(!OwnsPendingResource(0, 7)); // admitted attempt cannot roll back prior committed claims
+		CHECK(!OwnsPendingResource(6, 7)); // another attempt retains ownership
+		CHECK(OwnsPendingResource(7, 7)); // failed attempt releases its own provisional reservation
+	}
 	// A one-shot automatic boundary cannot be replayed after a refusal. Exercise
 	// both coordinator failure paths using the same resume policy as the runtime.
-	for (auto origin : { OSF::Scene::TransitionOrigin::Manual, OSF::Scene::TransitionOrigin::TimedCue,
+	for (auto kind : { Kind::Transition })
+	for (auto origin : { OSF::Scene::TransitionOrigin::Caller, OSF::Scene::TransitionOrigin::ManualEdge, OSF::Scene::TransitionOrigin::TimedCue,
 	         OSF::Scene::TransitionOrigin::PlaybackCompletion }) {
 		for (bool timeout : { false, true }) {
 			Coordinator c;
@@ -17,7 +25,7 @@ int main()
 			int writes = 0;
 			c.Register({ 0, 10, [&](const Context&, Phase) { return timeout ? Decision::Pending : Decision::Veto; },
 				[](const Context&, Outcome) {} });
-			Context ctx; ctx.scene = 1; ctx.kind = Kind::Node; ctx.actors = { 14 };
+			Context ctx; ctx.scene = 1; ctx.kind = kind; ctx.actors = { 14 };
 			c.Begin(ctx, { [] { return true; }, [] { return true; }, [&] { ++writes; return true; },
 				[] { return Decision::Approve; }, [&] { ++writes; return true; },
 				[&](Outcome outcome, bool applied) {
@@ -29,8 +37,8 @@ int main()
 			c.Tick(1);
 			if (timeout) c.Tick(10);
 			CHECK(!writes && !c.PendingCount());
-			CHECK(resumed == (origin == OSF::Scene::TransitionOrigin::Manual));
-			CHECK(terminated == (origin != OSF::Scene::TransitionOrigin::Manual));
+			CHECK(resumed == (!OSF::Scene::IsAutomaticTransition(origin)));
+			CHECK(terminated == (OSF::Scene::IsAutomaticTransition(origin)));
 		}
 	}
     {
@@ -47,7 +55,7 @@ int main()
         OSF::Scene::TransitionCover delayed{.started=1000};
         CHECK(!delayed.PreparationReady(6000)); // stalled frame cannot start a late handoff
     }
-    for (auto kind : {Kind::Start, Kind::Handoff, Kind::Node, Kind::Stage}) {
+    for (auto kind : {Kind::Start, Kind::Transition, Kind::Stage}) {
         Coordinator c; std::vector<int> calls; int polls=0; Outcome result=Outcome::Failed;
         auto provider=c.Register({0,5000,
             [&](const Context& ctx, Phase phase) {
@@ -219,7 +227,7 @@ int main()
 
     // Final validation is a barrier for all four entry paths. The production coordinator
     // must never publish after a later provider, reconciliation, or guard changes state.
-    for (auto kind : {Kind::Start,Kind::Handoff,Kind::Node,Kind::Stage}) for (int fault=0;fault<13;++fault) {
+    for (auto kind : {Kind::Start,Kind::Transition,Kind::Stage}) for (int fault=0;fault<13;++fault) {
         Coordinator c; Token provider{}; int revision=1, validated{}, leases{}, commits{}, releases{}, finishes{};
         Outcome result=Outcome::Committed; std::vector<int> order;
         provider=c.Register({100,5000,[&](const Context& ctx,Phase phase) {

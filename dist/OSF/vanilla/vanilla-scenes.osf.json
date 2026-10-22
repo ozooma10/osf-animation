@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Scenes (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/human/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/scenes/cf01_stage130_kibwe_offerscene/reactions/npcmkibwe",
       "name": "Vanilla · Scenes / Cf01 Stage130 Kibwe Offerscene / Reactions / Npcmkibwe",

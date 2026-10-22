@@ -7,20 +7,22 @@
 
 namespace OSF::Scene
 {
+	inline void ApplyTerminalTiming(std::int32_t& loops, float& timer, const Registry::NodeDef& node)
+	{
+		switch (node.loopMode) {
+		case Registry::LoopMode::kTimeline: break;
+		case Registry::LoopMode::kCount: loops = node.loopCount; timer = 0; break;
+		case Registry::LoopMode::kHold: loops = 0; timer = 0; break;
+		}
+		if (node.timerSec >= 0) timer = node.timerSec;
+	}
+
 	// Node policy bounds the terminal stage. Earlier stages retain their own resolved timing.
-	inline void ApplyNodeTiming(Animation::PlaybackPlan& a_plan, const Registry::SceneNode& a_node, float a_loopScale)
+	inline void ApplyNodeTiming(Animation::PlaybackPlan& a_plan, const Registry::NodeDef& a_node, float a_loopScale)
 	{
 		if (a_plan.stages.empty()) return;
 		auto& terminal = a_plan.stages.back();
-		switch (a_node.loopMode) {
-		case Registry::LoopMode::kOnce: terminal.loops = 1; break;
-		case Registry::LoopMode::kCount: terminal.loops = a_node.loopCount; break;
-		case Registry::LoopMode::kHold: terminal.loops = 0; break;
-		}
-		const bool hasTimerEdge = std::ranges::any_of(a_node.edges, [](const auto& edge) {
-			return edge.when == Registry::EdgeWhen::kTimer;
-		});
-		terminal.timer = hasTimerEdge && a_node.timerSec > 0 ? a_node.timerSec : 0;
+		ApplyTerminalTiming(terminal.loops, terminal.timer, a_node);
 		if (!std::isfinite(a_loopScale) || a_loopScale <= 0 || a_loopScale == 1) return;
 		for (auto& stage : a_plan.stages) {
 			if (stage.loops <= 0) continue; // Never turn a hold/timer-only stage into a counted loop.

@@ -153,11 +153,11 @@ namespace OSF::API::BrowserCatalogJson
 			auto snapshot = std::make_unique<Catalog::Snapshot>();
 			Reader reader(*snapshot);
 			if (json::sax_parse(text, &reader))
-				return snapshot->schema == 3 ? std::move(snapshot) : nullptr;
+				return snapshot->schema == 4 ? std::move(snapshot) : nullptr;
 			if (!reader.legacy) return {};
 			snapshot.reset(); // Release partial data before the exceptional compatibility path.
 			const auto value = json::parse(text);
-			if (!value.is_object() || value.value("schema", 0) != 3) return {};
+			if (!value.is_object() || value.value("schema", 0) != 4) return {};
 			return std::make_unique<Catalog::Snapshot>(value.get<Catalog::Snapshot>());
 		} catch (...) { return {}; }
 	}

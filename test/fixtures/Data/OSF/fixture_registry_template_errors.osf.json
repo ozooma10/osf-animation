@@ -1,11 +1,11 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "fixture role template error cases",
   "roles": {
     "m": { "gender": "male" },
     "f": {}
   },
-  "scenes": [
+  "nodes": [
     // An object override naming an unknown id rejects only its scene.
     { "id": "test.terr.unknown", "roles": [{ "id": "nope", "name": "x" }], "clip": "Fixture/x.glb" },
     // `id` must be a non-empty string.

@@ -1,0 +1,58 @@
+{
+  "schema": 2,
+  "nodes": [
+    {
+      "schema": 1,
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "id": "test.boundaries/first",
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "seamless",
+          "label": "Continue",
+          "to": "test.boundaries/second",
+          "default": true
+        },
+        {
+          "id": "covered",
+          "label": "Change",
+          "to": "test.boundaries/second",
+          "covered": true
+        }
+      ]
+    },
+    {
+      "schema": 1,
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "id": "test.boundaries/second",
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "to": "test.boundaries/first",
+          "when": "end",
+          "covered": true
+        }
+      ]
+    }
+  ]
+}

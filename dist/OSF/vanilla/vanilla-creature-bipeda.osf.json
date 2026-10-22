@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Bipeda (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/bipeda/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/bipeda/bleedout",
       "name": "Vanilla · Bipeda / Bleedout",

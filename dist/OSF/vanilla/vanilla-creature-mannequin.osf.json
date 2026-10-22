@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Mannequin (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/mannequin/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/mannequin/pose00",
       "name": "Vanilla · Mannequin / Pose00",

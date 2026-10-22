@@ -22,10 +22,10 @@ function Status({ state }: { state: BrowserState }) {
 function RunningSummary({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const launches = activeLaunches(state);
   if (!launches.length) return <div class="take-chip take-idle"><div class="take-body"><span class="lbl">ACTIVITY STATUS</span><strong>Nothing active</strong></div><span class="take-idle-hint mono">ready to launch</span></div>;
-  if (launches.length > 1) return <div class="take-chip live"><span class="live-dot"/><button class="take-body take-open" onClick={() => commands.setMode("active")}><span class="lbl">ACTIVE · {launches.length}</span><strong>{launches.map((launch) => sceneTitle(state, launch.sceneId)).join(" · ")}</strong><span class="take-cast mono">manage in ACTIVE ▸</span></button></div>;
+  if (launches.length > 1) return <div class="take-chip live"><span class="live-dot"/><button class="take-body take-open" onClick={() => commands.setMode("active")}><span class="lbl">ACTIVE · {launches.length}</span><strong>{launches.map((launch) => sceneTitle(state, launch.nodeId)).join(" · ")}</strong><span class="take-cast mono">manage in ACTIVE ▸</span></button></div>;
   const active = launches[0];
-  const scene = sceneById(state, active.sceneId);
-  return <div class="take-chip live"><span class="live-dot"/><button class="take-body take-open" onClick={() => commands.setMode("active")}><span class="lbl">RUNNING · #{active.handle}{active.player ? " · YOU" : ""}</span><strong>{sceneTitle(state, active.sceneId)}</strong>{!!active.cast.length && <span class="take-cast mono">{active.cast.map((member) => member.name).join(" + ")}</span>}</button>{(scene?.stages.length ?? 0) > 1 && <button class="next-mini" title="Advance to the next stage (Space)" onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}<button class="stop-mini" onClick={() => commands.stop(active.handle)}>■ STOP</button></div>;
+  const scene = sceneById(state, active.nodeId);
+  return <div class="take-chip live"><span class="live-dot"/><button class="take-body take-open" onClick={() => commands.setMode("active")}><span class="lbl">RUNNING · #{active.handle}{active.player ? " · YOU" : ""}</span><strong>{sceneTitle(state, active.nodeId)}</strong>{!!active.cast.length && <span class="take-cast mono">{active.cast.map((member) => member.name).join(" + ")}</span>}</button>{(scene?.stages.length ?? 0) > 1 && <button class="next-mini" title="Advance to the next stage (Space)" onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}<button class="stop-mini" onClick={() => commands.stop(active.handle)}>■ STOP</button></div>;
 }
 
 function Header({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {

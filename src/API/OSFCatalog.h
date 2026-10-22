@@ -1,4 +1,4 @@
-// Schema-3 catalog and schema-1 clip-source input. Serialized to UTF-8 JSON, never passed across a DLL ABI.
+// Schema-4 catalog and schema-2 clip-source input. Serialized to UTF-8 JSON, never passed across a DLL ABI.
 // Parsing produces caller-owned copies; sourcePath is relative to Data/OSF. Unknown fields may be ignored.
 #pragma once
 #include <nlohmann/json.hpp>
@@ -20,10 +20,10 @@ namespace OSF::Catalog
 {
 	struct SourceClip {
 		std::string source, file, animId, display, species;
-		std::uint32_t node{}, stage{}, clip{};
+		std::uint32_t stage{}, clip{};
 		float seconds{};
 		bool available{};
-		OSF_CATALOG_FIELDS(SourceClip, source, file, animId, display, species, node, stage, clip, seconds, available)
+		OSF_CATALOG_FIELDS(SourceClip, source, file, animId, display, species, stage, clip, seconds, available)
 	};
 	struct Clip {
 		std::string key, file, animId;
@@ -48,7 +48,7 @@ namespace OSF::Catalog
 		std::string durationKey;
 		OSF_CATALOG_FIELDS(Stage, index, clipCount, loopCount, name, loopMode, tags, loopSec, timerSec, hold, resolved, durationKey)
 	};
-	struct Scene {
+	struct Node {
 		std::string provider;
 		std::string id, name, species, pack, folder, sourceFile, sourcePath, sourceKind, placement;
 		std::int32_t priority{}, weight{1};
@@ -59,23 +59,14 @@ namespace OSF::Catalog
 		std::vector<Stage> stages;
 		std::vector<std::uint32_t> anchorKeywords, anchorBaseForms;
 		bool RequiresAnchor() const { return !anchorKeywords.empty() || !anchorBaseForms.empty(); }
-		OSF_CATALOG_FIELDS(Scene, id, name, species, pack, folder, sourceFile, sourcePath, sourceKind,
+		OSF_CATALOG_FIELDS(Node, id, name, species, pack, folder, sourceFile, sourcePath, sourceKind,
 			placement, priority, weight, actorCount, unlisted, curatedClip, library, clipsAvailable,
 			playerInputLock, hideApparel, fade, tags, roles, stages, anchorKeywords, anchorBaseForms, provider)
 	};
-    // Address is the exact (scene, id) pair. Retains the containing route and its edges.
-    struct Node {
-        std::string scene, id, name;
-        std::vector<std::string> tags;
-        std::int32_t stage{-1}, priority{}, weight{1};
-        std::uint32_t segments{};
-        bool entry{}, unlisted{}, clipsAvailable{};
-        OSF_CATALOG_FIELDS(Node, scene, id, name, tags, stage, priority, weight, segments, entry, unlisted, clipsAvailable)
-    };
 	struct Problem {
 		bool warning{};
-		std::string code, message, hint, scene, node, role, clip;
-		OSF_CATALOG_FIELDS(Problem, warning, code, message, hint, scene, node, role, clip)
+		std::string code, message, hint, node, role, clip;
+		OSF_CATALOG_FIELDS(Problem, warning, code, message, hint, node, role, clip)
 	};
 	struct File {
 		std::string file, path, pack;
@@ -83,42 +74,40 @@ namespace OSF::Catalog
 		std::int64_t schema{};
 		std::uint64_t bytes{};
 		float parseMs{};
-		std::uint32_t scenes{}, declaredScenes{}, hidden{}, rejectedScenes{}, unlisted{}, anchored{}, nodes{},
+		std::uint32_t declaredNodes{}, hidden{}, rejectedNodes{}, unlisted{}, anchored{}, nodes{},
 			stages{}, roles{}, clips{}, distinctClips{}, missingClips{}, cues{}, actions{}, sounds{}, cameras{},
 			clipEntries{}, errors{}, warnings{};
 		std::vector<std::string> species, missingClipExamples;
 		std::vector<Problem> problems;
-		bool Rejected() const { return scenes == 0 && clipEntries == 0 && errors > 0; }
-		OSF_CATALOG_FIELDS(File, file, path, pack, library, schema, bytes, parseMs, scenes,
-			declaredScenes, hidden, rejectedScenes, unlisted, anchored, nodes, stages, roles, clips,
+		bool Rejected() const { return nodes == 0 && clipEntries == 0 && errors > 0; }
+		OSF_CATALOG_FIELDS(File, file, path, pack, library, schema, bytes, parseMs,
+			declaredNodes, hidden, rejectedNodes, unlisted, anchored, nodes, stages, roles, clips,
 			distinctClips, missingClips, cues, actions, sounds, cameras, clipEntries, errors, warnings,
 			species, missingClipExamples, problems)
 	};
 	struct Snapshot {
-		std::uint32_t schema{3};
-		std::vector<Scene> scenes;
+		std::uint32_t schema{4};
 		std::vector<File> files;
 		std::vector<std::string> errors;
-		// Unique unmeasured clip references across all nodes, including nonlinear scenes.
+		// Unique unmeasured clip references across all nodes.
 		std::vector<Clip> clips;
 		std::vector<SourceClip> sourceClips;
 		std::vector<Node> nodes;
-		OSF_CATALOG_FIELDS(Snapshot, schema, scenes, files, errors, clips, sourceClips, nodes)
+		OSF_CATALOG_FIELDS(Snapshot, schema, files, errors, clips, sourceClips, nodes)
 	};
-	// Optional schema-1 provider input (services 3.17). It describes the same base content as
-	// Snapshot, without presentation nodes/stages, duration queries or import diagnostics.
-	// All scenes are included, including those without clips, so authored IDs can be reserved.
-	struct ClipSourceScene {
+	// Compact schema-2 provider input: the same global IDs and clip addresses, without
+	// presentation stages, duration queries or import diagnostics. All node IDs are reserved.
+	struct ClipSourceNode {
 		std::string id, sourceFile, pack, provider;
 		std::vector<std::string> tags;
 		bool library{}, curatedClip{};
-		OSF_CATALOG_FIELDS(ClipSourceScene, id, sourceFile, pack, provider, tags, library, curatedClip)
+		OSF_CATALOG_FIELDS(ClipSourceNode, id, sourceFile, pack, provider, tags, library, curatedClip)
 	};
 	struct ClipSourceSnapshot {
-		std::uint32_t schema{1};
-		std::vector<ClipSourceScene> scenes;
+		std::uint32_t schema{2};
+		std::vector<ClipSourceNode> nodes;
 		std::vector<SourceClip> sourceClips;
-		OSF_CATALOG_FIELDS(ClipSourceSnapshot, schema, scenes, sourceClips)
+		OSF_CATALOG_FIELDS(ClipSourceSnapshot, schema, nodes, sourceClips)
 	};
 }
 

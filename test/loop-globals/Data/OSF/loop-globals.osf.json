@@ -1,60 +1,827 @@
 {
-  "schema": 1,
+  "schema": 2,
   "unlisted": true,
-  "roles": [{"name": "solo"}],
-  "scenes": [
-    {"id":"global.linear","stages":[{"loops":{"global":"Optional.esm|0x1234","default":3},"clips":["Fixture/loop.glb"]},{"loops":{"global":"Optional.esm|0x1234","default":0},"clips":["Fixture/loop.glb"],"timer":20},{"loops":2,"clips":["Fixture/loop.glb"]}]},
-    {"id":"global.template","nodes":[{"id":"timeline","stages":[{"loops":{"global":"Optional.esm|0x1235","default":2},"clips":["Fixture/loop.glb"]},{"loops":{"global":"Optional.esm|0x1234","default":4},"clips":["Fixture/loop.glb"]}]}],"entry":"timeline"},
-    {"id":"global.graph","nodes":[{"id":"activity","use":"global.template","loops":{"global":"Optional.esm|0x1234","default":3},"edges":[{"when":"loops","to":"$end"},{"when":"advance","id":"next","label":"Next","default":true,"to":"$end"}]}],"entry":"activity"},
-    {"id":"global.inline","nodes":[{"id":"activity","stages":[{"loops":{"global":"Optional.esm|0x1235","default":2},"clips":["Fixture/loop.glb"]},{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":3},"edges":[{"when":"loops","to":"$end"}]}],"entry":"activity"},
-    {"id":"global.zero","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":0},"edges":[{"when":"loops","to":"$end"},{"when":"advance","id":"next","label":"Next","default":true,"to":"$end"}]}],"entry":"activity"},
-    {"id":"global.literal","stages":[{"loops":3,"clips":["Fixture/loop.glb"]},{"loops":0,"clips":["Fixture/loop.glb"]},{"timer":2,"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.linear.missing-default","stages":[{"loops":{"global":"Optional.esm|0x1234"},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.missing-default","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234"}}],"entry":"activity"},
-    {"id":"invalid.linear.missing-global","stages":[{"loops":{"default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.missing-global","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.empty-global","stages":[{"loops":{"global":"","default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.empty-global","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"","default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.numeric-global","stages":[{"loops":{"global":4,"default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.numeric-global","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":4,"default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.bad-ref","stages":[{"loops":{"global":"Optional.esm","default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.bad-ref","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm","default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.path-ref","stages":[{"loops":{"global":"../Optional.esm|0x1234","default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.path-ref","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"../Optional.esm|0x1234","default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.bad-hex","stages":[{"loops":{"global":"Optional.esm|0xNO","default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.bad-hex","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0xNO","default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.extra-bar","stages":[{"loops":{"global":"Optional.esm|0x1|0x2","default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.extra-bar","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1|0x2","default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.nul-ref","stages":[{"loops":{"global":"Optional.esm\u0000|0x1","default":3},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.nul-ref","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm\u0000|0x1","default":3}}],"entry":"activity"},
-    {"id":"invalid.linear.negative-default","stages":[{"loops":{"global":"Optional.esm|0x1234","default":-1},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.negative-default","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":-1}}],"entry":"activity"},
-    {"id":"invalid.linear.fraction-default","stages":[{"loops":{"global":"Optional.esm|0x1234","default":2.5},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.fraction-default","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":2.5}}],"entry":"activity"},
-    {"id":"invalid.linear.large-default","stages":[{"loops":{"global":"Optional.esm|0x1234","default":2147483648},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.large-default","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":2147483648}}],"entry":"activity"},
-    {"id":"invalid.linear.string-default","stages":[{"loops":{"global":"Optional.esm|0x1234","default":"3"},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.string-default","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":"3"}}],"entry":"activity"},
-    {"id":"invalid.linear.null-default","stages":[{"loops":{"global":"Optional.esm|0x1234","default":null},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.null-default","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":null}}],"entry":"activity"},
-    {"id":"invalid.linear.bool-default","stages":[{"loops":{"global":"Optional.esm|0x1234","default":true},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.bool-default","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":true}}],"entry":"activity"},
-    {"id":"invalid.linear.unknown-field","stages":[{"loops":{"global":"Optional.esm|0x1234","default":3,"minimum":1},"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.unknown-field","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":{"global":"Optional.esm|0x1234","default":3,"minimum":1}}],"entry":"activity"},
-    {"id":"invalid.linear.literal-negative","stages":[{"loops":-1,"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.literal-negative","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":-1}],"entry":"activity"},
-    {"id":"invalid.linear.literal-fraction","stages":[{"loops":2.5,"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.literal-fraction","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":2.5}],"entry":"activity"},
-    {"id":"invalid.linear.literal-large","stages":[{"loops":2147483648,"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.literal-large","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":2147483648}],"entry":"activity"},
-    {"id":"invalid.linear.literal-null","stages":[{"loops":null,"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.literal-null","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":null}],"entry":"activity"},
-    {"id":"invalid.linear.literal-bool","stages":[{"loops":true,"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.literal-bool","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":true}],"entry":"activity"},
-    {"id":"invalid.linear.literal-string","stages":[{"loops":"3","clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.literal-string","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":"3"}],"entry":"activity"},
-    {"id":"invalid.linear.literal-array","stages":[{"loops":[3],"clips":["Fixture/loop.glb"]}]},
-    {"id":"invalid.graph.literal-array","nodes":[{"id":"activity","stages":[{"loops":1,"clips":["Fixture/loop.glb"]}],"loops":[3]}],"entry":"activity"},
-    {"id":"invalid.frozen","stages":[{"loops":{"global":"Optional.esm|0x1234","default":3},"clips":["Fixture/loop.glb"],"hold":true}]}
+  "roles": [
+    {
+      "name": "solo"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "global.linear",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        },
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 0
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ],
+          "timer": 20
+        },
+        {
+          "loops": 2,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "global.template/timeline",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1235",
+            "default": 2
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        },
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 4
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "global.graph/activity",
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": 3
+      },
+      "edges": [
+        {
+          "when": "loops",
+          "to": "$end"
+        },
+        {
+          "when": "advance",
+          "id": "next",
+          "label": "Next",
+          "default": true,
+          "to": "$end"
+        }
+      ],
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1235",
+            "default": 2
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        },
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 4
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "global.inline/activity",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1235",
+            "default": 2
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        },
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": 3
+      },
+      "edges": [
+        {
+          "when": "loops",
+          "to": "$end"
+        }
+      ]
+    },
+    {
+      "id": "global.zero/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": 0
+      },
+      "edges": [
+        {
+          "when": "loops",
+          "to": "$end"
+        },
+        {
+          "when": "advance",
+          "id": "next",
+          "label": "Next",
+          "default": true,
+          "to": "$end"
+        }
+      ]
+    },
+    {
+      "id": "global.literal",
+      "stages": [
+        {
+          "loops": 3,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        },
+        {
+          "loops": 0,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        },
+        {
+          "timer": 2,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.linear.missing-default",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234"
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.missing-default/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234"
+      }
+    },
+    {
+      "id": "invalid.linear.missing-global",
+      "stages": [
+        {
+          "loops": {
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.missing-global/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.empty-global",
+      "stages": [
+        {
+          "loops": {
+            "global": "",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.empty-global/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "",
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.numeric-global",
+      "stages": [
+        {
+          "loops": {
+            "global": 4,
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.numeric-global/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": 4,
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.bad-ref",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.bad-ref/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm",
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.path-ref",
+      "stages": [
+        {
+          "loops": {
+            "global": "../Optional.esm|0x1234",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.path-ref/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "../Optional.esm|0x1234",
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.bad-hex",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0xNO",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.bad-hex/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0xNO",
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.extra-bar",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1|0x2",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.extra-bar/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1|0x2",
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.nul-ref",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm\u0000|0x1",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.nul-ref/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm\u0000|0x1",
+        "default": 3
+      }
+    },
+    {
+      "id": "invalid.linear.negative-default",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": -1
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.negative-default/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": -1
+      }
+    },
+    {
+      "id": "invalid.linear.fraction-default",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 2.5
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.fraction-default/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": 2.5
+      }
+    },
+    {
+      "id": "invalid.linear.large-default",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 2147483648
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.large-default/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": 2147483648
+      }
+    },
+    {
+      "id": "invalid.linear.string-default",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": "3"
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.string-default/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": "3"
+      }
+    },
+    {
+      "id": "invalid.linear.null-default",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": null
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.null-default/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": null
+      }
+    },
+    {
+      "id": "invalid.linear.bool-default",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": true
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.bool-default/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": true
+      }
+    },
+    {
+      "id": "invalid.linear.unknown-field",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 3,
+            "minimum": 1
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.unknown-field/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": {
+        "global": "Optional.esm|0x1234",
+        "default": 3,
+        "minimum": 1
+      }
+    },
+    {
+      "id": "invalid.linear.literal-negative",
+      "stages": [
+        {
+          "loops": -1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.literal-negative/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": -1
+    },
+    {
+      "id": "invalid.linear.literal-fraction",
+      "stages": [
+        {
+          "loops": 2.5,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.literal-fraction/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": 2.5
+    },
+    {
+      "id": "invalid.linear.literal-large",
+      "stages": [
+        {
+          "loops": 2147483648,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.literal-large/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": 2147483648
+    },
+    {
+      "id": "invalid.linear.literal-null",
+      "stages": [
+        {
+          "loops": null,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.literal-null/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": null
+    },
+    {
+      "id": "invalid.linear.literal-bool",
+      "stages": [
+        {
+          "loops": true,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.literal-bool/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": true
+    },
+    {
+      "id": "invalid.linear.literal-string",
+      "stages": [
+        {
+          "loops": "3",
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.literal-string/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": "3"
+    },
+    {
+      "id": "invalid.linear.literal-array",
+      "stages": [
+        {
+          "loops": [
+            3
+          ],
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "invalid.graph.literal-array/activity",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/loop.glb"
+          ]
+        }
+      ],
+      "loops": [
+        3
+      ]
+    },
+    {
+      "id": "invalid.frozen",
+      "stages": [
+        {
+          "loops": {
+            "global": "Optional.esm|0x1234",
+            "default": 3
+          },
+          "clips": [
+            "Fixture/loop.glb"
+          ],
+          "hold": true
+        }
+      ]
+    }
   ]
 }

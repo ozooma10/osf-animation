@@ -36,8 +36,8 @@ namespace OSF::API::EngineClient
 		void PublishPending();
 		void Invalidate(bool scan = false) { if (m_refresh) m_refresh->Request(scan); }
 		void InvalidateDurations() { m_durationDirty.store(true, std::memory_order_release); }
-		const Catalog::Scene* Find(std::string_view id);
-		void ForEachDef(const std::function<void(const Catalog::Scene&)>& fn);
+		const Catalog::Node* Find(std::string_view id);
+		void ForEachDef(const std::function<void(const Catalog::Node&)>& fn);
 		const std::vector<Catalog::File>& FileStats();
 		const std::vector<std::string>& LoadErrors();
 		std::size_t Size();

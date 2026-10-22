@@ -96,8 +96,8 @@ export function isDerivedDebugAnimation(scene: SceneModel): boolean {
   return scene.sourceKind === "derivedDebugAnimation";
 }
 
-export function playableKey(sceneId: string, stage: number | null): string {
-  return wheelKey(sceneId, stage);
+export function playableKey(nodeId: string, stage: number | null): string {
+  return wheelKey(nodeId, stage);
 }
 
 export function readableAnimationName(value: string, pose = false): string {
@@ -310,12 +310,10 @@ export function sceneTitle(state: BrowserState, id: string): string {
 export function activeLaunches(state: BrowserState): ActiveLaunch[] {
   if (state.active) return state.active;
   return state.lastHandle
-    ? [{ handle: state.lastHandle, sceneId: state.lastSceneId, stage: 0, player: true, cast: [], time: 0, duration: 0, speed: 0 }]
+    ? [{ handle: state.lastHandle, nodeId: state.lastSceneId, stage: 0, player: true, cast: [], time: 0, duration: 0, speed: 0 }]
     : [];
 }
 
-/** Alias matching the frozen native `activeScenes` event name. */
-export const activeScenes = activeLaunches;
 
 export function busyTokens(state: BrowserState): ReadonlySet<number> {
   const tokens = new Set<number>();
@@ -571,10 +569,10 @@ export type ImportSeverity = "ok" | "note" | "warn" | "error";
 export type ImportOutcome = "clean" | "empty" | "missing" | "partial" | "rejected";
 
 export function importOutcome(file: ImportFile): ImportOutcome {
-  if (file.rejected || (!file.scenes && !file.clipEntries && file.errors > 0)) return "rejected";
+  if (file.rejected || (!file.nodes && !file.clipEntries && file.errors > 0)) return "rejected";
   if (file.errors || file.warnings) return "partial";
   if (file.missingClips || file.hidden) return "missing";
-  if (!file.scenes && !file.clipEntries) return "empty";
+  if (!file.nodes && !file.clipEntries) return "empty";
   return "clean";
 }
 
@@ -589,24 +587,24 @@ export function importResult(file: ImportFile): string {
   const outcome = importOutcome(file);
   if (outcome === "rejected") {
     const authored: string[] = [];
-    if (file.declaredScenes) authored.push(`${file.declaredScenes} scene${file.declaredScenes === 1 ? "" : "s"}`);
+    if (file.declaredNodes) authored.push(`${file.declaredNodes} node${file.declaredNodes === 1 ? "" : "s"}`);
     return authored.length
       ? `Rejected all authored content (${authored.join(", ")}); fix the errors and reload.`
       : "Rejected before it could contribute any content.";
   }
   if (outcome === "partial") {
     const rejected: string[] = [];
-    if (file.rejectedScenes) rejected.push(`${file.scenes} of ${file.declaredScenes} scenes loaded; ${file.rejectedScenes} rejected`);
+    if (file.rejectedNodes) rejected.push(`${file.nodes} of ${file.declaredNodes} nodes loaded; ${file.rejectedNodes} rejected`);
     if (rejected.length) return `${rejected.join(". ")}.`;
-    return `Loaded ${file.scenes} scene${file.scenes === 1 ? "" : "s"} with ${file.errors + file.warnings} diagnostic${file.errors + file.warnings === 1 ? "" : "s"}.`;
+    return `Loaded ${file.nodes} node${file.nodes === 1 ? "" : "s"} with ${file.errors + file.warnings} diagnostic${file.errors + file.warnings === 1 ? "" : "s"}.`;
   }
   if (outcome === "missing") {
-    if (file.hidden) return `${file.hidden} scene${file.hidden === 1 ? "" : "s"} unavailable because ${file.missingClips} clip${file.missingClips === 1 ? " is" : "s are"} missing.`;
+    if (file.hidden) return `${file.hidden} node${file.hidden === 1 ? "" : "s"} unavailable because ${file.missingClips} clip${file.missingClips === 1 ? " is" : "s are"} missing.`;
     return `${file.missingClips} referenced clip${file.missingClips === 1 ? " is" : "s are"} missing; loaded content may still be incomplete.`;
   }
   if (outcome === "empty") return "Loaded successfully, but contributed no scenes or clip entries.";
   const parts: string[] = [];
-  if (file.scenes) parts.push(`${file.scenes} scene${file.scenes === 1 ? "" : "s"}`);
+  if (file.nodes) parts.push(`${file.nodes} node${file.nodes === 1 ? "" : "s"}`);
   if (file.clipEntries) parts.push(`${file.clipEntries} clip entr${file.clipEntries === 1 ? "y" : "ies"}`);
   return `Loaded ${parts.join(" and ")} cleanly.`;
 }
@@ -647,7 +645,7 @@ export function visibleImports(state: BrowserState): ImportFile[] {
       if (!importMatchesFilter(state, file)) return false;
       if (!search) return true;
       const diagnostics = file.problems.map((problem) =>
-        `${problem.code} ${problem.message} ${problem.hint} ${problem.scene} ${problem.node} ${problem.role} ${problem.clip}`).join(" ");
+        `${problem.code} ${problem.message} ${problem.hint} ${problem.node} ${problem.role} ${problem.clip}`).join(" ");
       return `${file.path} ${file.file} ${file.pack} ${file.species.join(" ")} ${file.missingClipExamples.join(" ")} ${diagnostics}`
         .toLowerCase().includes(search);
     })

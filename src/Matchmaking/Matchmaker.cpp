@@ -112,7 +112,7 @@ namespace OSF::Matchmaking
 			return out;
 		}
 
-		// a_query is lowercased; a_have is the def's precomputed lowercase SceneDef::tagSet (hot path).
+		// a_query is lowercased; a_have is the def's precomputed lowercase NodeDef::tagSet (hot path).
 		bool TagsMatch(const std::unordered_set<std::string>& a_have, const TagQuery& a_query)
 		{
 			for (const auto& t : a_query.allOf) {
@@ -165,7 +165,7 @@ namespace OSF::Matchmaking
 
 			std::vector<Candidate> pool;
 
-			Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
+			Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::NodeDef& a_def) {
 				if (a_def.id == a_exclude || (a_placement && a_def.worldPlacement != *a_placement)) return;
 				if (a_def.unlisted || !a_def.clipsAvailable) {
 					return;
@@ -280,7 +280,7 @@ namespace OSF::Matchmaking
 		return RoleAcceptsFacts(a_role, facts);
 	}
 
-	bool BindSceneRoles(const Registry::SceneDef& a_def, const std::vector<RE::Actor*>& a_actors,
+	bool BindSceneRoles(const Registry::NodeDef& a_def, const std::vector<RE::Actor*>& a_actors,
 		const std::vector<std::string>& a_roleNames, std::vector<RE::Actor*>& a_ordered, std::string& a_error)
 	{
 		std::vector<std::string> names;
@@ -289,7 +289,7 @@ namespace OSF::Matchmaking
 			[&](std::size_t role, RE::Actor* actor) { return RoleAccepts(a_def.roles[role], actor); });
 	}
 
-	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword)
+	bool AnchorAccepts(const Registry::NodeDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword)
 	{
 		if (a_matchedKeyword) {
 			*a_matchedKeyword = nullptr;
@@ -327,7 +327,7 @@ namespace OSF::Matchmaking
 		}
 	}
 
-	bool AnchorMatchCache::Accepts(const Registry::SceneDef& a_def)
+	bool AnchorMatchCache::Accepts(const Registry::NodeDef& a_def)
 	{
 		if (!ref) {
 			return false;

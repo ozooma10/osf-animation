@@ -75,10 +75,9 @@ namespace OSF::Scene
 		bool SetSpeed(std::int32_t a_scene, float a_speed);
 		float GetSpeed(std::int32_t a_scene);
 		bool TogglePause(std::int32_t a_scene);
-		// Game thread. Affects only nodes authored with allowManualHold; other nodes complete normally.
+		// Game thread. Caller policy for every node; retained across transitions.
 		bool SetAutoAdvance(std::int32_t a_scene, bool a_enabled);
 		bool GetAutoAdvance(std::int32_t a_scene);
-		bool AllowsManualHold(std::int32_t a_scene);
 		bool SetAlignment(std::int32_t a_scene, std::string_view a_role, const Alignment::Delta& a_delta);
 		std::optional<Alignment::Delta> GetAlignment(std::int32_t a_scene, std::string_view a_role);
 		bool SaveAlignment(std::int32_t a_scene);
@@ -91,7 +90,6 @@ namespace OSF::Scene
 			std::optional<float> headingRad;
 			std::int32_t stage = 0;
 			bool covered = false;
-            std::string node; // exact target, or empty for authored entry/stage
 		};
 		bool Replace(std::int32_t a_scene, std::string_view a_id, const std::vector<std::string>& a_roles,
 			const ReplaceOptions& a_options);
@@ -101,12 +99,12 @@ namespace OSF::Scene
 			const Matchmaking::RoleConstraints& a_roles = {}, RE::TESObjectREFR* a_anchor = nullptr,
 			Matchmaking::AnchorMode a_mode = Matchmaking::AnchorMode::kAllow);
 
-		// Enters at the def's `entry`, or a_entryNode when non-empty. 0 = unknown scene or node.
-		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
+		// Starts the globally addressed node at a timeline stage. 0 = invalid node, cast or stage.
+		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::int32_t a_startStage = 0);
 
 		// a_anchorHeading in radians.
 		std::int32_t StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
-			RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
+			RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over = {}, std::int32_t a_startStage = 0);
 
 		// a_plan must already be actor-aligned.
 		std::int32_t StartFromPlan(const std::vector<RE::Actor*>& a_participants, Animation::PlaybackPlan a_plan,
@@ -115,12 +113,12 @@ namespace OSF::Scene
 		// a_roles[i] is a_actors[i]'s role; actors are reordered into role-declaration order.
 		std::int32_t StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
 			const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {},
-			std::string_view a_entryNode = {});
+			std::int32_t a_startStage = 0);
 
-		// Ad-hoc files scenes, or registry scenes declaring `linearStages`.
+		// Actual timeline segment in either a registered node or an ad-hoc plan.
 		bool SetStage(std::int32_t a_scene, std::int32_t a_stage);
 
-		// Default advance edge only; a default is never inferred.
+		// Advance within the current timeline, then take its default edge or finish an edge-free node.
 		bool Advance(std::int32_t a_scene);
 
 		bool Navigate(std::int32_t a_scene, std::string_view a_edgeId);
@@ -136,8 +134,7 @@ namespace OSF::Scene
 
 		// Sentinels: "" / -1 / 0 when invalid.
 		std::string  GetNode(std::int32_t a_scene);
-		std::string  GetSceneId(std::int32_t a_scene);
-		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only
+		std::int32_t GetStage(std::int32_t a_scene);  // current timeline segment
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
 		// Role-declaration order. Recently ended scenes stay readable (bounded FIFO) for async callbacks.
@@ -146,7 +143,6 @@ namespace OSF::Scene
 		struct ActiveScene
 		{
 			std::int32_t            handle = 0;
-			std::string             id;    // empty for an ad-hoc files scene
 			std::string             node;
 			std::vector<RE::Actor*> participants;
 			Animation::PlaybackId   playbackId = 0;
@@ -170,10 +166,9 @@ namespace OSF::Scene
 
 	private:
 		// 0 = table full or an actor is already in a scene.
-		std::int32_t Start(std::string_view a_id, std::string_view a_entryNode, const std::vector<RE::Actor*>& a_participants,
+		std::int32_t Start(const Registry::NodeRef& a_definition, std::int32_t a_startStage, const std::vector<RE::Actor*>& a_participants,
 			const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
 
-		bool SetNode(std::int32_t a_scene, std::string_view a_node);
 
 		// Undo ledger entries; replayed in reverse, once, on any termination.
 		enum class Mechanism : std::uint8_t
@@ -230,13 +225,12 @@ namespace OSF::Scene
 			std::string                                      preparationResult, preparationError;
 			std::map<Preparation::Token, ActorState::Handle> preparedScopes;
 			TerminationCause        terminationCause = TerminationCause::kCompleted;
-			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
 			// Keeps retained ended rosters from dangling if a ref unloads.
 			std::vector<RE::NiPointer<RE::Actor>> retiredParticipantRefs;
 			Animation::PlaybackId   playbackId = 0;
-			Registry::SceneRef      definition;
+			Registry::NodeRef      definition;
 			AnchorOverride          anchor;  // unset = anchor at participant[0]
 			AnchorOverride          frozenAnchor;
 			RE::NiPointer<RE::TESObjectREFR> anchorRef;
@@ -250,6 +244,7 @@ namespace OSF::Scene
 			std::optional<Animation::WorldPlacementMode> worldPlacement;
 			bool                    autoAdvance = true;
 			bool                    singleStage = false;
+			std::optional<bool>     playerInputLockOverride, hideApparelOverride, sceneControlsOverride;
 			bool                    cameraOverridden = false;  // authored node cameras stand down
 			std::vector<Mechanism>  ledger;  // at most one entry per Mechanism
 			std::vector<RE::Actor*> sheathedWeapon;
@@ -262,19 +257,21 @@ namespace OSF::Scene
 		// Copy of slot fields for reads outside _lock.
 		struct SlotView
 		{
-			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
 			Animation::PlaybackId   playbackId = 0;
-			Registry::SceneRef      definition;
+			Registry::NodeRef      definition;
 			bool                    cameraOverridden = false;
 		};
+
+		bool AdmitTransition(std::int32_t, std::string_view, const std::vector<std::string>&,
+			const ReplaceOptions&, TransitionOrigin, const SlotView* a_expected = nullptr);
 
 		struct PreparedTransition
 		{
 			Preparation::Context                                           context;
 			SlotView                                                       old;
-			Registry::SceneRef                                             target;
+			Registry::NodeRef                                             target;
 			std::vector<RE::Actor*>                                        cast;
 			std::vector<RE::NiPointer<RE::Actor>>                          pins;
 			StartOverrides                                                 overrides;
@@ -338,7 +335,7 @@ namespace OSF::Scene
 		Slot* Resolve(std::int32_t a_handle, bool a_includeEnded = false);
 
 		// Exclusivity-checked; doesn't play or fire. 0 = table full or an actor is busy.
-		std::int32_t MintSlot(std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants);
+		std::int32_t MintSlot(std::string_view a_node, const std::vector<RE::Actor*>& a_participants);
 
 		// Marks the slot ended (no events), freeing its actors; also rollback for a failed start. Takes _lock.
 		void ReleaseSlot(std::int32_t a_handle);
@@ -415,7 +412,7 @@ namespace OSF::Scene
 			const std::vector<RE::Actor*>& a_participants);
 
 		// Player participates and the scene specifies no camera: scene orbit.
-		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_entryNode, bool a_playerInputLock, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
+		void EngageDefaultCamera(std::int32_t a_handle, bool a_playerInputLock, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
 		void EngageDefaultSceneControls(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants);
 
@@ -423,17 +420,17 @@ namespace OSF::Scene
 		void FadeSceneStart(std::int32_t a_handle, bool a_fade, const std::vector<RE::Actor*>& a_participants);
 
 		// Post-play commit shared by registry and ad-hoc starts; playback and slot must already be live.
-		void CompleteStart(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
+		void CompleteStart(std::int32_t a_handle, std::string_view a_node,
 			const std::vector<RE::Actor*>& a_participants, bool a_playerInputLock, bool a_hideApparel,
 			bool a_clearHeldItems, bool a_fade, const StartOverrides& a_over);
 
 		// NODE_EXIT, then end or play a_newNode + NODE_ENTER. Call outside _lock with a snapshot.
-		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode, bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, TransitionOrigin a_origin);
+		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode, bool a_end, TransitionOrigin a_origin, bool a_covered = false);
 
 		// Releases Slot::transitioning after a non-terminal transition. Takes _lock.
 		void EndTransition(std::int32_t a_handle);
 
-		bool TakeEdge(std::int32_t a_scene, const std::function<const Registry::SceneEdge*(const Registry::SceneNode&)>& a_selectEdge);
+		bool TakeEdge(std::int32_t a_scene, const std::function<const Registry::SceneEdge*(const Registry::NodeDef&)>& a_selectEdge);
 
 		std::vector<AdvanceEdgeInfo> AdvanceEdges(std::int32_t a_scene);
 

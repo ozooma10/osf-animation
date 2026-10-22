@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Floatera (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/floatera/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/floatera",
       "name": "Vanilla · Floatera",

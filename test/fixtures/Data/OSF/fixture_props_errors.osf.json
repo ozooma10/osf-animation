@@ -1,54 +1,133 @@
 {
-  "schema": 1,
+  // A `use` naming no template rejects only its scene.
+  // `use` must be a non-empty string — never silently treated as absent.
+  // A typo'd prop id with no inline source names the registry instead of just "requires source".
+  // `use` is only meaningful on osf.prop.attach.
+  // ...while its file's other scenes still load.
+  "schema": 2,
   "name": "fixture props reference error cases",
   "props": {
     "helmet": {
-      "source": { "equippedArmor": { "keyword": "ArmorTypeHelmet" } },
-      "node": "R_AnimObject1"
+      "source": {
+        "equippedArmor": {
+          "keyword": "ArmorTypeHelmet"
+        }
+      },
+      "attachmentNode": "R_AnimObject1"
     }
   },
-  "scenes": [
+  "nodes": [
     {
-      // A `use` naming no template rejects only its scene.
       "id": "test.props.err.use",
-      "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "action": [{ "at": 0.1, "type": "osf.prop.attach", "prop": "h", "use": "nope" }]
-      }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.1,
+          "type": "osf.prop.attach",
+          "prop": "h",
+          "use": "nope"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
-      // `use` must be a non-empty string — never silently treated as absent.
       "id": "test.props.err.use-type",
-      "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "action": [{ "at": 0.1, "type": "osf.prop.attach", "prop": "helmet", "use": 42 }]
-      }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.1,
+          "type": "osf.prop.attach",
+          "prop": "helmet",
+          "use": 42
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
-      // A typo'd prop id with no inline source names the registry instead of just "requires source".
       "id": "test.props.err.typo",
-      "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "action": [{ "at": 0.1, "type": "osf.prop.attach", "prop": "helmt" }]
-      }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.1,
+          "type": "osf.prop.attach",
+          "prop": "helmt"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
     {
-      // `use` is only meaningful on osf.prop.attach.
       "id": "test.props.err.use-elsewhere",
-      "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "action": [{ "at": 0.1, "type": "osf.weapon.sheathe", "use": "helmet" }]
-      }]
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.1,
+          "type": "osf.weapon.sheathe",
+          "use": "helmet"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
     },
-    // ...while its file's other scenes still load.
-    { "id": "test.props.err.ok", "roles": [{ "name": "player" }],
-      "stages": [{
-        "clips": ["Fixture/x.glb"],
-        "action": [{ "at": 0.1, "type": "osf.prop.attach", "prop": "helmet" }]
-      }] }
+    {
+      "id": "test.props.err.ok",
+      "roles": [
+        {
+          "name": "player"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.1,
+          "type": "osf.prop.attach",
+          "prop": "helmet"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
+    }
   ]
 }

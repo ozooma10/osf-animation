@@ -85,8 +85,8 @@ describe("native browser startup and lifetime", () => {
     await host.emit("osf.animation.openTarget", { token: 70, name: "Chair", slot: "furniture" });
     await host.emit("osf.animation.castMatch", { tokens: [7], sceneIds: ["solo"] });
     await host.emit("osf.animation.anchorMatch", { token: 70, sceneIds: ["solo"] });
-    await host.emit("osf.animation.launchResult", { ok: true, handle: 41, sceneId: "solo" });
-    await host.emit("osf.animation.activeScenes", { scenes: [{ handle: 41, sceneId: "solo" }] });
+    await host.emit("osf.animation.launchResult", { ok: true, handle: 41, nodeId: "solo" });
+    await host.emit("osf.animation.activeLaunches", { scenes: [{ handle: 41, nodeId: "solo" }] });
     await host.emit("ui.visibility", { visible: false });
     if (deliverWhileHidden) await host.emit("osf.animation.world", { generation: 2 });
     await host.emit("ui.visibility", { visible: true });
@@ -140,7 +140,7 @@ describe("native browser startup and lifetime", () => {
   it("unsubscribes every host event and cancels requests, projections and playback polling on unmount", async () => {
     const { host, result, unmount } = await browser();
     await host.emit("osf.animation.openTarget", { token: 7, name: "Sarah" });
-    await host.emit("osf.animation.activeScenes", { scenes: [{ handle: 41, sceneId: "solo" }] });
+    await host.emit("osf.animation.activeLaunches", { scenes: [{ handle: 41, nodeId: "solo" }] });
     await act(() => result.current.commands.setMode("active"));
     await act(() => result.current.commands.refresh());
     await act(() => result.current.commands.toggleImports(true));
@@ -156,7 +156,7 @@ describe("native browser startup and lifetime", () => {
   it("preserves NPC playback when hidden, suspends polls, and resumes them after reopening", async () => {
     const { host, result } = await browser();
     await host.emit("osf.animation.openTarget", { token: 7, name: "Sarah" });
-    await host.emit("osf.animation.activeScenes", { scenes: [{ handle: 41, sceneId: "solo", player: false }] });
+    await host.emit("osf.animation.activeLaunches", { scenes: [{ handle: 41, nodeId: "solo", player: false }] });
     await act(() => result.current.commands.setMode("active"));
     await act(() => vi.advanceTimersByTime(100));
     expect(host.calls("osf.animation.playback.get").length).toBeGreaterThan(0);
@@ -193,7 +193,7 @@ describe("native launch contracts", () => {
     await act(() => result.current.commands.selectLocation("actor", 7));
     await act(() => result.current.commands.launch());
     expect(host.send).toHaveBeenLastCalledWith("osf.animation.launch", {
-      sceneId: "duet", castTokens: [7, -1], roleNames: ["lead", "partner"], singleAnimation: false,
+      nodeId: "duet", castTokens: [7, -1], roleNames: ["lead", "partner"], singleAnimation: false,
       opts: { hideApparel: 0, playerInputLock: 1, speed: 1.5, camera: "scene_orbit", stage: 1 },
       location: { mode: "actor", token: 7 },
     });
@@ -204,7 +204,7 @@ describe("native launch contracts", () => {
     await act(() => result.current.commands.selectScene("clips", 0));
     await act(() => result.current.commands.launch());
     const launch = host.calls("osf.animation.launch")[0]?.[1];
-    expect(launch).toMatchObject({ sceneId: "clips", castTokens: [-1], singleAnimation: true });
+    expect(launch).toMatchObject({ nodeId: "clips", castTokens: [-1], singleAnimation: true });
     expect(launch).not.toHaveProperty("roleNames");
     expect(launch).not.toHaveProperty("opts.stage");
   });
@@ -226,7 +226,7 @@ describe("native launch contracts", () => {
   });
 
   it("keeps follow-actor content attached to its cast despite a front placement choice", async () => {
-    const { host, result } = await browser([{ id: "solo", inPlace: true }]);
+    const { host, result } = await browser([{ id: "solo", placement: "followActor" }]);
     await act(() => result.current.commands.selectLocation("front"));
     await act(() => result.current.commands.launch());
     expect(host.send).toHaveBeenLastCalledWith("osf.animation.launch", expect.objectContaining({ location: { mode: "cast", token: 0 } }));
@@ -239,7 +239,7 @@ describe("native launch contracts", () => {
     expect(result.current.state.lastHandle).toBe(0);
     expect(result.current.state.notice).toMatchObject({ kind: "err", text: "Cast is busy" });
     expect(host.calls("osf.animation.requestClose")).toHaveLength(0);
-    await host.emit("osf.animation.launchResult", { ok: true, handle: 42, sceneId: "solo" });
+    await host.emit("osf.animation.launchResult", { ok: true, handle: 42, nodeId: "solo" });
     expect(result.current.state.lastHandle).toBe(42);
     expect(result.current.state.minimized).toBe(afterLaunch === "minimize");
     expect(host.calls("osf.animation.requestClose")).toHaveLength(afterLaunch === "close" ? 1 : 0);
@@ -247,14 +247,14 @@ describe("native launch contracts", () => {
 
   it("throttles advance, resolves the sole active handle, and stops every active scene once", async () => {
     const { host, result } = await browser();
-    await host.emit("osf.animation.activeScenes", { scenes: [{ handle: 42, sceneId: "solo" }] });
+    await host.emit("osf.animation.activeLaunches", { scenes: [{ handle: 42, nodeId: "solo" }] });
     await act(() => result.current.commands.advance());
     await act(() => result.current.commands.advance());
     expect(host.calls("osf.animation.advance")).toEqual([["osf.animation.advance", { handle: 42 }]]);
     await act(() => vi.advanceTimersByTime(350));
     await act(() => result.current.commands.advance());
     expect(host.calls("osf.animation.advance")).toHaveLength(2);
-    await host.emit("osf.animation.activeScenes", { scenes: [{ handle: 42 }, { handle: 43 }] });
+    await host.emit("osf.animation.activeLaunches", { scenes: [{ handle: 42 }, { handle: 43 }] });
     await act(() => vi.advanceTimersByTime(350));
     await act(() => result.current.commands.advance());
     expect(host.calls("osf.animation.advance")).toHaveLength(2);
@@ -320,13 +320,13 @@ describe("cast, world selection and animation wheel", () => {
     await act(() => result.current.commands.pickWheel(0));
     await act(() => result.current.commands.pickWheel(0));
     expect(host.calls("osf.animation.launch")).toEqual([
-      ["osf.animation.launch", { sceneId: "clips", castTokens: [7], opts: { stage: 2 } }],
+      ["osf.animation.launch", { nodeId: "clips", castTokens: [7], opts: { stage: 2 } }],
     ]);
     await host.emit("osf.animation.launchResult", { ok: false, error: "Actor busy" });
     expect(result.current.state.wheel).toMatchObject({ launching: "", error: "Actor busy" });
     await act(() => result.current.commands.pickWheel(0));
     expect(host.calls("osf.animation.launch")).toHaveLength(2);
-    await host.emit("osf.animation.launchResult", { ok: true, handle: 42, sceneId: "clips" });
+    await host.emit("osf.animation.launchResult", { ok: true, handle: 42, nodeId: "clips" });
     expect(host.calls("osf.animation.requestClose")).toHaveLength(1);
     await host.emit("ui.visibility", { visible: false });
     await host.emit("osf.animation.wheel.data", { entries: [{ scene: "late" }] });
@@ -353,7 +353,7 @@ describe("import reload and preference failures", () => {
     expect(host.calls("osf.animation.imports.reload")).toHaveLength(1);
     await host.emit("osf.animation.imports.reloadResult", {
       ok: true, durationMs: 12, scenes: 1,
-      report: { files: [{ path: "pack.osf.json", scenes: 1 }], totals: { files: 1, scenes: 1 } },
+      report: { files: [{ path: "pack.osf.json", nodes: 1 }], totals: { files: 1, nodes: 1 } },
     });
     expect(result.current.state.importReload).toMatchObject({ status: "success", durationMs: 12, scenes: 1 });
     expect(result.current.state.importReload.delta.resolvedProblems).toHaveLength(1);
@@ -363,10 +363,10 @@ describe("import reload and preference failures", () => {
 
   it("preserves the previous import report on reload failure and enables retry", async () => {
     const { host, result } = await browser();
-    await host.emit("osf.animation.imports.data", { files: [{ path: "pack.osf.json", scenes: 2 }] });
+    await host.emit("osf.animation.imports.data", { files: [{ path: "pack.osf.json", nodes: 2 }] });
     await act(() => result.current.commands.reloadImports());
     await host.emit("osf.animation.imports.reloadResult", { ok: false, error: "Reload unavailable", durationMs: 4 });
-    expect(result.current.state.imports[0]).toMatchObject({ path: "pack.osf.json", scenes: 2 });
+    expect(result.current.state.imports[0]).toMatchObject({ path: "pack.osf.json", nodes: 2 });
     expect(result.current.state.importReload).toMatchObject({ status: "error", error: "Reload unavailable" });
     expect(host.calls("osf.animation.catalog.get")).toHaveLength(0);
     await act(() => result.current.commands.reloadImports());

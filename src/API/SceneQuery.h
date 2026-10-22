@@ -74,7 +74,7 @@ namespace OSF::API
 			a_error = "match binding is not a permutation of at most 8 actors";
 			return false;
 		}
-		if (a_pick.id.size() >= sizeof(a_out.sceneId)) {
+		if (a_pick.id.size() >= sizeof(a_out.nodeId)) {
 			a_error = "scene id '" + a_pick.id + "' is longer than 255 bytes";
 			return false;
 		}
@@ -88,7 +88,7 @@ namespace OSF::API
 		std::memset(&a_out, 0, sizeof(a_out));
 		a_out.size = size;
 		a_out.actorCount = static_cast<std::uint32_t>(count);
-		std::memcpy(a_out.sceneId, a_pick.id.c_str(), a_pick.id.size() + 1);
+		std::memcpy(a_out.nodeId, a_pick.id.c_str(), a_pick.id.size() + 1);
 		for (std::size_t i = 0; i < count; ++i) {
 			const auto& name = a_declared[roleOf[i]];
 			a_out.roleIndex[i] = static_cast<std::int32_t>(roleOf[i]);

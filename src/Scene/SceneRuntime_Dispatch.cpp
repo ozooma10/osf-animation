@@ -66,13 +66,12 @@ namespace OSF::Scene
 			auto& rt = GetSingleton();
 			std::lock_guard l{ rt._lock };
 			if (const auto* s = rt.Resolve(a_handle)) {
-				e.sceneId = s->id;
 				if (a_event == Event::kSceneEnd) e.cause = static_cast<std::int32_t>(s->terminationCause);
 			}
 		}
 		if (a_event == Event::kSceneEnd) {
-			REX::INFO("[Scene] end id='{}' handle={:#010x} cause={}", e.sceneId, a_handle, TerminationCauseName(static_cast<TerminationCause>(e.cause)));
-			OSF_PROFILE_HOST_SCENE_END(e.sceneId);
+			REX::INFO("[Scene] end id='{}' handle={:#010x} cause={}", a_node, a_handle, TerminationCauseName(static_cast<TerminationCause>(e.cause)));
+			OSF_PROFILE_HOST_SCENE_END(a_node);
 		}
 		e.node = std::string(a_node);
 		e.edge = std::string(a_edge);
@@ -83,7 +82,7 @@ namespace OSF::Scene
 			{
 				std::lock_guard l{ GetSingleton()._lock };
 				const auto*     s = GetSingleton().Resolve(a_handle);
-				if (!s || s->transitioning || s->node != a_node)
+				if (!s || s->node != a_node)
 					return;
 			}
 			if (!LifecycleValid(a_handle, a_node, true))
@@ -117,7 +116,6 @@ namespace OSF::Scene
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kCue;
-		e.sceneId = GetSingleton().GetSceneId(a_handle);
 		e.node = std::string(a_node);
 		e.cue = std::string(a_cue);
 		e.trackPosition = std::string(a_trackPosition);
@@ -138,7 +136,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}
@@ -169,7 +167,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}
@@ -227,7 +225,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}
@@ -255,7 +253,6 @@ namespace OSF::Scene
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kAction;
-		e.sceneId = GetSingleton().GetSceneId(a_handle);
 		e.node = std::string(a_node);
 		e.actionType = std::string(a_type);
 		e.role = std::string(a_role);
@@ -299,7 +296,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}

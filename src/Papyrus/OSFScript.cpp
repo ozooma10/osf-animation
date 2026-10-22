@@ -97,19 +97,19 @@ namespace OSF::Papyrus
 			if (const auto* v = member("BlendIn"); v && v->is<float>()) {
 				out.blendIn = RE::BSScript::get<float>(*v);
 			}
-			if (const auto* v = member("StripMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("HideApparelMode"); v && v->is<std::int32_t>()) {
 				out.hideApparelMode = RE::BSScript::get<std::int32_t>(*v);
 			}
-			if (const auto* v = member("LockPlayerMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("PlayerInputLockMode"); v && v->is<std::int32_t>()) {
 				out.playerInputLockMode = RE::BSScript::get<std::int32_t>(*v);
 			}
-			if (const auto* v = member("PlayerControlMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("SceneControlsMode"); v && v->is<std::int32_t>()) {
 				out.sceneControlsMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("FadeMode"); v && v->is<std::int32_t>()) {
 				out.fadeMode = RE::BSScript::get<std::int32_t>(*v);
 			}
-			if (const auto* v = member("InPlaceMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("FollowActorMode"); v && v->is<std::int32_t>()) {
 				out.followActorMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("Camera"); v && v->is<RE::BSFixedString>()) {
@@ -367,10 +367,11 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().ReplaceByQuery(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) },
 				ToStrings(a_roles), a_anchor, a_requireAnchor ? Matchmaking::AnchorMode::kRequire : Matchmaking::AnchorMode::kAllow);
 		}
-		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
+
+		RE::BSFixedString GetNode(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
 		{
-			OSF_PROFILE_SCOPE("Papyrus.GetSceneId");
-			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetSceneId(a_scene));
+			OSF_PROFILE_SCOPE("Papyrus.GetNode");
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetNode(a_scene));
 		}
 
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
@@ -768,6 +769,7 @@ namespace OSF::Papyrus
 
 		// a_taskletCallable=false on every engine-mutating native so the VM runs it on the game thread
 		// (equipment/weapon/fade/HUD services are game-thread only). Pure readers stay tasklet-callable.
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetNode", &GetNode, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, false, false);
@@ -779,7 +781,6 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceSceneByQuery", &ReplaceSceneByQuery, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindSceneByQuery", &FindSceneByQuery, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByQuery", &StartSceneByQuery, false, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);
 
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, false, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFilesPlaced", &StartSceneFilesPlaced, false, false);

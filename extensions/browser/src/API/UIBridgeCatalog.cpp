@@ -24,19 +24,19 @@ namespace OSF::API::UIBridgeCatalog
 	{
 		// Loops an open-ended hold stage is assumed to run, for time estimates.
 		constexpr float kHoldLoopEstimate = 2.0f;
-		bool IsEmote(const Catalog::Scene& a_def)
+		bool IsEmote(const Catalog::Node& a_def)
 		{
 			return std::ranges::any_of(a_def.tags,
 				[](const std::string& a_tag) { return Util::ToLower(a_tag).starts_with("player.emote."); });
 		}
 
-		bool IsWheelScene(const Catalog::Scene& a_def)
+		bool IsWheelScene(const Catalog::Node& a_def)
 		{
 			return !a_def.library && !a_def.unlisted && a_def.roles.size() == 1 &&
 			       !a_def.RequiresAnchor() && IsEmote(a_def);
 		}
 
-		const Catalog::Stage* WheelStage(const Catalog::Scene& a_def, std::int32_t a_stage)
+		const Catalog::Stage* WheelStage(const Catalog::Node& a_def, std::int32_t a_stage)
 		{
 			if (!a_def.library || a_def.roles.size() != 1 || a_def.RequiresAnchor() ||
 			    (!a_def.species.empty() && a_def.species != "human") ||
@@ -113,8 +113,6 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              worldPlacement = "anchorAndPin";
 			std::vector<std::string> anchorNames;
 			bool                     unlisted = false;
-			// Registered via `clipLibrary`; harvested stage clips share the `osf.scene-clip/` id prefix.
-			bool                     curated = false;
 			bool                     wheelCustomized = false;  // whole-wheel state, mirrored onto every card
 			std::int32_t             pinned = 0;  // 1-based wheel order; 0 = absent/default-derived
 			std::vector<StageCard>   stages;  // empty for a non-linear graph
@@ -140,16 +138,12 @@ namespace OSF::API::UIBridgeCatalog
 				{ "priority", a_card.priority },
 				{ "weight", a_card.weight },
 				{ "hideApparel", a_card.hideApparel },
-				{ "stripActors", a_card.hideApparel },  // legacy bridge field
 				{ "playerInputLock", a_card.playerInputLock },
-				{ "lockPlayer", a_card.playerInputLock },  // legacy bridge field
 				{ "fade", a_card.fade },
 				{ "requiresFurniture", a_card.requiresFurniture },
 				{ "placement", a_card.worldPlacement },
-				{ "inPlace", a_card.worldPlacement == "followActor" },  // legacy bridge field
 				{ "anchors", a_card.anchorNames },
 				{ "unlisted", a_card.unlisted },
-				{ "curated", a_card.curated },
 				{ "wheelCustomized", a_card.wheelCustomized },
 				{ "pinned", a_card.pinned },
 				{ "stages", a_card.stages },
@@ -162,12 +156,12 @@ namespace OSF::API::UIBridgeCatalog
 	}
 
 	// Declared roles win; anonymous positional scenes take the first playable stage's clip count.
-	std::size_t ActorCountOf(const Catalog::Scene& a_def)
+	std::size_t ActorCountOf(const Catalog::Node& a_def)
 	{
 		return a_def.actorCount;
 	}
 
-	bool IsWheelEntryEligible(const Catalog::Scene& a_def, std::int32_t a_stage)
+	bool IsWheelEntryEligible(const Catalog::Node& a_def, std::int32_t a_stage)
 	{
 		return a_stage < 0 ? IsWheelScene(a_def) : WheelStage(a_def, a_stage) != nullptr;
 	}
@@ -184,7 +178,7 @@ namespace OSF::API::UIBridgeCatalog
 		};
 
 		std::vector<Item> items;
-		auto add = [&items](const Catalog::Scene& a_def, const Entry& a_entry) {
+		auto add = [&items](const Catalog::Node& a_def, const Entry& a_entry) {
 			if (a_entry.stage < 0) {
 				if (!IsWheelScene(a_def)) {
 					return;
@@ -216,7 +210,7 @@ namespace OSF::API::UIBridgeCatalog
 			}
 		} else {
 			const std::string prefix = Util::ToLower(a_tagPrefix.empty() ? std::string_view{ "player.emote." } : a_tagPrefix);
-			registry.ForEachDef([&](const Catalog::Scene& a_def) {
+			registry.ForEachDef([&](const Catalog::Node& a_def) {
 				if (a_def.clipsAvailable && IsWheelScene(a_def) && std::ranges::any_of(a_def.tags,
 					[&](const std::string& a_tag) { return Util::ToLower(a_tag).starts_with(prefix); })) {
 					add(a_def, Entry{ a_def.id, -1 });
@@ -260,7 +254,7 @@ namespace OSF::API::UIBridgeCatalog
 		};
 		std::vector<Card> cards;
 		EngineClient::CatalogData::GetSingleton().ForEachDef(
-			[&cards, &wheelOrder, a_library, wheelCustomized](const Catalog::Scene& d) {
+			[&cards, &wheelOrder, a_library, wheelCustomized](const Catalog::Node& d) {
 			if (d.library != a_library) {
 				return;
 			}
@@ -301,7 +295,6 @@ namespace OSF::API::UIBridgeCatalog
 				c.anchorNames.push_back(edid && edid[0] ? std::string{ edid } : std::format("{:#010x}", b));
 			}
 			c.unlisted = d.unlisted;
-			c.curated = d.curatedClip;
 			c.wheelCustomized = wheelCustomized;
 			c.pinned = wheelOrder(d.id, -1);
 			// Each desugared linear node holds exactly one StageDef.
@@ -411,15 +404,15 @@ namespace OSF::API::UIBridgeCatalog
 		const auto& stats = EngineClient::CatalogData::GetSingleton().FileStats();
 
 		json files = json::array();
-		std::uint64_t totalDeclared = 0, totalScenes = 0, totalRejectedScenes = 0;
+		std::uint64_t totalDeclared = 0, totalNodes = 0, totalRejectedNodes = 0;
 		std::uint64_t totalClipEntries = 0, totalErrors = 0, totalWarnings = 0;
 		std::uint64_t totalHidden = 0, totalMissing = 0, totalBytes = 0;
 		std::uint32_t rejectedFiles = 0, realFiles = 0;
 		float totalMs = 0.0f;
 		for (const auto& s : stats) {
-			totalScenes += s.scenes;
-			totalDeclared += s.declaredScenes;
-			totalRejectedScenes += s.rejectedScenes;
+			totalNodes += s.nodes;
+			totalDeclared += s.declaredNodes;
+			totalRejectedNodes += s.rejectedNodes;
 			totalClipEntries += s.clipEntries;
 			totalErrors += s.errors;
 			totalWarnings += s.warnings;
@@ -447,9 +440,8 @@ namespace OSF::API::UIBridgeCatalog
 				{ "schema", s.schema },
 				{ "bytes", s.bytes },
 				{ "parseMs", s.parseMs },
-				{ "declaredScenes", s.declaredScenes },
-				{ "rejectedScenes", s.rejectedScenes },
-				{ "scenes", s.scenes },
+				{ "declaredNodes", s.declaredNodes },
+				{ "rejectedNodes", s.rejectedNodes },
 				{ "hidden", s.hidden },
 				{ "unlisted", s.unlisted },
 				{ "anchored", s.anchored },
@@ -480,9 +472,9 @@ namespace OSF::API::UIBridgeCatalog
 			{ "totals", {
 				{ "files", realFiles },
 				{ "rejectedFiles", rejectedFiles },
-				{ "declaredScenes", totalDeclared },
-				{ "rejectedScenes", totalRejectedScenes },
-				{ "scenes", totalScenes },
+				{ "declaredNodes", totalDeclared },
+				{ "rejectedNodes", totalRejectedNodes },
+				{ "nodes", totalNodes },
 				{ "registered", static_cast<std::uint64_t>(EngineClient::CatalogData::GetSingleton().Size()) },
 				{ "clipEntries", totalClipEntries },
 				{ "hidden", totalHidden },
@@ -511,7 +503,7 @@ namespace OSF::API::UIBridgeCatalog
 			text += std::format("Pack: {}\r\n", file.pack);
 		}
 		text += std::format("Result: {} accepted / {} declared; {} rejected; {} hidden; {} missing clips\r\n",
-			file.scenes, file.declaredScenes, file.rejectedScenes, file.hidden, file.missingClips);
+			file.nodes, file.declaredNodes, file.rejectedNodes, file.hidden, file.missingClips);
 		text += std::format("Schema: {} | Size: {} bytes | Load: {:.2f} ms\r\n", file.schema, file.bytes, file.parseMs);
 		text += std::format("Content: {} nodes | {} stages | {} roles | {} clip slots | {} distinct clips | {} library entries\r\n",
 			file.nodes, file.stages, file.roles, file.clips, file.distinctClips, file.clipEntries);
@@ -537,9 +529,8 @@ namespace OSF::API::UIBridgeCatalog
 			for (const auto& problem : file.problems) {
 				text += std::format("[{}] {}\r\n", problem.code.empty() ? (problem.warning ? "warning" : "error") : problem.code,
 					problem.message);
-				if (!problem.scene.empty() || !problem.node.empty() || !problem.role.empty() || !problem.clip.empty()) {
-					text += std::format("  Context: scene={} node={} role={} clip={}\r\n",
-						problem.scene.empty() ? "-" : problem.scene,
+				if (!problem.node.empty() || !problem.role.empty() || !problem.clip.empty()) {
+					text += std::format("  Context: node={} role={} clip={}\r\n",
 						problem.node.empty() ? "-" : problem.node,
 						problem.role.empty() ? "-" : problem.role,
 						problem.clip.empty() ? "-" : problem.clip);

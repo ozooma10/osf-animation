@@ -189,9 +189,9 @@ try {
     foreach ($timing in @('loops','timer')) {
         $stage = @{clips=@('OSF/Smoke/head.glb');loops=10}
         if ($timing -eq 'timer') { $stage.loops=0; $stage.timer=10 }
-        $scenes += @{id="osf.global.pause-$timing";lockPlayer=$true;stages=@($stage)}
+        $scenes += @{id="osf.global.pause-$timing";playerInputLock=$true;stages=@($stage)}
     }
-    @{schema=1;unlisted=$true;camera='none';placement='followActor';lockPlayer=$false;stripActors=$false;roles=@(@{name='player'});scenes=@($scenes)} |
+    @{schema=1;unlisted=$true;camera='none';placement='followActor';playerInputLock=$false;hideApparel=$false;roles=@(@{name='player'});scenes=@($scenes)} |
         ConvertTo-Json -Depth 20 | Set-Content (Join-Path $payload 'OSF/Smoke/loop-globals.osf.json') -Encoding utf8NoBOM
     $scripts = Join-Path $payload 'Scripts'
     [IO.Directory]::CreateDirectory($scripts) | Out-Null

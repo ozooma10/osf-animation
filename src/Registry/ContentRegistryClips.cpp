@@ -14,64 +14,14 @@ namespace OSF::Registry::ContentRegistryClips
 	using Util::ToLower;
 
 	void ProblemSink::Push(std::string a_line, const std::filesystem::path& a_owner,
-		std::string a_code, std::string a_hint, std::string a_scene,
-		std::string a_node, std::string a_role, std::string a_clip)
+		std::string a_code, std::string a_hint, std::string a_node, std::string a_role, std::string a_clip)
 	{
 		const bool warning = a_line.starts_with("[warn]");
 		lines.push_back(std::move(a_line));
 		records.push_back(PendingImportProblem{
-			a_owner, warning, std::move(a_code), std::move(a_hint), std::move(a_scene),
+			a_owner, warning, std::move(a_code), std::move(a_hint),
 			std::move(a_node), std::move(a_role), std::move(a_clip)
 		});
-	}
-
-	void DesugarLinear(SceneDef& a_def, const std::vector<StageDef>& a_stages)
-	{
-		const std::size_t count = a_stages.size();
-		for (std::size_t i = 0; i < count; ++i) {
-			const auto& stage = a_stages[i];
-			SceneNode node;
-			node.id = "#s" + std::to_string(i);
-			node.stages = { stage };
-            node.name = stage.name;
-            node.tags = stage.tags;
-			node.loopGlobal = stage.loopGlobal;
-			node.allowManualHold = stage.allowManualHold;
-			node.cues = stage.cues;
-			node.actions = stage.actions;
-			node.sounds = stage.sounds;
-			node.cameras = stage.cameras;
-			const std::string to = (i + 1 == count) ? std::string("$end") : ("#s" + std::to_string(i + 1));
-			const auto autoEdge = [&to](EdgeWhen a_when) {
-				SceneEdge edge;
-				edge.to = to;
-				edge.when = a_when;
-				return edge;
-			};
-			if (stage.timer > 0.0f && (stage.loops > 0 || !stage.loopGlobal.empty())) {
-				node.loopMode = stage.loops > 0 ? LoopMode::kCount : LoopMode::kHold;
-				node.loopCount = stage.loops;
-				node.timerSec = stage.timer;
-				node.edges.push_back(autoEdge(EdgeWhen::kTimer));
-				node.edges.push_back(autoEdge(EdgeWhen::kLoops));
-			} else if (stage.timer > 0.0f) {
-				node.loopMode = LoopMode::kHold;
-				node.timerSec = stage.timer;
-				node.edges.push_back(autoEdge(EdgeWhen::kTimer));
-			} else if (stage.loops > 0 || !stage.loopGlobal.empty()) {
-				node.loopMode = stage.loops > 0 ? LoopMode::kCount : LoopMode::kHold;
-				node.loopCount = stage.loops;
-				node.edges.push_back(autoEdge(EdgeWhen::kLoops));
-			} else {
-				node.loopMode = LoopMode::kHold;
-			}
-			SceneEdge advance = autoEdge(EdgeWhen::kAdvance);
-			advance.isDefault = true;
-			node.edges.push_back(std::move(advance));
-			a_def.linearStages.push_back(node.id);
-			a_def.nodes.push_back(std::move(node));
-		}
-		a_def.entry = "#s0";
 	}
 
 	// Mounted BSResource (loose or archive) or an existing absolute file outside Data.
@@ -97,7 +47,7 @@ namespace OSF::Registry::ContentRegistryClips
 		}
 	}
 
-	void SweepClipAvailability(std::unordered_map<std::string, SceneDef>& a_scenes,
+	void SweepClipAvailability(std::unordered_map<std::string, NodeDef>& a_scenes,
 		ProblemSink& a_problems, ClipInstalledCache& a_cache)
 	{
 		struct FileTally
@@ -111,11 +61,10 @@ namespace OSF::Registry::ContentRegistryClips
 		std::map<std::string, FileTally> byFile;
 		for (auto& [key, definition] : a_scenes) {
 			std::string missing;
-            // Visit every clip: a missing sibling must not hide independently playable nodes.
-            for (const auto& node : definition.nodes)
-                for (const auto& stage : node.stages)
-                    for (const auto& clip : stage.clips)
-                        if (!ClipInstalled(a_cache, clip.file) && missing.empty()) missing = clip.file;
+			// Cache every clip, including clips after the first unavailable one.
+			for (const auto& stage : definition.stages)
+				for (const auto& clip : stage.clips)
+					if (!ClipInstalled(a_cache, clip.file) && missing.empty()) missing = clip.file;
 
 			if (!missing.empty()) {
 				definition.clipsAvailable = false;
@@ -133,13 +82,13 @@ namespace OSF::Registry::ContentRegistryClips
 				" scene(s) hidden — clips not installed (e.g. '" + tally.firstMissing +
 				"'); install the animation pack this file references", tally.source,
 				"missing-clips", "Install the referenced animation pack or correct the clip path, then reload packs.",
-				{}, {}, {}, tally.firstMissing);
+				{}, {}, tally.firstMissing);
 			REX::WARN("[Registry] '{}': {} scene(s) hidden — clips not installed (e.g. '{}')",
 				file, tally.hidden, tally.firstMissing);
 		}
 	}
 
-	std::size_t AddRegisteredClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
+	std::size_t AddRegisteredClipEntries(std::unordered_map<std::string, NodeDef>& a_scenes,
 		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems,
 		std::map<std::string, std::uint32_t>& a_addedByFile, ClipInstalledCache& a_cache)
 	{
@@ -177,7 +126,7 @@ namespace OSF::Registry::ContentRegistryClips
 					(registration.pack.empty() ? registration.sourceFile.filename().string() : registration.pack) +
 					"' — keeping the first", registration.sourceFile, "duplicate-clip-library",
 					"Remove or rename the duplicate clipLibrary registration; OSF keeps the first.",
-					{}, {}, {}, registration.clip.file);
+					{}, {}, registration.clip.file);
 				REX::ERROR("[Registry] duplicate clipLibrary registration '{}' in group '{}' — keeping first",
 					display, registration.pack.empty() ? registration.sourceFile.filename().string() : registration.pack);
 				continue;
@@ -196,7 +145,7 @@ namespace OSF::Registry::ContentRegistryClips
 					"': clipLibrary entry hidden — clip not installed ('" + registration.clip.file + "')",
 					registration.sourceFile, "missing-library-clip",
 					"Install the referenced animation pack or correct this clip path, then reload packs.",
-					{}, {}, {}, registration.clip.file);
+					{}, {}, registration.clip.file);
 				REX::WARN("[Registry] '{}': clipLibrary entry hidden — clip not installed ('{}')",
 					registration.sourceFile.filename().string(), registration.clip.file);
 				continue;
@@ -221,7 +170,7 @@ namespace OSF::Registry::ContentRegistryClips
 				id = std::format("osf.scene-clip/{:016x}-{}", stableHash(key), collision);
 			}
 
-			SceneDef definition;
+			NodeDef definition;
 			definition.id = std::move(id);
 			definition.name = entry.name;
 			if (definition.name.empty()) {
@@ -264,7 +213,7 @@ namespace OSF::Registry::ContentRegistryClips
 			stage.tags = definition.tags;
 			entry.clip.offset.reset();
 			stage.clips.push_back(std::move(entry.clip));
-			DesugarLinear(definition, { stage });
+			definition.stages.push_back(std::move(stage));
 
 			const std::string generatedKey = ToLower(definition.id);
 			++a_addedByFile[definition.sourceFile.string()];
@@ -274,38 +223,37 @@ namespace OSF::Registry::ContentRegistryClips
 		return added;
 	}
 
-	void AccumulateFileStats(const std::unordered_map<std::string, SceneDef>& a_scenes,
+	void AccumulateFileStats(const std::unordered_map<std::string, NodeDef>& a_scenes,
 		ClipInstalledCache& a_cache, std::vector<ContentFileStats>& a_files,
 		const std::unordered_map<std::string, std::size_t>& a_index)
 	{
 		std::vector<std::unordered_set<std::string>> clipSets(a_files.size());
 		std::vector<std::unordered_set<std::string>> speciesSets(a_files.size());
 		for (const auto& [key, definition] : a_scenes) {
+			if (definition.sourceKind == CatalogSourceKind::kCuratedAnimation ||
+				definition.sourceKind == CatalogSourceKind::kProvidedScene) continue;
 			const auto indexIt = a_index.find(definition.sourceFile.string());
 			if (indexIt == a_index.end()) {
 				continue;
 			}
 			auto& stats = a_files[indexIt->second];
-			++stats.scenes;
 			stats.hidden += definition.clipsAvailable ? 0u : 1u;
 			stats.unlisted += definition.unlisted ? 1u : 0u;
 			stats.anchored += definition.RequiresAnchor() ? 1u : 0u;
-			stats.nodes += static_cast<std::uint32_t>(definition.nodes.size());
+			++stats.nodes;
 			stats.roles += static_cast<std::uint32_t>(definition.roles.size());
 			if (!definition.species.empty()) {
 				speciesSets[indexIt->second].insert(definition.species);
 			}
-			for (const auto& node : definition.nodes) {
-				stats.cues += static_cast<std::uint32_t>(node.cues.size());
-				stats.actions += static_cast<std::uint32_t>(node.actions.size());
-				stats.sounds += static_cast<std::uint32_t>(node.sounds.size());
-				stats.cameras += static_cast<std::uint32_t>(node.cameras.size());
-				stats.stages += static_cast<std::uint32_t>(node.stages.size());
-				for (const auto& stage : node.stages) {
-					stats.clips += static_cast<std::uint32_t>(stage.clips.size());
-					for (const auto& clip : stage.clips) {
-						clipSets[indexIt->second].insert(clip.file);
-					}
+			stats.cues += static_cast<std::uint32_t>(definition.cues.size());
+			stats.actions += static_cast<std::uint32_t>(definition.actions.size());
+			stats.sounds += static_cast<std::uint32_t>(definition.sounds.size());
+			stats.cameras += static_cast<std::uint32_t>(definition.cameras.size());
+			stats.stages += static_cast<std::uint32_t>(definition.stages.size());
+			for (const auto& stage : definition.stages) {
+				stats.clips += static_cast<std::uint32_t>(stage.clips.size());
+				for (const auto& clip : stage.clips) {
+					clipSets[indexIt->second].insert(clip.file);
 				}
 			}
 		}

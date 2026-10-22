@@ -13,9 +13,9 @@ namespace OSF::API::PreparationAPI
 			view.provider = provider;
 			view.scene = c.scene;
 			view.kind = static_cast<PreparationKind>(c.kind);
-			view.fromScene = c.fromScene.c_str();
+			view.origin = static_cast<PreparationOrigin>(c.origin);
+			view.covered = c.covered;
 			view.fromNode = c.fromNode.c_str();
-			view.toScene = c.toScene.c_str();
 			view.toNode = c.toNode.c_str();
 			view.fromStage = c.fromStage;
 			view.toStage = c.toStage;

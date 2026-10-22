@@ -1,91 +1,108 @@
 #include "Scene/SceneRuntime.h"
 
+#include "Animation/GraphManager.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneEventRelay.h"
 
 namespace OSF::Scene
 {
-	bool SceneRuntime::Replace(std::int32_t a_scene, std::string_view a_id,
-		const std::vector<std::string>& a_roles, const ReplaceOptions& a_options)
+	bool SceneRuntime::Replace(std::int32_t handle, std::string_view id,
+		const std::vector<std::string>& roles, const ReplaceOptions& options)
 	{
-		SlotView old;
-		Registry::SceneRef next;
-		std::vector<RE::Actor*> cast;
-		std::string entry;
-		WorldAnchor                      anchor, base;
-		RE::NiPointer<RE::TESObjectREFR> ref;
+		return AdmitTransition(handle, id, roles, options, TransitionOrigin::Caller);
+	}
+
+	bool SceneRuntime::AdmitTransition(std::int32_t handle, std::string_view id,
+		const std::vector<std::string>& roles, const ReplaceOptions& options,
+		TransitionOrigin origin, const SlotView* expected)
+	{
+		auto p = std::make_shared<PreparedTransition>();
+		p->context.scene = handle;
+		p->context.kind = Preparation::Kind::Transition;
+		p->context.origin = origin;
+		p->context.toNode = id;
+		p->context.toStage = options.stage;
+		p->automatic = IsAutomaticTransition(origin);
+		p->covered = options.covered;
 		{
 			std::lock_guard l{ _lock };
-			auto* s = Resolve(a_scene);
-			if (!s || s->transitioning) return false;
-			const auto refuse = [&](std::string_view reason) {
-				REX::WARN("[Scene] handoff {:#010x} '{}' -> '{}' refused: {}", a_scene, s->id, a_id, reason);
+			auto* s = Resolve(handle);
+			if (!s || s->preparation || s->cover) return false;
+			if (expected) {
+				if (!s->transitioning || s->playbackId != expected->playbackId ||
+					s->node != expected->node || s->definition.get() != expected->definition.get()) return false;
+			} else if (s->transitioning) {
 				return false;
-			};
-			next = Registry::ContentRegistry::GetSingleton().Find(a_id);
-			if (!next) return refuse("unknown scene");
-			std::string error;
-			if (!Matchmaking::BindSceneRoles(*next, s->participants, a_roles, cast, error)) return refuse(error);
-			const auto placement = s->worldPlacement.value_or(s->definition ? s->definition->worldPlacement : Animation::WorldPlacementMode::kAnchorAndPin);
-			if (placement != next->worldPlacement) return refuse("follow-actor and anchored scenes cannot be mixed");
-			entry = next->entry;
-			if (a_options.stage > 0 && !next->linearStages.empty()) {
-				if (static_cast<std::size_t>(a_options.stage) >= next->linearStages.size()) return refuse("stage out of range");
-				entry = next->linearStages[a_options.stage];
 			}
-            if (!a_options.node.empty()) {
-                if (a_options.stage != 0) return refuse("node and stage are mutually exclusive");
-                entry = a_options.node;
-            }
-            const auto* destination = next->FindNode(entry);
-            if (!destination) return refuse("entry node is missing");
-            entry = destination->id;
-			if (a_options.headingRad && !std::isfinite(*a_options.headingRad)) return refuse("non-finite anchor heading");
-			anchor = s->anchor;
-			base = s->anchorBase;
-			ref = s->anchorRef;
-			if (a_options.anchor) {
-				if (a_options.anchor != ref.get()) base = MakeAnchorAt(a_options.anchor, std::nullopt);
-				ref.reset(a_options.anchor);
+			p->old = { s->node, s->participants, s->playbackId, s->definition, s->cameraOverridden };
+			p->cast = s->participants;
+			p->context.fromNode = s->node;
+			p->anchor = s->anchor;
+			p->anchorBase = s->anchorBase;
+			p->anchorRef = s->anchorRef;
+			p->overrides.playerInputLock = s->playerInputLockOverride;
+			p->overrides.hideApparel = s->hideApparelOverride;
+			p->overrides.sceneControls = s->sceneControlsOverride;
+			auto& registry = Registry::ContentRegistry::GetSingleton();
+			// Authored edges stay within the source's immutable publication across reloads.
+			// Exact requests resolve the currently published destination through the same admission.
+			const auto next = registry.Find(id, expected ? s->definition : Registry::NodeRef{});
+			const auto refuse = [&](std::string reason) { p->failureReason = std::move(reason); };
+			if (!next) {
+				refuse("unknown destination node");
+			} else {
+				p->context.toNode = next->id;
+				std::vector<RE::Actor*> cast;
+				std::string error;
+				const auto placement = s->worldPlacement.value_or(s->definition ? s->definition->worldPlacement : Animation::WorldPlacementMode::kAnchorAndPin);
+				if (!Matchmaking::BindSceneRoles(*next, s->participants, roles, cast, error)) {
+					refuse(error);
+				} else if (placement != s->worldPlacement.value_or(next->worldPlacement)) {
+					refuse("follow-actor and anchored nodes cannot be mixed");
+				} else if (options.stage < 0 || static_cast<std::size_t>(options.stage) >= next->stages.size()) {
+					refuse("stage out of range");
+				} else if (options.headingRad && !std::isfinite(*options.headingRad)) {
+					refuse("non-finite anchor heading");
+				} else {
+					if (options.anchor) {
+						if (options.anchor != p->anchorRef.get()) p->anchorBase = MakeAnchorAt(options.anchor, std::nullopt);
+						p->anchorRef.reset(options.anchor);
+					}
+					if (options.headingRad && p->anchorBase.set) p->anchorBase.heading = *options.headingRad;
+					if (next->RequiresAnchor()) {
+						if (!p->anchorRef || !p->anchorBase.set || !Matchmaking::AnchorAccepts(*next, p->anchorRef.get()))
+							refuse("missing or incompatible anchor reference");
+						else
+							p->anchor = ComposeSceneAnchor(p->anchorBase, next->anchorOffset);
+					} else if (p->anchorBase.set) {
+						p->anchor = p->anchorBase;
+					}
+					if (p->failureReason.empty()) p->cast = std::move(cast);
+				}
+				if (p->failureReason.empty()) {
+					p->target = registry.ResolveLoopGlobals(next);
+					p->defaults = true;
+					p->playerInputLock = p->overrides.playerInputLock.value_or(next->playerInputLock);
+					p->hideApparel = p->overrides.hideApparel.value_or(next->hideApparel);
+					p->clearHeldItems = next->clearHeldItems;
+				}
 			}
-			if (a_options.headingRad && base.set) base.heading = *a_options.headingRad;
-			if (next->RequiresAnchor()) {
-				if (!ref || !base.set || !Matchmaking::AnchorAccepts(*next, ref.get()))
-					return refuse("missing or incompatible anchor reference");
-				anchor = ComposeSceneAnchor(base, next->anchorOffset);
-			} else if (a_options.anchor) {
-				anchor = base;
-			}
-			old = { s->id, s->node, s->participants, s->playbackId, s->definition, s->cameraOverridden };
 			s->transitioning = true;
 		}
-
-		auto p = std::make_shared<PreparedTransition>();
-		p->context.scene = a_scene;
-		p->context.kind = Preparation::Kind::Handoff;
-		p->context.fromScene = old.id;
-		p->context.fromNode = old.node;
-		p->context.toScene = next->id;
-		p->context.toNode = entry;
-		p->context.fromStage = old.definition ? old.definition->LinearStageOf(old.node) : -1;
-		p->context.toStage = next->LinearStageOf(entry);
-		p->old = old;
-		p->cast = cast;
-		p->target = Registry::ContentRegistry::GetSingleton().ResolveLoopGlobals(next);
-		p->anchor = anchor;
-		p->anchorBase = base;
-		p->anchorRef = ref;
-		p->defaults = true;
-		p->covered = a_options.covered;
-		p->playerInputLock = next->playerInputLock;
-		p->hideApparel = next->hideApparel;
-		p->clearHeldItems = next->clearHeldItems;
+		if (!p->old.participants.empty()) {
+			if (const auto current = Animation::GraphManager::GetSingleton().GetScenePlayback(p->old.participants.front(), p->old.playbackId))
+				p->context.fromStage = current->stage;
+		}
+		// Admission refusals use the same terminal/resume policy as preparation vetoes.
+		// An automatic source already consumed its boundary and must not be stranded.
 		if (!QueuePreparation(p)) {
-			EndTransition(a_scene);
+			std::lock_guard l{ _lock };
+			if (auto* s = Resolve(handle); s && !s->preparation && !s->cover &&
+				s->playbackId == p->old.playbackId && s->node == p->old.node) s->transitioning = false;
 			return false;
 		}
-		return true;  // accepted; successful handoff notification follows preparation and playback commit
+		return true; // accepted attempt; ReadPreparation reports its eventual result
 	}
 
 	bool SceneRuntime::ReplaceByQuery(std::int32_t a_scene, const Matchmaking::TagQuery& a_query,
@@ -99,7 +116,7 @@ namespace OSF::Scene
 			std::lock_guard l{ _lock };
 			const auto* s = Resolve(a_scene);
 			if (!s || s->transitioning) return false;
-			cast = s->participants; current = s->id; anchor = s->anchorRef;
+			cast = s->participants; current = s->node; anchor = s->anchorRef;
 			placement = s->worldPlacement.value_or(s->definition ? s->definition->worldPlacement : Animation::WorldPlacementMode::kAnchorAndPin);
 		}
 		if (!Matchmaking::RoleConstraintsFit(a_roles, cast.size())) {

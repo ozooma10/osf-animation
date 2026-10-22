@@ -30,8 +30,6 @@ export interface SceneModel {
   worldPlacement: WorldPlacement;
   anchors: string[];
   unlisted: boolean;
-  /** Fallback for native builds that don't emit `sourceKind`. */
-  curated: boolean;
   wheelCustomized: boolean;
   pinned: number;
   priority: number;
@@ -64,14 +62,8 @@ export function normalizeScene(raw: Raw): SceneModel {
   const requiresFurniture = Boolean(raw.requiresFurniture);
   const sourceKind: CatalogSourceKind = ["authoredScene", "curatedAnimation", "derivedDebugAnimation", "referenceAnimation"].includes(String(raw.sourceKind))
     ? raw.sourceKind as CatalogSourceKind
-    : Boolean(raw.curated)
-      ? "curatedAnimation"
-      : id.toLowerCase().startsWith("osf.scene-clip/")
-        ? "derivedDebugAnimation"
-        : "authoredScene";
-  const worldPlacement: WorldPlacement = raw.placement === "anchorAndPin" || raw.placement === "followActor"
-    ? raw.placement
-    : Boolean(raw.inPlace) ? "followActor" : "anchorAndPin";
+    : "authoredScene";
+  const worldPlacement: WorldPlacement = raw.placement === "followActor" ? "followActor" : "anchorAndPin";
   return {
     id,
     title: String(raw.title || raw.name || id || "Unnamed scene"),
@@ -83,7 +75,6 @@ export function normalizeScene(raw: Raw): SceneModel {
     worldPlacement,
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map(String) : [],
     unlisted: Boolean(raw.unlisted),
-    curated: sourceKind === "curatedAnimation",
     wheelCustomized: Boolean(raw.wheelCustomized),
     pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
@@ -169,18 +160,17 @@ function normalizeRoles(roles: unknown, actorCount: number): SceneRole[] {
   }));
 }
 
-function policyText(value: unknown, fallback: unknown, empty: "inherit" | "off"): "on" | "off" | "inherit" {
-  const resolved = value !== undefined ? value : fallback;
-  if (resolved === true) return "on";
-  if (resolved === false) return "off";
+function policyText(value: unknown, empty: "inherit" | "off"): "on" | "off" | "inherit" {
+  if (value === true) return "on";
+  if (value === false) return "off";
   return empty;
 }
 
 function normalizePolicy(raw: Raw): SceneModel["policy"] {
   return {
-    hideApparel: policyText(raw.hideApparel, raw.stripActors, "inherit"),
-    playerInputLock: policyText(raw.playerInputLock, raw.lockPlayer, "inherit"),
-    fade: policyText(raw.fade, undefined, "off") as "on" | "off",
+    hideApparel: policyText(raw.hideApparel, "inherit"),
+    playerInputLock: policyText(raw.playerInputLock, "inherit"),
+    fade: policyText(raw.fade, "off") as "on" | "off",
   };
 }
 
@@ -190,7 +180,6 @@ export interface ImportProblem {
   code: string;
   message: string;
   hint: string;
-  scene: string;
   node: string;
   role: string;
   clip: string;
@@ -206,10 +195,9 @@ export interface ImportFile {
   schema: number;
   bytes: number;
   parseMs: number;
-  scenes: number;
-  declaredScenes: number;
+  declaredNodes: number;
   hidden: number;
-  rejectedScenes: number;
+  rejectedNodes: number;
   unlisted: number;
   anchored: number;
   nodes: number;
@@ -236,9 +224,9 @@ export interface ImportFile {
 export interface ImportTotals {
   files: number;
   rejectedFiles: number;
-  scenes: number;
-  declaredScenes: number;
-  rejectedScenes: number;
+  nodes: number;
+  declaredNodes: number;
+  rejectedNodes: number;
   /** Registry's own count; may drift from the per-file sum. */
   registered: number;
   clipEntries: number;
@@ -258,9 +246,9 @@ export interface ImportReport {
 export const EMPTY_IMPORT_TOTALS: ImportTotals = {
   files: 0,
   rejectedFiles: 0,
-  scenes: 0,
-  declaredScenes: 0,
-  rejectedScenes: 0,
+  nodes: 0,
+  declaredNodes: 0,
+  rejectedNodes: 0,
   registered: 0,
   clipEntries: 0,
   hidden: 0,
@@ -284,7 +272,6 @@ function normalizeImportProblem(value: unknown): ImportProblem {
       code: severity === "warn" ? "legacy-warning" : "legacy-error",
       message: value.replace(/^\[(?:warn|error)\]\s*/, ""),
       hint: "",
-      scene: "",
       node: "",
       role: "",
       clip: "",
@@ -295,7 +282,7 @@ function normalizeImportProblem(value: unknown): ImportProblem {
     severity: problem.severity === "warn" ? "warn" : "error",
     code: String(problem.code || "load-problem"),
     message: String(problem.message || "Unknown import problem.").replace(/^\[(?:warn|error)\]\s*/, ""),
-    hint: String(problem.hint || ""), scene: String(problem.scene || ""),
+    hint: String(problem.hint || ""),
     node: String(problem.node || ""), role: String(problem.role || ""), clip: String(problem.clip || ""),
   };
 }
@@ -316,10 +303,9 @@ export function normalizeImportReport(payload: unknown): ImportReport {
         schema: count(entry.schema),
         bytes: count(entry.bytes),
         parseMs: Number.isFinite(Number(entry.parseMs)) ? Math.max(0, Number(entry.parseMs)) : 0,
-        scenes: count(entry.scenes),
-        declaredScenes: count(entry.declaredScenes),
+        declaredNodes: count(entry.declaredNodes),
         hidden: count(entry.hidden),
-        rejectedScenes: count(entry.rejectedScenes),
+        rejectedNodes: count(entry.rejectedNodes),
         unlisted: count(entry.unlisted),
         anchored: count(entry.anchored),
         nodes: count(entry.nodes),
@@ -345,9 +331,9 @@ export function normalizeImportReport(payload: unknown): ImportReport {
     totals: {
       files: count(totals.files),
       rejectedFiles: count(totals.rejectedFiles),
-      declaredScenes: count(totals.declaredScenes),
-      rejectedScenes: count(totals.rejectedScenes),
-      scenes: count(totals.scenes),
+      declaredNodes: count(totals.declaredNodes),
+      rejectedNodes: count(totals.rejectedNodes),
+      nodes: count(totals.nodes),
       registered: count(totals.registered),
       clipEntries: count(totals.clipEntries),
       hidden: count(totals.hidden),
@@ -393,7 +379,7 @@ function problemRefs(files: readonly ImportFile[]): Map<string, ImportProblemRef
 
 function importFileFingerprint(file: ImportFile): string {
   return [
-    file.declaredScenes, file.scenes, file.rejectedScenes, file.hidden, file.missingClips,
+    file.declaredNodes, file.nodes, file.rejectedNodes, file.hidden, file.missingClips,
     file.clipEntries, file.errors, file.warnings, file.problemCount,
   ].join(":");
 }

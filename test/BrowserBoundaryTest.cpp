@@ -3,8 +3,8 @@
 void RunBrowserClipLibraryTests();
 void RunBrowserCatalogJsonTests();
 void RunBrowserCatalogJsonBenchmark();
-#include "API/EngineClient.h"
 #include "API/UIBridgeCatalog.h"
+#include "API/EngineClient.h"
 #include "API/BrowserSessionQueue.h"
 #include "API/BrowserLaunchSequence.h"
 #include "API/BrowserJsonTransport.h"
@@ -333,24 +333,23 @@ int main(int argc, char** argv)
 	OSFEngineAPI api{};
 	api.size=sizeof(api); api.version=kOSFEngineAPIVersion+1;
 	Check(EngineClient::Connect(&api), "newer compatible minor accepted");
-	api.version=0x00040000;
-	Check(!EngineClient::Connect(&api), "different major refused");
-	api.version=0x00030000;
-	Check(!EngineClient::Connect(&api), "older host minor refused even with sufficient bytes");
-	api.version=0x0003000F;
-	Check(!EngineClient::Connect(&api), "3.15 host is refused before starting any-thread catalog reads");
-	api.version=0x00030010;
-	Check(!EngineClient::Connect(&api), "3.16 host is refused before compact provider registration");
-	Check(EngineTableSupported(0x00030010, kOSFEngineAPIVersion, sizeof(api), offsetof(OSFEngineAPI, RegisterClipSourceProvider)),
-		"3.17 preserves the complete 3.16 service prefix for existing consumers");
-	Check(EngineRequestSupported(0x00030000, kOSFEngineAPIVersion) &&
-		!EngineRequestSupported(kOSFEngineAPIVersion + 1, kOSFEngineAPIVersion) &&
-		!EngineRequestSupported(0x00020000, kOSFEngineAPIVersion), "host accepts older minor only within its major");
-	Check(!EngineRequestSupported(0x0003000D, kOSFEngineAPIVersion), "ambiguous private 3.13 request is refused");
-	Check(EngineRequestSupported(0x0003000C, kOSFEngineAPIVersion) &&
-		EngineRequestSupported(0x0003000E, kOSFEngineAPIVersion), "stable prefix and combined 3.14 request are supported");
-	Check(!EngineTableSupported(kOSFEngineAPIVersion, 0x0003000D, sizeof(api), sizeof(api)),
-		"combined client refuses either old 3.13 provider even with sufficient bytes");
+	api.version=0x00050000;
+	Check(!EngineClient::Connect(&api), "different services major refused");
+	for (const auto version : { 0x00030000u, 0x0003000Cu, 0x0003000Du, 0x0003000Eu, 0x00030011u }) {
+		api.version = version;
+		Check(!EngineClient::Connect(&api), "all pre-v2 services tables are refused before use");
+		Check(!EngineRequestSupported(version, kOSFEngineAPIVersion), "v2 host refuses every legacy services request");
+	}
+	Check(EngineRequestSupported(kOSFEngineAPIVersion, kOSFEngineAPIVersion) &&
+		EngineRequestSupported(kOSFEngineAPIVersion, kOSFEngineAPIVersion + 1) &&
+		!EngineRequestSupported(kOSFEngineAPIVersion + 1, kOSFEngineAPIVersion),
+		"services minor compatibility starts at the complete 4.0 baseline");
+	Check(SceneRequestSupported(kOSFSceneAPIVersion, kOSFSceneAPIVersion) &&
+		SceneRequestSupported(kOSFSceneAPIVersion, kOSFSceneAPIVersion + 1) &&
+		!SceneRequestSupported(kOSFSceneAPIVersion + 1, kOSFSceneAPIVersion) &&
+		!SceneRequestSupported(0x00010007, kOSFSceneAPIVersion) &&
+		!SceneRequestSupported(kOSFSceneAPIVersion, 0x00010007),
+		"scene API minor compatibility starts at 2.0 and rejects v1 in both directions");
 	api.version=kOSFEngineAPIVersion; api.size=8;
 	Check(!EngineClient::Connect(&api), "truncated table refused before use");
 	api.size=sizeof(api); api.ReadCatalog=ReadCatalog;
@@ -362,12 +361,6 @@ int main(int argc, char** argv)
 		}); return true;
 	};
 	api.ReadClipDurations=[](TextCallback callback,void* context) { callback("{}",context); return true; };
-	const auto legacyAPI = LegacyEngineAPI(api);
-	nlohmann::json legacyDurations;
-	Check(legacyAPI.version == 0x00030000 && legacyAPI.size ==
-		offsetof(OSFEngineAPI, UnregisterClipSceneProvider) + sizeof(api.UnregisterClipSceneProvider) &&
-		legacyAPI.ReadClipDurations(EngineClient::ReadJson, &legacyDurations) && legacyDurations.is_object(),
-		"released browser exact-version predicate and existing prefix calls remain valid");
 	Check(EngineClient::Connect(&api), "complete public services table accepted");
 	{
 		static std::uint32_t routing{};
@@ -485,16 +478,16 @@ int main(int argc, char** argv)
 	Check(remove.wait_for(std::chrono::milliseconds(20)) == std::future_status::timeout, "unsubscription waits for another thread's callback");
 	finish.set_value(); dispatch.join(); Check(remove.get(), "unsubscription completes after callback returns");
 
-	OSF::Catalog::Scene emote;
+	OSF::Catalog::Node emote;
 	emote.id="custom.wave"; emote.name="Wave"; emote.tags={"Player.Emote.Wave"}; emote.actorCount=1;
 	emote.roles.push_back({"actor","any"}); emote.placement="followActor";
 	emote.stages.push_back({.index=0,.clipCount=1,.loopCount=2,.name="Wave loop",.loopMode="count",.tags={"wave"},.loopSec=3.0f,.resolved=true});
-	catalog.scenes.push_back(emote);
-	auto library=emote; library.id="library.wave"; library.library=true; library.curatedClip=true;
+	catalog.nodes.push_back(emote);
+	auto library=emote; library.id="library.wave"; library.library=true; library.curatedClip=true; library.sourceKind="curatedAnimation";
 	library.name="Library wave"; library.stages.front().hold=0.5f; library.stages.front().timerSec=4.0f;
-	catalog.scenes.push_back(library);
-	auto missing=emote; missing.id="missing.wave"; missing.clipsAvailable=false; catalog.scenes.push_back(missing);
-	OSF::Catalog::File file; file.path="broken.osf.json"; file.file=file.path; file.errors=13; file.declaredScenes=2; file.rejectedScenes=2;
+	catalog.nodes.push_back(library);
+	auto missing=emote; missing.id="missing.wave"; missing.clipsAvailable=false; catalog.nodes.push_back(missing);
+	OSF::Catalog::File file; file.path="broken.osf.json"; file.file=file.path; file.errors=13; file.declaredNodes=2; file.rejectedNodes=2;
 	for (int i=0;i<13;++i) file.problems.push_back({.code="invalid",.message="Problem "+std::to_string(i)});
 	catalog.files.push_back(file);
 	int catalogUpdates{};
@@ -516,7 +509,7 @@ int main(int argc, char** argv)
 	Check(cards.size() == 1 && cards[0]["id"] == "custom.wave", "catalog uses public copied metadata and excludes missing/library entries");
 	Check(cards[0]["estSec"] == 6.0f && cards[0]["stages"][0]["loopSec"] == 3.0f, "authored loop durations retain presentation estimates");
 	const auto clips=Catalog::BuildCatalog(true);
-	Check(clips.size() == 1 && clips[0]["estSec"] == 4.0f && clips[0]["curated"] == true, "library frozen-stage timing is preserved");
+	Check(clips.size() == 1 && clips[0]["estSec"] == 4.0f && clips[0]["sourceKind"] == "curatedAnimation" && !clips[0].contains("curated") && !clips[0].contains("inPlace") && !clips[0].contains("lockPlayer") && !clips[0].contains("stripActors"), "library frozen-stage timing is preserved");
 	Check(Catalog::BuildWheelData("")["entries"].size() == 1, "wheel defaults preserve case-insensitive tag eligibility");
 	OSF::Serialization::WheelPins::customized=true;
 	OSF::Serialization::WheelPins::entries={{"LIBRARY.WAVE",0}};
@@ -528,13 +521,13 @@ int main(int argc, char** argv)
 	Check(Catalog::BuildImportTextReport("broken.osf.json")->find("Problem 12") != std::string::npos, "clipboard report retains all diagnostics");
 	Check(!Catalog::BuildImportTextReport("unknown"), "unknown import path cannot read arbitrary files");
 	Check(reads == 1, "browser caches one owned metadata snapshot");
-	catalog.scenes.front().name="Updated";
+	catalog.nodes.front().name="Updated";
 	EngineClient::CatalogData::GetSingleton().Invalidate();
 	awaitCatalog(2);
 	Check(Catalog::BuildCatalog(false)[0]["title"] == "Updated" && reads == 2, "catalog invalidation refreshes copied metadata");
 	catalogData.InvalidateDurations();
 	Check(Catalog::BuildCatalog(false)[0]["title"] == "Updated" && reads == 2, "duration changes do not rebuild or reparse static metadata");
-	catalog.scenes.front().name="After reset";
+	catalog.nodes.front().name="After reset";
 	cancelNextPost = true; catalogData.Invalidate();
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
 	while (!canceledPosts && std::chrono::steady_clock::now() < deadline) {
@@ -549,7 +542,7 @@ int main(int argc, char** argv)
 	catalogData.Invalidate(); awaitCatalog(4);
 	Check(!lastCatalogSuccess && Catalog::BuildCatalog(false)[0]["title"] == "After reset" && reads == 4,
 		"malformed catalog reports failure and retains the last good snapshot through the real Browser worker");
-	catalogTextOverride.reset(); catalog.scenes.front().name = "Recovered";
+	catalogTextOverride.reset(); catalog.nodes.front().name = "Recovered";
 	catalogData.Invalidate(); awaitCatalog(5);
 	Check(lastCatalogSuccess && Catalog::BuildCatalog(false)[0]["title"] == "Recovered" && reads == 5,
 		"catalog parsing recovers on the next request after a malformed response");

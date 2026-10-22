@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Octopedea (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/octopedea/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/octopedea/bleedout",
       "name": "Vanilla · Octopedea / Bleedout",

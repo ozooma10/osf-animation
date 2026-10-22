@@ -123,11 +123,6 @@ namespace OSF::Animation
 		return a_followActor ? WorldPlacementMode::kFollowActor : WorldPlacementMode::kAnchorAndPin;
 	}
 
-	inline constexpr WorldPlacementMode WorldPlacementFromLegacyInPlace(bool a_inPlace) noexcept
-	{
-		return WorldPlacementFromFollowActor(a_inPlace);
-	}
-
 	struct PlaybackPlan
 	{
 		struct Segment
@@ -144,7 +139,6 @@ namespace OSF::Animation
 			float blendIn = -1.0f;                         // secs; < 0 = use plan blendIn
 			std::vector<TimedMark> marks;
 		};
-		using Stage = Segment;
 		std::vector<Segment> stages;
 		std::vector<std::vector<std::string>> preserveBones;
 		std::vector<PoseMode> poseModes;                       // optional, one mode per actor; empty = all override
@@ -237,7 +231,6 @@ namespace OSF::Animation
 			float blendIn = 0.4f;
 			std::vector<TimedMark> marks;
 		};
-		using StageData = SegmentData;
 
 		struct Tick
 		{
@@ -288,7 +281,7 @@ namespace OSF::Animation
 		std::vector<std::pair<RE::NiPoint3, float>> originalTransforms;  // position + heading
 
 		// Immutable after publish — graphs read it lock-free on a stage change.
-		std::vector<StageData> stages;
+		std::vector<SegmentData> stages;
 
 		// Advance sets `ended` after the last stage; the hook consumes `endQueued` once and defers StopScene to the game thread.
 		std::atomic<bool> ended{ false };

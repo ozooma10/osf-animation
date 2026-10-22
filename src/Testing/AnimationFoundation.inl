@@ -58,7 +58,7 @@ void AdvanceFoundation()
 		if (!WaitFeature("foundation.query", !manager.IsPlaying(actor) && !manager.IsPlaying(peer), 8, "Previous cast did not retire")) break;
 		foundation = {};
 		foundation.engine = API::RequestEngineAPI(); engine = foundation.engine;
-		if (!Check("foundation.query", engine != nullptr, "Current services ABI 3.5 negotiated")) return;
+		if (!Check("foundation.query", engine != nullptr, "Current services ABI 4.0 negotiated")) return;
 		if (!Check("foundation.query", Registry::ContentRegistry::GetSingleton().Find("osf.example.handoff.start") &&
 			Registry::ContentRegistry::GetSingleton().Find("osf.example.handoff.target"), "Both exact author example scenes loaded with installed vanilla assets")) return;
 		foundation.baseline = {actor->GetPosition(), peer->GetPosition()};
@@ -70,13 +70,13 @@ void AdvanceFoundation()
 		RE::Actor* cast[]{actor, peer}; const char* tags[]{"osf-smoke-foundation-start"}; const char* roles[]{"lead", "partner"};
 		API::OSFSceneQuery query; query.allOf = tags; query.allOfCount = 1; query.roles = roles; query.roleCount = 2;
 		API::OSFSceneMatch match;
-		auto options = Options(); options.inPlaceMode = 0; options.hasAnchor = true;
+		auto options = Options(); options.followActorMode = 0; options.hasAnchor = true;
 		options.anchorX = foundation.baseline[0].x; options.anchorY = foundation.baseline[0].y; options.anchorZ = foundation.baseline[0].z;
-		options.anchorHeadingRad = actor->data.angle.z; options.stripMode = options.lockPlayerMode = 1;
+		options.anchorHeadingRad = actor->data.angle.z; options.hideApparelMode = options.playerInputLockMode = 1;
 		std::memcpy(options.camera, "scene_orbit", 12);
 		const bool found = g.sceneAPI->FindSceneByQuery(cast, 2, query, match);
 		g.scene = g.sceneAPI->StartSceneByQuery(cast, 2, query, options);
-		if (!Check("foundation.query", found && std::string_view(match.sceneId) == "osf.smoke.foundation.start" &&
+		if (!Check("foundation.query", found && std::string_view(match.nodeId) == "osf.smoke.foundation.start/held" &&
 			match.roleIndex[0] == 0 && match.roleIndex[1] == 1 && g.scene && g.callback,
 			"Public query find/start selected the tagged scene with the requested actor-to-role mapping")) return;
 		Phase(209); break;
@@ -100,7 +100,7 @@ void AdvanceFoundation()
 		// Discard the storage cache and read bytes again; the active working copy must remain 0.25.
 		Scene::Alignment::SetFileForSmoke(g.directory / "alignment-overrides.json");
 		float delta[4]{};
-		const auto stored = Scene::Alignment::Read("osf.smoke.foundation.start", "held", {"lead"});
+		const auto stored = Scene::Alignment::Read("osf.smoke.foundation.start/held", {"lead"});
 		if (!Check("foundation.alignment-reload", stored.size() == 1 && stored[0].x == 0.125f &&
 			engine->GetSceneAlignment(g.scene, "lead", delta) && delta[0] == 0.25f,
 			"Atomic save survives a cleared storage cache without overwriting an active unsaved delta")) return;
@@ -109,7 +109,7 @@ void AdvanceFoundation()
 	case 202: {
 		if (PhaseSeconds() < 2.5f) break;
 		const auto controls = SceneControls();
-		if (!Check("foundation.manual-hold", controls.value("node", "") == "held" && !controls.value("automatic", true) &&
+		if (!Check("foundation.manual-hold", controls.value("node", "") == "osf.smoke.foundation.start/held" && !controls.value("automatic", true) &&
 			Count(g.scene, API::SceneEventType::kCue, "foundation.repeat") >= 2 &&
 			Count(g.scene, API::SceneEventType::kCue, "foundation.once") == 1,
 			"Manual hold outlasted the timer while sampling and repeating cues continued; once cue fired once")) return;
@@ -142,7 +142,7 @@ void AdvanceFoundation()
 		if (PhaseSeconds() < 0.2f || !AwaitSettled("foundation.handoff", 6, "Handoff did not finish preparation")) break;
 		std::array<RE::Actor*,2> cast{}; const auto controls = SceneControls();
 		if (!Check("foundation.handoff", g.sceneAPI->GetSceneParticipants(g.scene, cast.data(), 2) == 2 && cast[0] == peer && cast[1] == actor &&
-			controls.value("sceneId", "") == "osf.smoke.foundation.target" && !controls.value("automatic", true) &&
+			controls.value("node", "") == "osf.smoke.foundation.target/finish" && !controls.value("automatic", true) &&
 			engine->GetSceneSpeed(g.scene) == 0 && Worn(actor) != foundation.worn &&
 			!(InputFlags() & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement)),
 			"Handoff retained handle, pause, manual preference, apparel ownership and input lock while reversing the roster")) return;
@@ -150,18 +150,18 @@ void AdvanceFoundation()
 		{ std::lock_guard lock(g.eventsMutex);
 			if (g.events.size() >= 3) {
 				const auto n = g.events.size(); const auto& exit = g.events[n-3]; const auto& handoff = g.events[n-2]; const auto& enter = g.events[n-1];
-				ordered = exit.type == API::SceneEventType::kNodeExit && exit.sceneId == "osf.smoke.foundation.start" &&
-					handoff.type == API::SceneEventType::kSceneHandoff && handoff.edge == exit.sceneId &&
-					handoff.sceneId == "osf.smoke.foundation.target" && enter.type == API::SceneEventType::kNodeEnter && enter.sceneId == handoff.sceneId;
+				ordered = exit.type == API::SceneEventType::kNodeExit && exit.node == "osf.smoke.foundation.start/held" &&
+					handoff.type == API::SceneEventType::kNodeTransition && handoff.edge == exit.node &&
+					handoff.node == "osf.smoke.foundation.target/finish" && enter.type == API::SceneEventType::kNodeEnter && enter.node == handoff.node;
 			}
 		}
 		if (!Check("foundation.handoff-events", ordered && Count(g.scene, API::SceneEventType::kSceneBegin) == 1 &&
 			Count(g.scene, API::SceneEventType::kSceneEnd) == 0, "Old exit, handoff and new enter carry correct identities with no extra begin/end")) return;
 		const char* badRoles[]{"missing", "lead"};
-		if (!Check("foundation.handoff-rejected", !engine->ReplaceScene(g.scene, "osf.smoke.no-such-scene", nullptr) &&
-			!engine->ReplaceSceneRoles(g.scene, "osf.smoke.foundation.start", badRoles, 2) &&
-			SceneControls().value("sceneId", "") == "osf.smoke.foundation.target" &&
-			Count(g.scene, API::SceneEventType::kSceneHandoff) == 1, "Rejected targets and role bindings preserve the active identity and lifecycle")) return;
+		if (!Check("foundation.handoff-rejected", !engine->ReplaceNode(g.scene, "osf.smoke.no-such-node", nullptr, 0, nullptr) &&
+			!engine->ReplaceNode(g.scene, "osf.smoke.foundation.start/held", badRoles, 2, nullptr) &&
+			SceneControls().value("node", "") == "osf.smoke.foundation.target/finish" &&
+			Count(g.scene, API::SceneEventType::kNodeTransition) == 7, "Rejected targets and role bindings preserve the active identity and lifecycle")) return;
 		engine->SetSceneSpeed(g.scene, 0.5f); Phase(206); break;
 	}
 	case 206:
@@ -176,10 +176,10 @@ void AdvanceFoundation()
 		if (!Check("foundation.restore", true, "Natural completion after role reversal restored each original actor position, apparel, input and camera")) return;
 		{
 			bool completed{}; { std::lock_guard lock(g.eventsMutex); completed = !g.events.empty() && g.events.back().type == API::SceneEventType::kSceneEnd &&
-				g.events.back().cause == 0 && g.events.back().sceneId == "osf.smoke.foundation.target"; }
+				g.events.back().cause == 0 && g.events.back().node == "osf.smoke.foundation.target/finish"; }
 			if (!Check("foundation.manual-resume", completed, "Re-enabled progression ended the target once with completed cause")) return;
-			RE::Actor* cast[]{actor, peer}; auto options = Options(); options.inPlaceMode = 0;
-			g.scene = g.sceneAPI->StartScene(cast, 2, "osf.smoke.foundation.start", options);
+			RE::Actor* cast[]{actor, peer}; auto options = Options(); options.followActorMode = 0;
+			g.scene = g.sceneAPI->StartScene(cast, 2, "osf.smoke.foundation.start/held", options);
 			float delta[4]{};
 			if (!Check("foundation.alignment-reload", g.scene && engine->GetSceneAlignment(g.scene, "lead", delta) && delta[0] == 0.125f,
 				"A new scene reads the saved delta instead of the previous scene's unsaved value")) return;
@@ -194,7 +194,7 @@ void AdvanceFoundation()
 			Check("foundation.alignment-reload", false, "Private alignment reset/save failed"); return;
 		}
 		Scene::Alignment::SetFileForSmoke(g.directory / "alignment-overrides.json");
-		if (!Check("foundation.alignment-reload", Scene::Alignment::Read("osf.smoke.foundation.start", "held", {"lead"})[0].x == 0,
+		if (!Check("foundation.alignment-reload", Scene::Alignment::Read("osf.smoke.foundation.start/held", {"lead"})[0].x == 0,
 			"Saved reset removes the persisted override on reload")) return;
 		g.sceneAPI->StopScene(g.scene); Phase(208);
 		break;

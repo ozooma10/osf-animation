@@ -60,7 +60,7 @@ describe("Octane view runtime", () => {
     }) as unknown as BrowserCommands;
     const state = createInitialState();
     state.mode = "active";
-    state.active = normalizeActive([{ handle: 42, sceneId: "solo", time: 1.25, duration: 5, speed: 1 }]);
+    state.active = normalizeActive([{ handle: 42, nodeId: "solo", time: 1.25, duration: 5, speed: 1 }]);
     render(BrowsePanel, { props: { state, commands: playbackCommands } });
 
     const progress = screen.getByRole("progressbar", { name: "Scene playback progress" }) as HTMLProgressElement;

@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Modelt (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/modelt/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/modelt",
       "name": "Vanilla · Modelt",

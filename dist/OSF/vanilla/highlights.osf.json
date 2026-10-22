@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Highlights — Curated Vanilla (generated, do not hand-edit)",
   "unlisted": true,
-  "stripActors": false,
+  "hideApparel": false,
   "clipRoot": "meshes/actors/human/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "highlights/dance-floor/furniture/cheer",
       "name": "Dance Floor — Cheer",

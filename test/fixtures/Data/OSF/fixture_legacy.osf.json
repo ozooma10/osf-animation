@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "fixture legacy file-default roles",
   "clearHeldItems": false,
   // ARRAY form: a file-level default cast inherited by scenes that omit their own roles.
@@ -7,7 +7,7 @@
     { "name": "bottom" },
     { "name": "top", "equip": "Any.esm|0x123" }
   ],
-  "scenes": [
+  "nodes": [
     {
       "id": "test.legacy.inherit",
       "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }]

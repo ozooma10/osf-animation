@@ -159,9 +159,8 @@ namespace OSF::API
 					cast.push_back({ { "token", player ? -1 : AllocToken(actor) },
 						{ "name", player ? std::string{"Player"} : ScanLabel(actor) }, { "player", player } });
 				}
-				const auto id = item["id"].get<std::string>();
-				item["sceneId"] = id.empty() ? "runtime.files" : id;
-				item.erase("id"); item.erase("participants");
+				item["nodeId"] = item["node"];
+				item.erase("node"); item.erase("participants");
 				item["player"] = hasPlayer; item["cast"] = std::move(cast);
 				scenes.push_back(std::move(item));
 			}
@@ -174,7 +173,7 @@ namespace OSF::API
 			if (!g_ui || !g_viewVisible) {
 				return;
 			}
-			SendJson(kViewId, "osf.animation.activeScenes", BuildActiveScenes());
+			SendJson(kViewId, "osf.animation.activeLaunches", BuildActiveScenes());
 		}
 
 		// target:null = player. Idempotent in the view, so the osf.opened replay may double-deliver.
@@ -423,7 +422,7 @@ namespace OSF::API
 
 		struct BrowserLaunchPlan
 		{
-			std::string                              sceneId;
+			std::string                              nodeId;
 			bool                                     singleAnimation = false;
 			bool                                     wheel = false;
 			std::vector<RE::Actor*>                  actors;
@@ -485,12 +484,12 @@ namespace OSF::API
 			}
 
 			auto& options = a_plan.options;
-			const auto vocabularyTri = [&opts](const char* a_canonical, const char* a_legacy) {
-				return opts.contains(a_canonical) ? OptTri(opts, a_canonical) : OptTri(opts, a_legacy);
-			};
-			options.stripMode = vocabularyTri("hideApparel", "strip");
-			options.lockPlayerMode = vocabularyTri("playerInputLock", "lockPlayer");
-			options.playerControlMode = vocabularyTri("sceneControls", "playerControl");
+			for (const char* key : { "strip", "lockPlayer", "playerControl", "inPlace" }) {
+				if (opts.contains(key)) return std::string("Retired launch option: ") + key;
+			}
+			options.hideApparelMode = OptTri(opts, "hideApparel");
+			options.playerInputLockMode = OptTri(opts, "playerInputLock");
+			options.sceneControlsMode = OptTri(opts, "sceneControls");
 			options.fadeMode = OptTri(opts, "fade");
 			options.speed = NumOr(opts, "speed", 1.0f);
 
@@ -559,7 +558,7 @@ namespace OSF::API
 				castDiag += std::format("{}{:08X}", castDiag.empty() ? "" : ",", actor->formID);
 			}
 			REX::DEBUG("[UI] launch request '{}' cast=[{}] location={} token={} activeBefore={}",
-				a_plan.sceneId, castDiag, a_plan.locationMode, a_plan.locationToken,
+				a_plan.nodeId, castDiag, a_plan.locationMode, a_plan.locationToken,
 				EngineClient::ActiveScenes().size());
 		}
 
@@ -570,9 +569,9 @@ namespace OSF::API
 			}
 			// Wheel emotes are in-world flourishes: no placement pin, input lock, stripping, fade, or scene camera.
 			auto& options = a_plan.options;
-			options.inPlaceMode = 1;
-			options.lockPlayerMode = 0;
-			options.stripMode = 0;
+			options.followActorMode = 1;
+			options.playerInputLockMode = 0;
+			options.hideApparelMode = 0;
 			options.fadeMode = 0;
 			std::snprintf(options.camera, sizeof(options.camera), "none");
 		}
@@ -597,10 +596,10 @@ namespace OSF::API
 				rolePtrs.reserve(a_plan.roleNames.size());
 				for (const auto& role : a_plan.roleNames) rolePtrs.push_back(role.c_str());
 				return a_api.StartSceneRoles(a_plan.actors.data(), static_cast<std::uint32_t>(a_plan.actors.size()),
-					a_plan.sceneId.c_str(), rolePtrs.data(), static_cast<std::uint32_t>(rolePtrs.size()), a_plan.options);
+					a_plan.nodeId.c_str(), rolePtrs.data(), static_cast<std::uint32_t>(rolePtrs.size()), a_plan.options);
 			}
 			return a_api.StartScene(a_plan.actors.data(), static_cast<std::uint32_t>(a_plan.actors.size()),
-				a_plan.sceneId.c_str(), a_plan.options);
+				a_plan.nodeId.c_str(), a_plan.options);
 		}
 
 		bool RecordLaunchSuccess(const BrowserLaunchPlan& a_plan, std::int32_t a_handle)
@@ -625,23 +624,23 @@ namespace OSF::API
 		{
 			const json j = ParsePayload(a_payload);
 			BrowserLaunchPlan plan;
-			plan.sceneId = (j.is_object() && j.contains("sceneId") && j["sceneId"].is_string())
-			                 ? j["sceneId"].get<std::string>()
+			plan.nodeId = (j.is_object() && j.contains("nodeId") && j["nodeId"].is_string())
+			                 ? j["nodeId"].get<std::string>()
 			                 : std::string{};
 			plan.singleAnimation = BoolOr(j, "singleAnimation", false);
 			plan.wheel = g_wheel.active;
 
 			json reply;
-			reply["sceneId"] = plan.sceneId;
+			reply["nodeId"] = plan.nodeId;
 			const auto fail = [&](const std::string& a_reason) {
 				reply["ok"] = false;
 				reply["handle"] = 0;
 				reply["error"] = a_reason;
-				REX::WARN("[UI] osf.animation.launch '{}' refused: {}", plan.sceneId, a_reason);
+				REX::WARN("[UI] osf.animation.launch '{}' refused: {}", plan.nodeId, a_reason);
 				SendJson(a_srcView, "osf.animation.launchResult", reply);
 			};
 
-			if (plan.sceneId.empty()) {
+			if (plan.nodeId.empty()) {
 				return fail("No scene selected");
 			}
 			if (const auto error = ResolveLaunchCast(j, plan)) {
@@ -675,9 +674,9 @@ namespace OSF::API
 			auto pending = std::make_shared<BrowserLaunchPlan>(std::move(plan));
 			const std::string sourceView = a_srcView ? a_srcView : "";
 			const auto failPending = [pending, sourceView](const char* reason) {
-				REX::WARN("[UI] osf.animation.launch '{}' refused: {}", pending->sceneId, reason);
+				REX::WARN("[UI] osf.animation.launch '{}' refused: {}", pending->nodeId, reason);
 				SendJson(sourceView.c_str(), "osf.animation.launchResult",
-					json{ { "sceneId", pending->sceneId }, { "ok", false }, { "handle", 0 }, { "error", reason } });
+					json{ { "nodeId", pending->nodeId }, { "ok", false }, { "handle", 0 }, { "error", reason } });
 			};
 			BrowserLaunchSequence::Begin(g_launchRequests, std::move(cast), {
 				.owners = [pending, api] {
@@ -690,21 +689,21 @@ namespace OSF::API
 					std::erase(g_closeStops, busy);
 					g_resumeSpeeds.erase(busy);
 					if (busy == g_lastHandle) g_lastHandle = 0;
-					REX::DEBUG("[UI] osf.animation.launch '{}' waiting for scene {:#010x} to release its cast", pending->sceneId, busy);
+					REX::DEBUG("[UI] osf.animation.launch '{}' waiting for scene {:#010x} to release its cast", pending->nodeId, busy);
 					return true;
 				},
 				.start = [pending, api, sourceView, failPending] {
 					const auto handle = StartBrowserLaunch(*pending, *api);
 					if (handle == 0) {
-						failPending(LaunchError(pending->sceneId, pending->actors.size(), pending->furniture != nullptr).c_str());
+						failPending(LaunchError(pending->nodeId, pending->actors.size(), pending->furniture != nullptr).c_str());
 						return;
 					}
 					const bool castHasPlayer = RecordLaunchSuccess(*pending, handle);
 					REX::DEBUG("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})",
-						pending->sceneId, handle, pending->actors.size(), pending->furniture ? ", anchored" : "",
+						pending->nodeId, handle, pending->actors.size(), pending->furniture ? ", anchored" : "",
 						castHasPlayer ? "" : ", NPC-only — outlives the browser");
 					SendJson(sourceView.c_str(), "osf.animation.launchResult",
-						json{ { "sceneId", pending->sceneId }, { "ok", true }, { "handle", handle } });
+						json{ { "nodeId", pending->nodeId }, { "ok", true }, { "handle", handle } });
 					PushActiveScenes();
 				},
 				.fail = failPending,
@@ -767,7 +766,7 @@ namespace OSF::API
 
 		void OnPlaybackGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
-			SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());
+			SendJson(a_srcView, "osf.animation.activeLaunches", BuildActiveScenes());
 		}
 
 		void OnPlaybackSet(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
@@ -793,7 +792,7 @@ namespace OSF::API
 					g_resumeSpeeds.erase(handle);
 				}
 			}
-			SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());
+			SendJson(a_srcView, "osf.animation.activeLaunches", BuildActiveScenes());
 		}
 
 		void OnWheelGet(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
