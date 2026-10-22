@@ -60,34 +60,63 @@ namespace OSF::Util
 		return NormalizeResourcePath(raw);
 	}
 
+	namespace
+	{
+		// Both materialized playback candidates and short-circuit availability checks use these
+		// rules. The resource callback chooses whether it needs the full-file-path factory.
+		template <class Resource, class File>
+		bool VisitCandidates(const std::filesystem::path& a_spec, const std::string& a_display,
+			Resource&& a_resource, File&& a_file)
+		{
+			const std::string raw = a_spec.string();
+			std::optional<std::filesystem::path> data;
+			const auto dataRoot = [&]() -> const std::filesystem::path& {
+				if (!data) data = std::filesystem::current_path() / "Data";
+				return *data;
+			};
+
+			if (ToLower(raw).starts_with("naf:")) {
+				return a_resource(a_display, [&] { return dataRoot() / a_display; });
+			}
+
+			if (a_spec.is_absolute()) {
+				if (auto rel = DataRelativePath(a_spec)) {
+					return a_resource(*rel, [&] { return dataRoot() / *rel; });
+				}
+				return a_file(a_spec);
+			}
+
+			if (a_resource(a_display, [&] { return dataRoot() / a_display; })) return true;
+			const auto naf = NormalizeResourcePath(std::string{ "NAF\\" } + a_display);
+			if (a_resource(naf, [&] { return dataRoot() / "NAF" / a_display; })) return true;
+			const auto filename = a_spec.filename();
+			return a_resource(NormalizeResourcePath(std::string{ "OSF\\Animations\\" } + filename.string()),
+				[&] { return dataRoot() / "OSF" / "Animations" / filename; });
+		}
+	}
+
 	ClipSpec ResolveClipSpec(const std::filesystem::path& a_spec)
 	{
 		ClipSpec out;
 		out.display = ClipSpecDisplay(a_spec);
-		const std::string raw = a_spec.string();
-
-		if (ToLower(raw).starts_with("naf:")) {
-			out.candidates.push_back({ out.display, std::filesystem::current_path() / "Data" / out.display, true });
-			return out;
-		}
-
-		if (a_spec.is_absolute()) {
-			if (auto rel = DataRelativePath(a_spec)) {
-				out.candidates.push_back({ *rel, std::filesystem::current_path() / "Data" / *rel, true });
-			} else {
-				out.candidates.push_back({ {}, a_spec, false });
-			}
-			return out;
-		}
-
-		const std::string& primary = out.display;
-		const auto data = std::filesystem::current_path() / "Data";
-		out.candidates.push_back({ primary, data / primary, true });
-		out.candidates.push_back({ NormalizeResourcePath(std::string{ "NAF\\" } + primary),
-			data / "NAF" / primary, true });
-		out.candidates.push_back({ NormalizeResourcePath(std::string{ "OSF\\Animations\\" } + a_spec.filename().string()),
-			data / "OSF" / "Animations" / a_spec.filename(), true });
+		VisitCandidates(a_spec, out.display,
+			[&](const std::string& resource, auto&& filePath) {
+				out.candidates.push_back({resource, filePath(), true});
+				return false;
+			},
+			[&](const std::filesystem::path& file) {
+				out.candidates.push_back({{}, file, false});
+				return false;
+			});
 		return out;
+	}
+
+	bool ProbeClipSpec(const std::filesystem::path& a_spec,
+		const std::function<bool(std::string_view)>& a_resource,
+		const std::function<bool(const std::filesystem::path&)>& a_file)
+	{
+		return VisitCandidates(a_spec, ClipSpecDisplay(a_spec),
+			[&](const std::string& resource, auto&&) { return a_resource(resource); }, a_file);
 	}
 
 	std::pair<std::string, std::string> SplitRuntimeClipSpec(std::string a_spec)

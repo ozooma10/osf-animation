@@ -77,20 +77,12 @@ namespace OSF::Registry::ContentRegistryClips
 	// Mounted BSResource (loose or archive) or an existing absolute file outside Data.
 	bool ClipSpecInstalled(const std::string& a_spec)
 	{
-		const auto spec = Util::ResolveClipSpec(std::filesystem::path{ a_spec });
-		for (const auto& candidate : spec.candidates) {
-			if (candidate.resource) {
-				if (Animation::ResourceExists(candidate.resourcePath)) {
-					return true;
-				}
-			} else {
+		return Util::ProbeClipSpec(std::filesystem::path{ a_spec },
+			[](std::string_view resource) { return Animation::ResourceExists(resource); },
+			[](const std::filesystem::path& file) {
 				std::error_code error;
-				if (std::filesystem::exists(candidate.filePath, error)) {
-					return true;
-				}
-			}
-		}
-		return false;
+				return std::filesystem::exists(file, error);
+			});
 	}
 
 	namespace

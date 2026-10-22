@@ -13,6 +13,7 @@
 #include <cctype>
 #include <filesystem>
 #include <thread>
+#include <vector>
 
 using OSF::Test::Check;
 using OSF::Test::Finish;
@@ -105,6 +106,58 @@ int main()
 	{
 		const auto outside = std::filesystem::current_path() / "Elsewhere" / "clip.af";
 		Check(!OSF::Util::DataRelativePath(outside), "path outside Data is not archive-relative");
+	}
+	{
+		namespace fs = std::filesystem;
+		using OSF::Util::ClipCandidate;
+		const auto data = fs::current_path() / "Data";
+		const auto inside = data / "OSF/../folder/pose.af";
+		const auto outside = fs::current_path() / "Elsewhere/pose.af";
+		const fs::path unc{R"(\\server\share\pose.af)"};
+		struct Case { fs::path spec; std::string display; std::vector<ClipCandidate> expected; };
+		const std::vector<Case> cases{
+			{"Data/folder/pose.af", "folder\\pose.af", {
+				{"folder\\pose.af", data / "folder\\pose.af", true},
+				{"NAF\\folder\\pose.af", data / "NAF" / "folder\\pose.af", true},
+				{"OSF\\Animations\\pose.af", data / "OSF/Animations/pose.af", true}}},
+			{"nAf:folder/pose.glb", "NAF\\folder\\pose.glb", {
+				{"NAF\\folder\\pose.glb", data / "NAF\\folder\\pose.glb", true}}},
+			{inside, inside.string(), {{"folder\\pose.af", data / "folder\\pose.af", true}}},
+			{outside, outside.string(), {{"", outside, false}}},
+			{unc, unc.string(), {{"", unc, false}}},
+			{"C:relative.af", "C:relative.af", {
+				{"C:relative.af", data / "C:relative.af", true},
+				{"NAF\\C:relative.af", data / "NAF" / "C:relative.af", true},
+				{"OSF\\Animations\\relative.af", data / "OSF/Animations/relative.af", true}}},
+			{"", "", {{"", data / "", true}, {"NAF\\", data / "NAF" / "", true},
+				{"OSF\\Animations\\", data / "OSF/Animations" / "", true}}}
+		};
+		for (const auto& test : cases) {
+			const auto resolved = OSF::Util::ResolveClipSpec(test.spec);
+			Check(resolved.display == test.display && resolved.candidates.size() == test.expected.size(),
+				"materialized clip resolution retains display spelling and candidate count");
+			for (std::size_t i = 0; i < std::min(resolved.candidates.size(), test.expected.size()); ++i) {
+				const auto& got = resolved.candidates[i]; const auto& expected = test.expected[i];
+				Check(got.resource == expected.resource && got.resourcePath == expected.resourcePath &&
+					got.filePath == expected.filePath, "playback retains exact resource and filesystem candidates");
+			}
+			for (std::size_t hit = 0; hit <= test.expected.size(); ++hit) {
+				std::size_t calls = 0;
+				const auto matched = OSF::Util::ProbeClipSpec(test.spec,
+					[&](std::string_view resource) {
+						Check(calls < test.expected.size() && test.expected[calls].resource &&
+							test.expected[calls].resourcePath == resource, "lazy resource probe preserves candidate order");
+						return calls++ == hit;
+					},
+					[&](const fs::path& file) {
+						Check(calls < test.expected.size() && !test.expected[calls].resource &&
+							test.expected[calls].filePath == file, "external file probe receives the original absolute path");
+						return calls++ == hit;
+					});
+				Check(matched == (hit < test.expected.size()) && calls == std::min(hit + 1, test.expected.size()),
+					"lazy probing stops exactly at success and visits every fallback on a miss");
+			}
+		}
 	}
 	{
 		const std::filesystem::path root{ R"(C:\Game\Data\OSF)" };
