@@ -1,6 +1,10 @@
 #requires -Version 7.2
 [CmdletBinding()]
-param([switch] $NoDeploy, [string] $TestReport = '')
+param(
+    [switch] $NoDeploy,
+    [string] $TestReport = '',
+    [ValidateRange(1,64)][int] $Jobs = 4
+)
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -26,7 +30,7 @@ try {
     $env:XSE_SF_GAME_PATH = $null
     & xmake f -y -p windows -a x64 -m releasedbg -o build --animation_smoke=n --profiling=n
     if ($LASTEXITCODE) { throw 'Browser native configuration failed.' }
-    & xmake build -y -j4 'OSF Animation Browser'
+    & xmake build -y "-j$Jobs" 'OSF Animation Browser'
     if ($LASTEXITCODE) { throw 'Browser native build failed.' }
 } finally {
     $env:XSE_SF_MODS_PATH = $savedMods

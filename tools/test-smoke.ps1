@@ -164,7 +164,7 @@ try {
         $browserStarted = [DateTimeOffset]::UtcNow
         $ui = Join-Path $repo 'extensions/browser/ui'
         try {
-            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildBrowserAddon.ps1'),'-NoDeploy','-TestReport',$report.browserTestReport)
+            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildBrowserAddon.ps1'),'-NoDeploy','-TestReport',$report.browserTestReport,'-Jobs',"$Jobs")
         } finally {
             if (Test-Path -LiteralPath $report.browserTestReport) {
                 $browserReceipt = Get-Content -LiteralPath $report.browserTestReport -Raw | ConvertFrom-Json
