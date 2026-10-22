@@ -34,7 +34,13 @@ namespace OSF::Scene
 				if (static_cast<std::size_t>(a_options.stage) >= next->linearStages.size()) return refuse("stage out of range");
 				entry = next->linearStages[a_options.stage];
 			}
-			if (!next->FindNode(entry)) return refuse("entry node is missing");
+            if (!a_options.node.empty()) {
+                if (a_options.stage != 0) return refuse("node and stage are mutually exclusive");
+                entry = a_options.node;
+            }
+            const auto* destination = next->FindNode(entry);
+            if (!destination) return refuse("entry node is missing");
+            entry = destination->id;
 			if (a_options.headingRad && !std::isfinite(*a_options.headingRad)) return refuse("non-finite anchor heading");
 			anchor = s->anchor;
 			base = s->anchorBase;

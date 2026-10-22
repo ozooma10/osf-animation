@@ -59,6 +59,39 @@ namespace OSF::API::EngineServices
 				return Send(ids, callback, context);
 			} catch (...) { return false; }
 		}
+        bool MatchNodeCast(RE::Actor* const* actors, std::uint32_t count, TextCallback callback, void* context)
+        {
+            if (!Util::NativeMainThreadQueue::IsDraining() || !actors || count == 0 || count > 32) return false;
+            for (std::uint32_t i=0; i<count; ++i) {
+                if (!actors[i]) return false;
+                for (std::uint32_t j=0; j<i; ++j) if (actors[i] == actors[j]) return false;
+            }
+            try {
+                const auto registry = Registry::ContentRegistry::GetSingleton().ReadSnapshot();
+                json out = json::array();
+                for (const auto& [id, def] : registry->scenes) {
+                    if (CatalogBuilder::ActorCount(def) != count) continue;
+                    bool accepts = true;
+                    for (std::size_t i=0; i<def.roles.size(); ++i) if (!Matchmaking::RoleAccepts(def.roles[i], actors[i])) { accepts=false; break; }
+                    if (!accepts) continue;
+                    for (const auto& node : def.nodes) if (CatalogBuilder::BuildNode(*registry,def,node).clipsAvailable)
+                        out.push_back({{"scene",def.id},{"node",node.id}});
+                }
+                return Send(out, callback, context);
+            } catch (...) { return false; }
+        }
+        bool MatchNodeAnchor(RE::TESObjectREFR* ref, TextCallback callback, void* context)
+        {
+            if (!Util::NativeMainThreadQueue::IsDraining() || !ref) return false;
+            try {
+                json ids=json::array();
+                Matchmaking::AnchorMatchCache cache(ref);
+                Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& d) {
+                    if (d.RequiresAnchor() && cache.Accepts(d)) ids.push_back(d.id);
+                });
+                return Send(ids, callback, context);
+            } catch (...) { return false; }
+        }
 		bool MatchAnchor(RE::TESObjectREFR* ref, TextCallback callback, void* context)
 		{
 			if (!ref) return false;
@@ -232,6 +265,7 @@ namespace OSF::API::EngineServices
 				if (opts) {
 					options.anchor = opts->anchorRef;
 					options.stage = opts->startStage;
+                    if (opts->size >= offsetof(OSFStartOptions,startNode) + sizeof(opts->startNode) && opts->startNode) options.node = opts->startNode;
 				}
 				return Scene::SceneRuntime::GetSingleton().Replace(handle, id, {}, options);
 			},
@@ -328,7 +362,13 @@ namespace OSF::API::EngineServices
 				std::vector<std::string> names;
 				for (std::uint32_t i=0;i<count;++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
 				return Scene::SceneRuntime::GetSingleton().Replace(scene,id,names,{.covered=true});
-			} };
+			}, &MatchNodeCast, &MatchNodeAnchor,
+            [](std::int32_t scene, const char* id, const char* node, const char* const* roles, std::uint32_t count, bool covered) {
+                if (!Util::NativeMainThreadQueue::IsDraining() || !id || !node || !*node || (!roles && count) || count > kOSFSceneMatchMaxActors) return false;
+                std::vector<std::string> names;
+                for (std::uint32_t i=0;i<count;++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
+                return Scene::SceneRuntime::GetSingleton().Replace(scene,id,names,{.covered=covered,.node=node});
+            } };
 	}
 	void WorldReset() { ActorState::Get().Reset(); g_state.ResetWorld(); }
 	void ContentReloaded() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::ContentReloaded)); }

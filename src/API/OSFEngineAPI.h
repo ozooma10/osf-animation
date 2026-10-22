@@ -7,8 +7,8 @@
 
 namespace OSF::API
 {
-	// Services 3.14 combines preparation commit guards and covered handoffs.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000E;
+	// Services 3.15 adds independent node matching and exact-node handoffs.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000F;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -213,6 +213,17 @@ namespace OSF::API
 		// pose blending, independent of clip speed. Five-second deadline cancels; stop/reset unwinds.
 		// ReadScenePreparation.pending includes cover/reveal; optional cover reports phase/token/startedMs.
 		bool (*ReplaceSceneRolesCovered)(std::int32_t, const char* sceneId, const char* const* roles, std::uint32_t count);
+        // 3.15. Verified frame. Positional cast filter; JSON [{"scene":id,"node":id}].
+        // Every available node is considered independently, including unlisted nodes.
+        // Join to ReadCatalog.nodes for tags/ranking; anchor and caller policy remain caller filters.
+        bool (*MatchNodeCast)(RE::Actor* const*, std::uint32_t, TextCallback, void*);
+        // 3.15. Anchor compatibility without the scene-wide clip-availability restriction.
+        bool (*MatchNodeAnchor)(RE::TESObjectREFR*, TextCallback, void*);
+        // 3.15. Verified frame. Exact node handoff; same roles/placement/admission rules as ReplaceSceneRoles.
+        // Strings are copied synchronously. Unknown/empty node refuses. Covered=true uses bounded cover.
+        // Authored graph navigation still uses Navigate/Advance, preserving seamless edges.
+        bool (*ReplaceNodeRoles)(std::int32_t, const char* sceneId, const char* nodeId,
+            const char* const* roles, std::uint32_t count, bool covered);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

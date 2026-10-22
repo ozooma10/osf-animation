@@ -33,6 +33,12 @@ namespace OSF::Scene
 		std::optional<std::string> ResolveStageEntry(const Registry::SceneDef& a_def,
 			const DefLaunchOptions& a_opts, const char* a_logTag)
 		{
+            if (!a_opts.node.empty()) {
+                if (a_opts.stage != 0) return std::nullopt;
+                const auto* node = a_def.FindNode(a_opts.node);
+                if (!node) return std::nullopt;
+                return node->id;
+            }
 			if (a_opts.stage <= 0) {
 				return std::string{};
 			}
@@ -189,6 +195,7 @@ namespace OSF::Scene
 			ordered[slot] = a_actors[pick->order[slot]];
 		}
 		const bool anchored = a_launch.anchorRef != nullptr;
+		a_launch.node.clear();
 		a_launch.stage = 0;  // Matchmade starts have always entered at the authored entry.
 		const std::int32_t handle = LaunchDef(pick->id, ordered, a_launch, a_logTag);
 		if (handle) {

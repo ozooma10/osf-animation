@@ -90,6 +90,8 @@ namespace OSF::API
 				launch.worldAnchor = MakeAnchor(a_opts);
 			}
 			launch.stage = a_opts.startStage;
+            if (a_opts.size >= offsetof(OSFStartOptions, startNode) + sizeof(a_opts.startNode) && a_opts.startNode)
+                launch.node = a_opts.startNode;
 			// Preserve native ABI behavior; Papyrus rejects out-of-range linear stages.
 			launch.invalidStage = Scene::InvalidStagePolicy::kUseEntry;
 			launch.speed = a_opts.speed;
@@ -99,13 +101,14 @@ namespace OSF::API
 
 		// OSFStartOptions ABI guard: append fields only at the end and bump the MINOR.
 		static_assert(std::is_standard_layout_v<OSFStartOptions>, "OSFStartOptions must be standard-layout (POD ABI)");
-		static_assert(sizeof(OSFStartOptions) == 136, "OSFStartOptions layout changed — update the size + version, ship a new header");
+		static_assert(sizeof(OSFStartOptions) == 144, "OSFStartOptions layout changed — update the size + version, ship a new header");
 		static_assert(offsetof(OSFStartOptions, size) == 0, "OSFStartOptions.size must be first (cbSize prefix)");
 		static_assert(offsetof(OSFStartOptions, camera) == 20, "OSFStartOptions.camera offset drift");
 		static_assert(offsetof(OSFStartOptions, startStage) == 96, "OSFStartOptions.startStage offset drift");
 		static_assert(offsetof(OSFStartOptions, anchorHeadingRad) == 116, "OSFStartOptions.anchorHeadingRad offset drift");
 		static_assert(offsetof(OSFStartOptions, anchorRef) == 120, "OSFStartOptions.anchorRef offset drift");
 		static_assert(offsetof(OSFStartOptions, inPlaceMode) == 128, "OSFStartOptions.inPlaceMode offset drift (MINOR 2 append)");
+        static_assert(offsetof(OSFStartOptions, startNode) == 136);
 		static_assert(sizeof(OSFStartOptions::camera) == 64, "OSFStartOptions.camera buffer size changed");
 
 		// OSFSceneQuery / OSFSceneMatch (minor 5) ABI guards: append only, size-prefixed.

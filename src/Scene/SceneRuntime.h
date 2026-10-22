@@ -91,6 +91,7 @@ namespace OSF::Scene
 			std::optional<float> headingRad;
 			std::int32_t stage = 0;
 			bool covered = false;
+            std::string node; // exact target, or empty for authored entry/stage
 		};
 		bool Replace(std::int32_t a_scene, std::string_view a_id, const std::vector<std::string>& a_roles,
 			const ReplaceOptions& a_options);

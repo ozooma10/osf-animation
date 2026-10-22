@@ -13,7 +13,7 @@
 namespace OSF::API
 {
 	// Packed (MAJOR << 16) | MINOR. MINOR bumps append vmethods or OSFStartOptions fields.
-	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 6u;
+	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 7u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
 	inline constexpr std::uint32_t kOSFSceneAPIMinor   = kOSFSceneAPIVersion & 0xFFFFu;
 
@@ -121,6 +121,12 @@ namespace OSF::API
 		// Since minor 2. 1 = follow actors (no teleport or root/heading pin; vanilla camera untouched),
 		// 0 = force anchored, else inherit.
 		std::int32_t inPlaceMode = -1;
+
+        // Since minor 7. Borrowed for the call; copied before asynchronous preparation.
+        // StartScene/StartSceneRoles enter this exact node, retaining the containing route.
+        // Null/empty uses the scene entry or startStage. Unknown node or nonzero startStage
+        // together with startNode refuses; never falls back. Query starts use route entry.
+        const char* startNode = nullptr;
 	};
 
 	// Since minor 5. Matchmaking input for FindSceneByQuery / StartSceneByQuery and engine-services ReplaceSceneByQuery.

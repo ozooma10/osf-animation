@@ -46,6 +46,7 @@ namespace
 		OSF::Registry::SceneDef def;
 		def.id = "demo";
 		def.entry = "authored-entry";
+        def.nodes = {{.id="authored-entry"}, {.id="stage-zero"}, {.id="stage-one"}};
 		if (a_linear) def.linearStages = { "stage-zero", "stage-one" };
 		if (a_furniture) def.anchorBaseForms.push_back(123);
 		registry->scenes.emplace(def.id, std::move(def));
@@ -64,6 +65,10 @@ namespace
 
 namespace OSF::Registry
 {
+    const SceneNode* SceneDef::FindNode(std::string_view id) const {
+        for (const auto& node : nodes) if (node.id == id) return &node;
+        return nullptr;
+    }
 	ContentRegistry& ContentRegistry::GetSingleton() { static ContentRegistry instance; return instance; }
 	SceneRef ContentRegistry::Find(std::string_view a_id) const
 	{
@@ -298,5 +303,14 @@ int main()
 			!WriteSceneMatch({ "s", 0, 1, { 0 } }, { std::string(64, 'r') }, out, error),
 			"unrepresentable ids, bindings or role names fail instead of truncating");
 	}
+    Reset(false);
+    OSF::Scene::DefLaunchOptions direct;
+    direct.node = "stage-one";
+    Check(OSF::Scene::LaunchDef("demo",cast,direct,"[Test]") == 42 && calls.entry == "stage-one" && calls.id == "demo",
+        "nonlinear nodes start directly while retaining the containing route");
+    direct.node = "missing"; calls.order.clear();
+    Check(!OSF::Scene::LaunchDef("demo",cast,direct,"[Test]") && calls.order.empty(), "unknown direct node never falls back or dispatches playback");
+    direct.node = "stage-one"; direct.stage = 1;
+    Check(!OSF::Scene::LaunchDef("demo",cast,direct,"[Test]"), "conflicting node and stage targets refuse");
 	return OSF::Test::Finish("scene launcher");
 }
