@@ -49,8 +49,9 @@ uses OSF UI. Committed snapshots under `fixtures/live/` provide standalone catal
 
 ## Settings
 
-OSF Settings owns the schema, persistence, hotkeys, and diagnostics. The DLL publishes a flat
-map of browser preferences through OSF UI's retained `settings` state. Both native and
+OSF Settings owns engine values, hotkeys, and diagnostics. The Browser DLL loads and saves its
+preferences separately, using defaults when its file is absent, and publishes a flat map through
+OSF UI's retained `settings` state. Both native and
 standalone adapters replay it on subscription and publish replacement snapshots after writes.
 The controller applies opening preferences only on the initial replay; subsequent updates
 preserve the current browsing session. Writes use `osf.animation.settings.set`, with native

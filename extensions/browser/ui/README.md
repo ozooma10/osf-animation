@@ -151,20 +151,18 @@ mod**:
 ## Settings / hotkeys
 
 The addon ships `extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json`.
-OSF Settings loads it as `osf.animation.browser` at startup; the DLL subscribes to values and registers `openBrowser` and
+OSF Settings loads it as `osf.animation.browser` at startup; the DLL registers `openBrowser` and
 `openWheel` hotkeys, both unbound by default. The browser is also available in
 OSF Settings's Launcher tab.
 
 `UISettings.cpp` forwards only browser preferences as retained state key `settings`, containing a flat map of preference keys to values.
 The web adapter sends writes to `osf.animation.settings.set`; native code checks
-the source view and preference allowlist before saving through OSF Settings.
-Changes in either interface stay synchronized. `launch.camera: "scene"` is the
+the source view and preference allowlist before saving to the SFSE-log-parent
+`OSF/browser-preferences.json`. Missing files use defaults. `launch.camera: "scene"` is the
 stored default; the browser maps that to its empty scene-camera override.
 
-Existing OSF Settings browser preferences under `osf.animation` are imported once into the new ID;
-explicit destination values win. The two hotkeys need rebinding after the ID change.
-Legacy OSF UI values and hotkeys are not migrated. World references such as
-selected actors and furniture are never persisted.
+The two hotkeys need rebinding after the ID change. World references such as selected actors
+and furniture are never persisted.
 
 ## Animation wheel (transient mode)
 

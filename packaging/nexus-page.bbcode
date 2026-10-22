@@ -46,13 +46,13 @@ The engine supplies playback and scene execution. The separate [b]Browser instal
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620464-2115394493.png[/img][/center]
 [b]Engine requirements:[/b] SFSE matching your Starfield version, [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url], and OSF Settings 1.0.0 or newer.
-[b]Optional Browser requirements:[/b] matching OSF Animation 1.5.0, [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url], and OSF Settings 1.0.0 or newer. OSF UI renders the browser/wheel; OSF Settings owns preferences, hotkeys, the launcher, and Mod Issues.
+[b]Optional Browser requirements:[/b] matching OSF Animation 1.5.0, [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url], and OSF Settings 1.0.0 or newer. OSF UI renders the browser/wheel; OSF Settings owns engine preferences, hotkeys, the launcher, and Mod Issues. Configure Browser preferences inside the Browser.
 
 Install [b]OSF Animation v1.5.0.zip[/b] with MO2 or Vortex. To browse or use the wheel, also install [b]OSF Animation Browser v1.5.0.zip[/b] and choose the library/emote content you want in its installer. Then in-game:
 [list]
 [*]Open [b]OSF Animation Browser[/b] from the OSF Settings Launcher tab, pick something, and hit LAUNCH.[/*]
 [*]Bind the browser and wheel keys under [b]OSF Animation Browser[/b]. Both start unbound. Aim at an NPC before opening the wheel to emote them instead of yourself.[/*]
-[*]Engine preferences appear under [b]OSF Animation[/b]; browsing preferences and hotkeys appear under [b]OSF Animation Browser[/b].[/*]
+[*]Engine preferences appear under [b]OSF Animation[/b] and Browser hotkeys under [b]OSF Animation Browser[/b]. Edit browsing preferences inside the Browser.[/*]
 [/list]
 No Browser or OSF UI? Gameplay mods can still use the engine's native and Papyrus APIs.
 
@@ -60,8 +60,8 @@ No Browser or OSF UI? Gameplay mods can still use the engine's native and Papyru
 [list]
 [*]End active scenes, close Starfield, and preserve your saves with their .osf sidecars, custom content, wheel pins, and saved settings.[/*]
 [*]Replace the old Animation installation rather than merging. Install the matching engine and Browser packages separately. Move custom files out of an old mod folder before replacing it; keep separate content mods enabled.[/*]
-[*]Remove the obsolete Animation schema by replacing its owning mod files: [font=Courier New]Data/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json[/font]. Keep saved settings values with that name; the new providers can import them.[/*]
-[*]Preferences from the OSF Settings provider [font=Courier New]osf.animation[/font] import once into the separate engine/browser providers without overwriting explicit new values. Older combined OSF UI settings are not migrated.[/*]
+[*]Remove the obsolete Animation schema by replacing its owning mod files: [font=Courier New]Data/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json[/font].[/*]
+[*]Engine settings load and save under [font=Courier New]osf.animation.engine[/font], using defaults when unsaved. Browser preferences load and save in [font=Courier New]SFSE/OSF/browser-preferences.json[/font] under the game's documents folder, using defaults when absent. Old combined settings are not imported.[/*]
 [*][b]Rebind both browser hotkeys.[/b] Wheel pins and scene IDs remain unchanged; keep their referenced content installed. Open the Launcher and check Mod Issues after upgrading.[/*]
 [/list]
 See the complete [url=https://github.com/ozooma10/osf-animation/blob/dev/docs/UPGRADING.md]1.5.0 upgrade guide[/url] and [url=https://github.com/ozooma10/osf-animation/blob/dev/CHANGELOG.md]changelog[/url] on GitHub.
