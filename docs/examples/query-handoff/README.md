@@ -30,8 +30,8 @@ starts and rechecks its handle after waiting. World replacement invalidates runt
 handles; a production quest should also clear its stored handle when loading.
 
 Loop counts may instead use `{"global":"MyMod.esm|0x1234","default":3}`. Values
-are captured at start/handoff. Manual progression is a separate native services
-3.5 capability (`SetSceneAutoAdvance`) for nodes declaring `allowManualHold`;
+are captured per node admission. Manual progression is a services 4.0 caller policy
+(`SetSceneAutoAdvance`) applying to every node;
 it keeps animation running rather than pausing its clock. See [API.md](../../API.md).
 
 The release fixture stage compiles this exact script. The registry suite parses

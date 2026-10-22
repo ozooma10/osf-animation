@@ -2,7 +2,19 @@
 
 All notable changes to OSF Animation are documented here.
 
-## [1.5.0] - Unreleased
+## [2.0.0] - Unreleased
+
+- Global registry nodes with one clip timeline, resolved file defaults and cross-file/pack edges.
+- One transition admission/preparation path for authored edges and exact requests; optional cover
+  is selected per boundary. Providers participate in final-publication route validation.
+- Scene ABI 2.0, services 4.0, catalog schema 4 and compact provider input 2; workspace consumers
+  and Papyrus callers migrated together. Retired aliases, node splice and linear mapping removed.
+- Caller-owned automatic progression for every node, without a content hold grant.
+- Engine-free depth-1 layer composition with byte-equality tests and deeper-stack refusal.
+  Runtime stamping is unchanged; multiple simultaneous layers are deferred.
+- See [migration](docs/V2_MIGRATION.md) and [acceptance](docs/RELEASE_2.0.0_ACCEPTANCE.md).
+
+## [1.5.0] - Prior development baseline (superseded before publication)
 
 Prepared for release; not yet published. See [Upgrading to 1.5.0](docs/UPGRADING.md)
 for installation, saved preferences, and hotkey changes.

@@ -121,7 +121,7 @@ def run(job):
                 driven.add(rig.bones[parent].name)
                 parent = rig.bones[parent].parent
     preserve = [b.name for b in rig.bones if b.name not in driven]
-    scene = {"schema": 1, "id": plan["id"], "name": plan["name"], "pack": plan["pack"],
+    scene = {"schema": 2, "id": plan["id"], "name": plan["name"], "pack": plan["pack"],
              "tags": list(dict.fromkeys(["imported", "prototype", *plan.get("tags", [])])), "hideApparel": False,
              "roles": [{"name": r["name"], **({"gender": r["gender"]} if r.get("gender") else {}),
                         "preserveBones": preserve} for r in plan["roles"]], "stages": []}

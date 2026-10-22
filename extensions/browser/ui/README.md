@@ -57,7 +57,7 @@ extensions/browser/ui/src/ ── Vite ──► build/osfui-animation-browser/.
   `orbit {dx,dy,wheel}` (world-drag steers the native orbit camera; no reply),
   `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
   `requestClose` (view asks the host to hide it — used by the animation wheel).
-  Native→web `activeScenes {scenes:[{handle, sceneId, stage, player,
+  Native→web `activeLaunches {scenes:[{handle, sceneId, stage, player,
   cast:[{token,name,player}]}]}` is the frozen bridge event carrying the authoritative active-launch
   list of runtime scene instances. It is pushed on `opened`, after a launch, and
   on every relevant lifecycle change (stage advance or any termination, including natural ends).

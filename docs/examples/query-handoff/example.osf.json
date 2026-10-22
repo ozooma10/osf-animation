@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "Query and handoff example",
   "placement": "anchorAndPin",
   "playerInputLock": false,
@@ -9,7 +9,7 @@
   "camera": "none",
   "sceneControls": false,
   "roles": [{ "name": "lead" }, { "name": "partner", "offset": { "x": 0.75 } }],
-  "scenes": [
+  "nodes": [
     {
       "id": "osf.example.handoff.start",
       "tags": ["osf-example-handoff-start"],

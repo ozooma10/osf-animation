@@ -27,7 +27,7 @@ Animations catalog with friendly names. No dummy scene is required:
 
 ```jsonc
 {
-  "schema": 1,
+  "schema": 2,
   "pack": "Moods of Andromas",
   "clipRoot": "OSF/Animations/MoodsOfAndromas",
   "folder": "Standing",
@@ -54,18 +54,18 @@ Use `tags` only for optional qualities that should be searchable across folders.
 ### c. Write a minimal scene (`Data/OSF/<yourscene>.osf.json`)
 
 A scene composes animation clip specs with roles, placement, timing, policy, and optional navigation.
-A minimal scene maps an **id** to clip specs + per-role placement + per-linear-stage timing:
+A minimal scene maps an **id** to clip specs + per-role placement + per-stage timing:
 
 ```jsonc
 {
-  "schema": 1,
+  "schema": 2,
   "id": "mypack.greet",
   "tags": ["social", "greet"],            // matchmaking tags
   "roles": [ {}, { "offset": { "y": 1.0, "heading": 180.0 } } ],  // optional; else inferred from clips
   "stages": [
-    // No timer/loops -> the linear stage plays once and the scene completes. Add "loops": 0
+    // No timer/loops -> the stage plays once and the scene completes. Add "loops": 0
     // to loop/hold this clip forever instead (e.g. an idle), or "timer"/"loops" to
-    // auto-advance to the next linear stage.
+    // auto-advance to the next stage.
     { "clips": [
       "OSF/Animations/MyPack/greet_a.glb",
       "OSF/Animations/MyPack/greet_b.glb"
@@ -77,33 +77,24 @@ A minimal scene maps an **id** to clip specs + per-role placement + per-linear-s
 A solo or simple paired clip can stop here — `OSF.StartScene(actors, "mypack.greet")` or a tag query
 will play it.
 
-### d. (optional) Grow it into a graph scene
-The **same** scene grows `nodes[]` (+ `entry`) when you want phases, branching, or declarative
-immersion (camera/weapon/player-input-lock/fade) with **automatic cleanup**. (Furniture world
-anchoring is separate and works for BOTH forms: add an inline `anchor` block — see SCENE_SCHEMA.md
-§ Furniture world anchoring.) Each flow node plays an inline `stages` timeline (the default) or
-`use`s another scene by id:
+### d. (optional) Add tracks and routes
+
+Each node owns its tracks. A multi-node file uses `nodes[]`; every node has a global ID and edges
+name those IDs directly, including across packs. There is no containing scene ID or `entry` key.
+Start the intended node explicitly or tag it for matching.
 
 ```jsonc
 {
-  "schema": 1,
-  "id": "mypack.scenes.greet",
-  "tags": ["social", "greet"],
-  "roles": [ { "name": "lead", "gender": "any" }, { "name": "other", "gender": "any" } ],
-  "entry": "main",
+  "schema": 2,
+  "roles": [{"name": "lead"}, {"name": "other"}],
   "nodes": [
-    {
-      "id": "main",
-      "stages": [ [                                 // inline timeline (bare-array stage = clips only)
-        "OSF/Animations/MyPack/greet_a.glb",        // or "use": "mypack.greet"
-        "OSF/Animations/MyPack/greet_b.glb"
-      ] ],
-      "loops": 0,                                   // hold (same key/meaning as a linear stage)
-      "timer": 8.0,                                 // seconds; armed by the `timer` edge below
-      "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],   // track lanes are flat keys
-      "action": [ { "at": "enter", "type": "osf.control.lock", "role": "lead" } ],
-      "edges": [ { "to": "$end", "when": "timer" } ]   // auto-end after 8s; ledger reverses camera+lock
-    }
+    {"id": "mypack/greet", "tags": ["social", "greet"],
+     "stages": [["OSF/Animations/MyPack/greet_a.glb", "OSF/Animations/MyPack/greet_b.glb"]],
+     "camera": [{"at": "enter", "state": "thirdperson_hold"}],
+     "edges": [{"when": "end", "to": "mypack/idle"}]},
+    {"id": "mypack/idle", "loops": 0,
+     "stages": [["OSF/Animations/MyPack/idle_a.glb", "OSF/Animations/MyPack/idle_b.glb"]],
+     "edges": [{"id": "finish", "label": "Finish", "when": "advance", "to": "$end"}]}
   ]
 }
 ```
@@ -119,7 +110,7 @@ the browser's Emotes group and the default animation wheel — this is the small
 
 ```jsonc
 {
-  "schema": 1,
+  "schema": 2,
   "id": "mypack.emote.salute",
   "tags": ["player.emote.salute"],        // <name> becomes the wheel slice label
   "stages": [

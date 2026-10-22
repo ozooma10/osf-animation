@@ -2,6 +2,10 @@
 
 OSF Animation is a native animation and scene-runtime framework for Starfield.
 
+This checkout targets **2.0.0 (unreleased)**: global node IDs, schema 2 content, scene ABI 2.0,
+services ABI 4.0, and the engine-free depth-1 layer composition seam. Consumers must migrate together.
+See [migration](docs/V2_MIGRATION.md) and [offline acceptance](docs/RELEASE_2.0.0_ACCEPTANCE.md).
+
 Key Features:
 - Synced multi-actor AF/GLTF/GLB playback
 - Optional OSF Animation Browser addon with its own native DLL, the scene browser, animation library (4,600+ base-game clips incl. creatures), and emote wheel
@@ -42,10 +46,10 @@ Key Features:
   Playback and the native/Papyrus APIs remain available with both Browser and OSF UI absent.
   See [native addon ownership and public services](docs/BROWSER_ADDON.md).
 
-## Installing or upgrading to 1.5.0
+## Installing or upgrading to 2.0.0
 
-Install **OSF Animation v1.5.0.zip** for the engine. For the browser and wheel, also
-install **OSF Animation Browser v1.5.0.zip** and OSF UI 2.0.0+. The Browser installer
+Install **OSF Animation v2.0.0.zip** for the engine. For the browser and wheel, also
+install **OSF Animation Browser v2.0.0.zip** and OSF UI 2.0.0+. The Browser installer
 offers the optional vanilla/creature library and emote content. OSF Settings 1.0.0+
 provides settings and the launcher.
 
@@ -54,7 +58,7 @@ and saved user data. Install matching engine/Browser versions and **rebind the t
 browser hotkeys**. Preferences from OSF Settings import once; values from the older
 combined OSF UI service do not. Wheel pins and scene IDs remain unchanged.
 
-Follow the [1.5.0 upgrade guide](docs/UPGRADING.md) for the replacement steps,
+Follow the [2.0.0 upgrade guide](docs/UPGRADING.md) for the replacement steps,
 settings migration details, and first-launch checks. See the [changelog](CHANGELOG.md)
 for the complete release notes.
 

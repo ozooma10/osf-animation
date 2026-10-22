@@ -41,7 +41,7 @@ def load_vanilla_scenes(packs_dir: Path) -> tuple[dict[str, dict], str]:
             clip_root = root
         elif clip_root != root:
             sys.exit(f"{f.name}: clipRoot {root!r} differs from {clip_root!r} — packs out of sync")
-        for s in doc.get("scenes", []):
+        for s in doc.get("nodes", []):
             scenes[s["id"]] = s
     return scenes, clip_root or ""
 
@@ -162,28 +162,28 @@ def main() -> int:
 
     warnings: list[str] = []
     doc = {
-        "schema": 1,
+        "schema": 2,
         "name": manifest.get("packName", "OSF Highlights") + " (generated, do not hand-edit)",
         # Browsing shelf only: keep it out of the matchmaker pool.
         "unlisted": True,
         # Outside the library section, so the library's no-strip default isn't inherited.
-        "stripActors": False,
+        "hideApparel": False,
         "clipRoot": clip_root,
-        "scenes": [],
+        "nodes": [],
     }
     total = 0
     for coll in manifest["collections"]:
         built = build_collection(coll, scenes, warnings)
         n = sum(len(s["stages"]) for s in built.values())
         total += n
-        doc["scenes"].extend(built[k] for k in sorted(built))
+        doc["nodes"].extend(built[k] for k in sorted(built))
         print(f"{coll['id']}: {len(built)} scene(s), {n} clip(s)")
 
     out_file = args.out or (args.packs_dir / "highlights.osf.json")
     with open(out_file, "w", encoding="utf-8", newline="\n") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
         f.write("\n")
-    print(f"\n{out_file.name}: {len(doc['scenes'])} scene(s), {total} clip(s) total")
+    print(f"\n{out_file.name}: {len(doc['nodes'])} scene(s), {total} clip(s) total")
     for w in warnings:
         print("WARNING:", w)
     return 0

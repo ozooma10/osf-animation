@@ -1,6 +1,6 @@
 # Shared scene preparation (H3)
 
-Engine services **3.10** adds a versioned, vetoable preparation boundary before scene-owned
+Engine services **4.0** provides a versioned, vetoable preparation boundary before scene-owned
 dependent playback. It uses the [H2 actor-state service](ACTOR_STATE.md). Animation remains
 content-neutral: consumers decide which devices, resources and attachments a destination needs.
 
@@ -17,7 +17,7 @@ termination. Definitions and the exact destination cast are retained for the att
 motion freezes on the verified frame drain while readiness is pending; speed and user pause
 remain independent. Sampling hooks only queue stage requests and hold the current stage.
 
-Successful `SCENE_BEGIN`, `SCENE_HANDOFF` and destination `NODE_ENTER` follow preparation
+Successful `SCENE_BEGIN`, `NODE_TRANSITION` and destination `NODE_ENTER` follow preparation
 and playback admission. An internal playback segment does not invent a node-enter event.
 A rejected queued start emits `SCENE_END` with interrupted/cancelled cause, without a preceding
 begin/enter, so callers holding its reserved handle receive a terminal acknowledgement.
@@ -31,11 +31,11 @@ Before the first drain, a pending attempt ID can be zero. Playing reports a publ
 playback identity; it is not renderer evidence. Terminal results are retained with the bounded
 ended-roster cache, and disappear on world replacement or handle retirement.
 
-## Covered handoffs (services 3.14)
+## Covered node transitions
 
-`ReplaceSceneRolesCovered` is opt-in and uses the same handoff admission, roles, scopes and
-failure policy. Null roles with zero count retain positional order. It does not broaden matching
-or change existing replacement calls. Invoke it on the verified `Post` drain.
+`ReplaceNode` with `OSFTransitionOptions.covered = true`, or an authored edge with `covered: true`,
+uses the same admission, roles, scopes and failure policy as a seamless transition. Null roles with
+zero count retain positional order. Invoke caller transitions on the verified `Post` drain.
 
 The runtime acquires one exclusive screen-fade token, posts a 250 ms fade-out, and waits
 300 ms before preparing the destination. It holds source motion during preparation and holds
@@ -48,7 +48,7 @@ thread. A long stall cannot authorize a late commit on resume.
 
 `ReadScenePreparation` additionally returns `cover: null` or `{phase,token,startedMs}`, with
 phases `closing`, `preparing`, `blending`, `revealing`. `pending` includes the cover lifetime;
-`status: committed` and `SCENE_HANDOFF` can precede reveal completion. New handoffs are refused
+`status: committed` and `NODE_TRANSITION` can precede reveal completion. New handoffs are refused
 until release. Authored OSF fade actions cannot override the token. Another held OSF fade refuses
 admission; direct game/third-party fades outside this service are not arbitrated.
 
@@ -60,10 +60,10 @@ The coordinator does not add camera restoration, pool selection or content-speci
 ## Native registration and callback lifetime
 
 Copy `OSFEngineAPI.h`, `OSFSceneAPI.h`, `OSFActorState.h` and `OSFPreparation.h`.
-Request services 3.10 and check the negotiated table size. Register/unregister/readback calls
+Request services 4.0 and check the negotiated table size. Register/unregister/readback calls
 require the engine's verified `Post` drain. SFSE's general task queue alone does not qualify.
 
-`ScenePreparer` version 1 has size/version, signed order, timeoutMs, prepare/finish callbacks
+`ScenePreparer` version 2 has size/version, signed order, timeoutMs, prepare/finish callbacks
 and caller context. Registration copies this structure and returns a nonzero token. Callbacks
 and context storage remain owned by the caller until unregistration and any currently executing
 prepare/finish callback have returned. Unregistering inside a callback does not make it safe to
@@ -76,11 +76,10 @@ pending attempts that include that provider and conservatively stops live sessio
 with it, including a provider that contributed readiness without equipment.
 
 `PreparationContext` is a borrowed view of an owned, copied transition description: attempt,
-provider, scene handle, kind (`Start/Handoff/Node/Stage`), source/destination IDs and node IDs,
-stage indices, and actor form IDs in exact destination-role order. Graph nodes without a linear
-stage index use -1; internal segments use zero-based segment indices. Copy fields needed after
-the callback. These IDs are world-local, not persistent references or authoritative matching
-snapshots.
+provider, scene handle, kind (`Start/Transition/Stage`), origin (`Caller/ManualEdge/TimedCue/PlaybackCompletion`),
+`covered`, source/destination global node IDs, actual segment indices, and actor form IDs in exact
+destination-role order. There are no container IDs. Copy anything retained after the callback.
+Actor IDs are world-local, not persistent references or authoritative matching snapshots.
 
 ## Phases
 
@@ -191,7 +190,7 @@ both DLLs compile; the Browser boundary check verifies public-header separation.
 in-game acceptance. Fresh start/handoff/node/internal-stage scenarios, actual item/attachment
 readiness, visible poses, save/load and consumer integration remain live gates. A7 stays open.
 
-## Final commit guard (services 3.14)
+## Final commit guard
 
 Animation captures each participant's H2 world/ownership/equipment revision after Ready's
 reconciliation, before Validate. After every provider has validated, it reconciles again,

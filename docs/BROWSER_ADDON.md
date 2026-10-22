@@ -38,25 +38,21 @@ inside their respective MO2 mods. Generated browser output stays under `build/os
 
 ## APIs and lifetimes
 
-Scene ABI **1.4** appends event identity/cause; existing 1.3 consumers can continue requesting their
-prefix and need neither Browser nor OSF UI. `OSF_RequestEngineAPI` supplies the optional services in
-`src/API/OSFEngineAPI.h`. Copy it alongside `OSFSceneAPI.h`; callers using the typed JSON helpers may
-also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required. Services
-ABI **3.17** retains the existing prefix and adds compact clip-source provider registration. Metadata-only
-`ReadCatalog` calls remain permitted from consumer workers, as introduced in 3.16. Requests negotiate matching
-major and a supported minor, and clients check table size. Released 3.0 Browser requests receive
-a version-stamped 3.0 prefix for their exact-version check; the newer Browser requires its compiled
-minor or later. The unreleased major-1/2 service tables remain unsupported.
+Scene ABI **2.0** and services ABI **4.0** are the breaking baseline. Copy `OSFEngineAPI.h`
+alongside `OSFSceneAPI.h`; typed catalog helpers also use `OSFCatalog.h` and nlohmann/json 3.11.3
+or compatible. No import library is required. Requests require a matching major, supported minor
+and sufficient table size. Older majors/prefix layouts are rejected. Metadata-only `ReadCatalog`
+is permitted from workers; it pins immutable registry data and never accesses game objects.
 
 The new table provides:
 
 - A verified-frame `Post` callback, world-reset/catalog/reload/scene-change notifications, and unsubscribe.
-- Catalog metadata and full structured import diagnostics as schema-3 UTF-8 JSON. `OSFCatalog.h`
+- Catalog metadata and full structured import diagnostics as schema-4 UTF-8 JSON. `OSFCatalog.h`
   defines the value fields; roles expose names/genders, stages expose counts/timing, and anchors expose
   form IDs. This is metadata, not a second mutable registry. Presentation sorting, wheel filtering,
   labels, truncation, and estimates stay in the addon.
 - Positional cast matching and anchor matching, active-scene state, single-stage playback and
-  handle-based speed/pause controls. Existing scene starts/stops/advance still use scene API 1.3.
+  handle-based speed/pause controls. Existing scene starts/stops/advance still use scene API 2.0.
 - Actor identity, world-anchor/navmesh queries, and the shared inspection camera/input mechanisms.
   Browser owns the front-of-view direction, distance, and snap-acceptance policy.
 - Native clip-scene providers: copy `OSFClipScene.h` for the JSON record definition. Providers select
@@ -78,18 +74,18 @@ overlays without requesting the full catalog again. Initial/reload completion up
 library, imports and wheel data; an Imports reload reply waits for the refreshed report. World replacement
 resumes any metadata publication whose queued completion was canceled. Metadata reads use a pinned
 immutable registry and the locked decoded-duration store, never game objects. Older hosts are refused
-before Browser starts the worker; the public table layout and JSON schema are unchanged.
+before Browser starts the worker; the public table layout and JSON schemas use the v2 baseline.
 
-The engine streams full schema-3 catalog JSON directly from the owned catalog values, avoiding a
+The engine streams full schema-4 catalog JSON directly from the owned catalog values, avoiding a
 second full object tree on the producer. `OSFCatalog.h` declares the fields once for both its ordinary
 JSON converters and the streaming visitor. The serializer retains UTF-8 replacement, numeric formatting,
 all fields and array order; JSON object member order is not a contract. Each call owns its output buffer
-through the inline callback. Legacy full-catalog provider inputs use the same serializer. The compact
-schema-1 provider input is unchanged.
+through the inline callback. Full-catalog provider inputs use the same serializer. The compact
+schema-2 provider input is unchanged.
 
 Browser's full-catalog callback uses the JSON library's SAX lexer to populate an owned typed snapshot
 directly, without a generic object tree or a second conversion pass. Mutable visitors use the same
-field declarations as the engine serializer. Required fields, field types, array order and schema 3
+field declarations as the engine serializer. Required fields, field types, array order and schema 4
 are checked; unknown fields are skipped without materializing their values. Duplicate known fields and
 mismatched input types fall back to the previous DOM decoder to preserve its last-value and conversion
 semantics. Malformed responses never publish partial data and retain the last good catalog. The entire
@@ -111,7 +107,7 @@ suffixes, so ordinary existing wheel pins and direct-ID starts continue working 
 installed. Explicit authored `clipLibrary` registrations remain engine content. Core-only installations
 do not generate inspection entries, inspect emote tags, or choose inspection launch defaults.
 
-`RegisterClipSceneProvider` receives the unchanged schema-3 immutable base catalog. Services 3.17 also
+`RegisterClipSceneProvider` receives the unchanged schema-4 immutable base catalog. Services 3.17 also
 offers `RegisterClipSourceProvider`, used by Browser, with the smaller schema-1 `ClipSourceSnapshot`
 from `OSFCatalog.h`. It includes every base scene's ID, source filename, pack, provider, tags, library
 and curated flags, plus every inline clip's source scene and node/stage/clip indexes, raw file,
