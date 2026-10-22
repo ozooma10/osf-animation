@@ -1,4 +1,5 @@
 #include "ActorState/Store.h"
+#include "Profiling/Profile.h"
 
 #include <algorithm>
 #include <limits>
@@ -43,6 +44,7 @@ namespace OSF::ActorState
 	}
 	std::optional<std::vector<Item>> Store::ReadInventory(Actor actor)
 	{
+		OSF_PROFILE_SCOPE("ActorState.ReadInventory");
 		auto inventory = _backend.Read(actor);
 		if (!_preview) {
 			auto canonical = inventory;
@@ -115,6 +117,7 @@ namespace OSF::ActorState
 	Result Store::Acquire(Handle scope, const Request& request, bool replaceGroup,
 		std::optional<std::uint32_t> replaceFallbackGroup)
 	{
+		OSF_PROFILE_SCOPE("ActorState.Acquire");
 		if (!HasScope(scope) || !request.actor || !request.object || request.operation > Operation::HideOptional ||
 			(request.allowAdd && request.operation != Operation::Equip)) return {};
 		if (_saving && _scopes.at(scope).lifetime == Lifetime::Session) return {Status::Unavailable};
@@ -193,6 +196,7 @@ namespace OSF::ActorState
 
 	Status Store::Apply(Actor actor, Displacement displace)
 	{
+		OSF_PROFILE_SCOPE("ActorState.Apply");
 		auto read = ReadInventory(actor);
 		if (!read) return Status::Unavailable;
 		auto& records = _records[actor];
@@ -353,6 +357,7 @@ namespace OSF::ActorState
 	}
 	Status Store::SetSaveWindow(bool saving)
 	{
+		OSF_PROFILE_SCOPE("ActorState.SetSaveWindow");
 		if (_saving == saving) return Status::Ok;
 		_saving = saving;
 		std::vector<Actor> suspended;
@@ -369,6 +374,7 @@ namespace OSF::ActorState
 	}
     Status Store::PreviewPlan(const std::vector<Change>& changes)
     {
+        OSF_PROFILE_SCOPE("ActorState.PreviewPlan");
         // Admission needs ownership and token/save state, not reconciliation or observation history.
         Store preview(_backend);
         preview._preview = true;
@@ -380,6 +386,7 @@ namespace OSF::ActorState
     }
     Status Store::ApplyPlan(const std::vector<Change>& changes)
     {
+        OSF_PROFILE_SCOPE("ActorState.ApplyPlan");
         for (const auto& c : changes) {
             const auto result = c.releaseGroup ? ReleaseGroup(c.scope, c.request.group) :
                 Acquire(c.scope, c.request, c.replaceGroup, c.replaceFallbackGroup).status;

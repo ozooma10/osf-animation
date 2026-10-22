@@ -1,4 +1,5 @@
 #include "Scene/AnchorResolve.h"
+#include "Profiling/Profile.h"
 
 #include "Animation/Scene.h"
 #include "Matchmaking/Matchmaker.h"
@@ -177,6 +178,7 @@ namespace OSF::Scene
 	std::optional<SceneRuntime::AnchorOverride> ResolveSceneAnchor(
 		std::string_view a_sceneId, RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad, bool a_emitHud)
 	{
+		OSF_PROFILE_SCOPE("Anchor.Resolve");
 		const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 		if (!def || !def->RequiresAnchor()) {
 			return MakeAnchorAt(a_ref, a_headingRad);

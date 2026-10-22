@@ -1,4 +1,5 @@
 #include "Registry/SoundRegistry.h"
+#include "Profiling/Profile.h"
 
 #include "Util/RegistryFiles.h"
 #include "Util/StringUtil.h"
@@ -194,6 +195,7 @@ namespace OSF::Registry
 
 	void SoundRegistry::LoadAll()
 	{
+		OSF_PROFILE_SCOPE("Registry.Sound.LoadAll");
 		std::vector<SoundPool> loaded;
 		std::vector<std::string> errors;
 		std::vector<SoundFileStats> stats;

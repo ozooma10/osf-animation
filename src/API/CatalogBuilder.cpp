@@ -1,4 +1,5 @@
 #include "API/CatalogBuilder.h"
+#include "Profiling/Profile.h"
 #include "Registry/ContentRegistry.h"
 #include "Serialization/ClipDurations.h"
 #include "Util/ClipPath.h"
@@ -147,6 +148,7 @@ namespace OSF::API::CatalogBuilder
 	Catalog::Snapshot Build(const Registry::ContentRegistrySnapshot& a_registry,
 		const std::filesystem::path& a_contentRoot)
 	{
+		OSF_PROFILE_SCOPE("API.CatalogBuild");
 		Catalog::Snapshot out;
 		out.scenes.reserve(a_registry.scenes.size());
 		std::unordered_set<std::string> seen;

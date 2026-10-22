@@ -1,4 +1,5 @@
 #include "API/EngineServices.h"
+#include "Profiling/Profile.h"
 #include "API/ActorStateAPI.h"
 #include "API/CatalogBuilder.h"
 #include "API/EngineServiceState.h"
@@ -29,13 +30,16 @@ namespace OSF::API::EngineServices
 		using json = nlohmann::json;
 		bool Send(const json& value, TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.Send");
 			if (!callback) return false;
 			const auto text = value.dump(-1, ' ', false, json::error_handler_t::replace);
+			OSF_PROFILE_GAUGE("API.Send.Bytes", text.size());
 			callback(text.c_str(), context);
 			return true;
 		}
 		bool ReadCatalog(TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.ReadCatalog");
 			try {
 				const auto registry = Registry::ContentRegistry::GetSingleton().ReadSnapshot();
 				std::error_code ec;
@@ -47,6 +51,7 @@ namespace OSF::API::EngineServices
 		}
 		bool MatchCast(RE::Actor* const* actors, std::uint32_t count, TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.MatchCast");
 			if (!actors || count == 0 || count > 32) return false;
 			for (std::uint32_t i=0; i<count; ++i) if (!actors[i]) return false;
 			try {
@@ -94,6 +99,7 @@ namespace OSF::API::EngineServices
         }
 		bool MatchAnchor(RE::TESObjectREFR* ref, TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.MatchAnchor");
 			if (!ref) return false;
 			try {
 				json ids=json::array();
@@ -106,6 +112,7 @@ namespace OSF::API::EngineServices
 		}
 		bool ReadActiveScenes(TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.ReadActiveScenes");
 			try {
 				json scenes=json::array();
 				auto& rt=Scene::SceneRuntime::GetSingleton();
@@ -142,6 +149,7 @@ namespace OSF::API::EngineServices
 			try {
 				const bool registered = Registry::ContentRegistry::GetSingleton().RegisterClipProvider(owner,
 					[provider, context](const Registry::ContentRegistrySnapshot& source) {
+						OSF_PROFILE_SCOPE("API.ClipProviderRebuild");
 						struct Output { std::uint32_t calls{}; std::optional<std::vector<ClipScene>> scenes; } output;
 						const auto text = json(CatalogBuilder::Build(source, {})).dump(-1, ' ', false, json::error_handler_t::replace);
 						provider(text.c_str(), [](const char* text, void* value) noexcept {

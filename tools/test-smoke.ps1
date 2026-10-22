@@ -134,7 +134,7 @@ try {
     Invoke-SmokeStage 'production-build' {
         $env:XSE_SF_MODS_PATH = $productionMods
         $env:XSE_SF_GAME_PATH = $null
-        Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n')
+        Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n','--profiling=n')
         Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
         Invoke-SmokeCommand 'xmake' @('install','-y','-o',$productionMod,'OSF Animation')
         $report.productionDllSha256 = (Get-FileHash -LiteralPath (Join-Path $productionMod 'SFSE/Plugins/OSF Animation.dll')).Hash
@@ -204,7 +204,7 @@ try {
             if (-not (Test-Path -LiteralPath $suite)) { throw '[blocked] Animation runtime harness is missing; pass -Harness.' }
             $env:XSE_SF_MODS_PATH = $runtimeMods
             # Separate output keeps instrumented builds out of build/windows, which the packager uses.
-            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build/smoke-native','--animation_smoke=y')
+            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build/smoke-native','--animation_smoke=y','--profiling=n')
             Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
             Invoke-SmokeCommand 'xmake' @('install','-y','-o',$runtimeMod,'OSF Animation')
             # The harness accepts one private staged mod root. Include the independently built addon DLL.
@@ -246,7 +246,7 @@ try {
         Invoke-SmokeStage 'restore-production-config' {
             $env:XSE_SF_MODS_PATH = $oldMods
             $env:XSE_SF_GAME_PATH = $oldGame
-            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n')
+            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n','--profiling=n')
         }
         if ($identity) {
             Invoke-SmokeStage 'source-unchanged' {

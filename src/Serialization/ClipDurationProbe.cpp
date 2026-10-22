@@ -1,4 +1,5 @@
 #include "Serialization/ClipDurationProbe.h"
+#include "Profiling/Profile.h"
 #include "Serialization/AFImport.h"
 #include "Util/Ba2.h"
 #include "Util/ClipPath.h"
@@ -195,6 +196,7 @@ namespace OSF::Serialization::ClipDurationProbe
 	}
 	API::ClipProbeResult Probe(std::string_view file, std::string_view animId, const API::ClipProbeResult* previous)
 	{
+		OSF_PROFILE_SCOPE("Import.Probe");
 		API::ClipProbeResult result;
 		const std::string    a_fileSpec{ file };
 		const auto           spec = Util::ResolveClipSpec(std::filesystem::path{ a_fileSpec });

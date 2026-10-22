@@ -1,4 +1,5 @@
 #include "Scene/SceneRuntime.h"
+#include "Profiling/Profile.h"
 
 #include "Animation/GraphManager.h"
 #include "Input/InputService.h"
@@ -85,6 +86,8 @@ namespace OSF::Scene
 	void SceneRuntime::OnTimedMarks(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
 		const std::vector<Animation::FiredMark>& a_marks)
 	{
+		OSF_PROFILE_SCOPE("Scene.OnTimedMarks");
+		OSF_PROFILE_GAUGE("Scene.OnTimedMarks.Batch", a_marks.size());
 		(void)a_participants;
 		if (a_marks.empty()) {
 			return;
@@ -221,6 +224,7 @@ namespace OSF::Scene
 
 	bool SceneRuntime::PreparePlayback(const std::shared_ptr<PreparedTransition>& p)
 	{
+		OSF_PROFILE_SCOPE("Scene.PreparePlayback");
 		if (p->context.kind == Preparation::Kind::Stage) return true; // this session already owns every segment
 		if (p->cast.empty() || !PreparationValid(p)) return false;
 		// Definitions and destination cast are pinned by the attempt. No slot identity or
@@ -400,6 +404,7 @@ namespace OSF::Scene
 
 	void SceneRuntime::ApplyTransition(std::int32_t handle, std::string_view oldNode, std::string_view newNode, bool end, std::string_view sceneId, const std::vector<RE::Actor*>& cast, TransitionOrigin origin)
 	{
+		OSF_PROFILE_SCOPE("Scene.ApplyTransition");
 		SlotView old;
 		if (!SnapshotSlot(handle, old))
 			return;
@@ -449,6 +454,7 @@ namespace OSF::Scene
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
 		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor, const StartOverrides& a_over)
 	{
+		OSF_PROFILE_SCOPE("Scene.Start");
 		auto& registry = Registry::ContentRegistry::GetSingleton();
 		const auto definition = registry.ResolveLoopGlobals(registry.Find(a_id));
 		// Every def start funnels here: participants[i] must satisfy roles[i]'s filters.
@@ -770,6 +776,7 @@ namespace OSF::Scene
 
 	bool SceneRuntime::Navigate(std::int32_t a_scene, std::string_view a_edgeId)
 	{
+		OSF_PROFILE_SCOPE("Scene.Navigate");
 		const auto wantId = Util::ToLower(std::string(a_edgeId));
 		return TakeEdge(a_scene, [&wantId](const Registry::SceneNode& a_node) -> const Registry::SceneEdge* {
 			for (const auto& e : a_node.edges) {

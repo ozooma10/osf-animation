@@ -1,4 +1,5 @@
 #include "Animation/GraphManager.h"
+#include "Profiling/Profile.h"
 #include "Equipment/EquipmentService.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/AlignmentStore.h"
@@ -136,6 +137,7 @@ namespace OSF::Scene
 	}
 	void SceneRuntime::StartPreparation(const std::shared_ptr<PreparedTransition>& p)
 	{
+		OSF_PROFILE_SCOPE("Prep.Start");
 		if (!PreparationValid(p)) {
 			FinishPreparation(p, p->reset ? Outcome::WorldReset : p->failureReason == "transition-cover-timeout" ? Outcome::TimedOut : Outcome::Cancelled, false);
 			return;
@@ -219,6 +221,7 @@ namespace OSF::Scene
 	}
 	void SceneRuntime::PollPreparation()
 	{
+		OSF_PROFILE_SCOPE("Prep.Poll");
 		if (_preparationPollQueued || _preparers.PendingCount() == 0)
 			return;
 		_preparationPollQueued = true;
@@ -231,6 +234,7 @@ namespace OSF::Scene
 	}
 	bool SceneRuntime::BuildPreparationPlan(const std::shared_ptr<PreparedTransition>& p)
 	{
+		OSF_PROFILE_SCOPE("Prep.BuildPlan");
 		if (!PreparationValid(p))
 			return false;
 		auto&      state = ActorState::Get();
@@ -357,6 +361,7 @@ namespace OSF::Scene
 	}
 	bool SceneRuntime::CommitPreparation(const std::shared_ptr<PreparedTransition>& p)
 	{
+		OSF_PROFILE_SCOPE("Prep.Commit");
 		if (!PreparationValid(p))
 			return false;
 		if (p->covered && (p->coverState.Expired(NowMs()) || !UI::FadeService::GetSingleton().OwnsTransition(p->coverToken))) {
@@ -412,6 +417,7 @@ namespace OSF::Scene
 	}
 	void SceneRuntime::FinishPreparation(const std::shared_ptr<PreparedTransition>& p, Outcome outcome, bool applied)
 	{
+		OSF_PROFILE_SCOPE("Prep.Finish");
 		_preparations.erase(p->context.attempt);
 		if (p->covered && (p->reset || outcome != Outcome::Committed)) ReleaseCover(p);
 		if (p->reset || outcome == Outcome::WorldReset)

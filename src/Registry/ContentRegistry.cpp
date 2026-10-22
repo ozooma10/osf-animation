@@ -1,4 +1,5 @@
 #include "Registry/ContentRegistry.h"
+#include "Profiling/Profile.h"
 #include "Registry/ContentRegistryClips.h"
 
 #include "Input/InputTypes.h"
@@ -2361,6 +2362,7 @@ namespace OSF::Registry
 
 	void ContentRegistry::LoadAll()
 	{
+		OSF_PROFILE_SCOPE("Registry.LoadAll");
 		std::unordered_map<std::string, SceneDef> loaded;
 		std::vector<std::string> errors;
 		std::vector<PendingImportProblem> pendingProblems;
@@ -2386,9 +2388,11 @@ namespace OSF::Registry
 
 		Util::ForEachRegistryJson(".osf.json",
 			[](std::ifstream& a_input) {
+				OSF_PROFILE_SCOPE("Registry.LoadAll.ParseJson");
 				return nlohmann::json::parse(a_input, nullptr, true, true);
 			},
 			[&](const Util::RegistryJsonSource& a_source, const nlohmann::json& a_json) {
+				OSF_PROFILE_SCOPE("Registry.LoadAll.File");
 				auto& stats = ensureFileStats(a_source);
 				if (const auto scenes = a_json.find("scenes"); scenes != a_json.end() && scenes->is_array()) {
 					stats.declaredScenes = static_cast<std::uint32_t>(scenes->size());
@@ -2438,13 +2442,24 @@ namespace OSF::Registry
 					std::chrono::steady_clock::now() - a_source->begun).count();
 			});
 
-		ValidateUseRefs(loaded, problems);
+		{
+			OSF_PROFILE_SCOPE("Registry.LoadAll.ValidateUseRefs");
+			ValidateUseRefs(loaded, problems);
+		}
 
-		SweepClipAvailability(loaded, problems, clipCache);
+		{
+			// One installed probe (BSResource opens) per distinct clip spec.
+			OSF_PROFILE_SCOPE("Registry.LoadAll.SweepClips");
+			SweepClipAvailability(loaded, problems, clipCache);
+		}
 		const auto sceneCount = loaded.size();
-		AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
+		{
+			OSF_PROFILE_SCOPE("Registry.LoadAll.FileStats");
+			AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
+		}
 		std::map<std::string, std::uint32_t> clipEntriesByFile;
-		const auto clipEntryCount = AddRegisteredClipEntries(loaded, clipLibrary, problems, clipEntriesByFile, clipCache);
+		const auto clipEntryCount = OSF_PROFILE_CALL("Registry.LoadAll.ClipEntries",
+			AddRegisteredClipEntries(loaded, clipLibrary, problems, clipEntriesByFile, clipCache));
 		for (const auto& [path, count] : clipEntriesByFile) {
 			if (const auto it = fileIndex.find(path); it != fileIndex.end()) {
 				fileStats[it->second].clipEntries = count;
@@ -2489,6 +2504,7 @@ namespace OSF::Registry
 			}
 		next->clipAvailability = std::move(clipCache);
 		{
+			OSF_PROFILE_SCOPE("Registry.LoadAll.Publish");
 			std::lock_guard lock(providerMutex);
 			baseSnapshot = std::move(next);
 			PublishProviders();

@@ -10,6 +10,8 @@
 #include "Input/InputService.h"
 #include "Maintenance/FrameMaintenance.h"
 #include "Papyrus/OSFScript.h"
+#include "Profiling/Profile.h"
+#include "Profiling/ProfilerHost.h"
 #include "Registry/RequirementRegistry.h"
 #include "Registry/ContentRegistry.h"
 #include "Registry/SoundRegistry.h"
@@ -31,22 +33,44 @@ namespace
 	{
 		switch (a_msg->type) {
 		case SFSE::MessagingInterface::kPostDataLoad: {
+			OSF_PROFILE_SCOPE("Boot.PostDataLoad");
 			// Before the loaders, which are the first health producers; also flushes load-time reports.
 			OSF::API::Health::Connect();
-			OSF::Registry::RequirementRegistry::LoadAll();
+			{
+				OSF_PROFILE_SCOPE("Boot.RequirementRegistry");
+				OSF::Registry::RequirementRegistry::LoadAll();
+			}
 			OSF::API::MinimumVersion::EnablePrompts();
-			OSF::Registry::ContentRegistry::GetSingleton().LoadAll();
-			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
+			{
+				OSF_PROFILE_SCOPE("Boot.ContentRegistry");
+				OSF::Registry::ContentRegistry::GetSingleton().LoadAll();
+			}
+			{
+				OSF_PROFILE_SCOPE("Boot.SoundRegistry");
+				OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
+			}
 			OSF::API::Health::ReportRegistryLoad();
-			OSF::Equipment::Gear::LoadAll();
-			OSF::Scene::Alignment::Load();
+			{
+				OSF_PROFILE_SCOPE("Boot.Gear");
+				OSF::Equipment::Gear::LoadAll();
+			}
+			{
+				OSF_PROFILE_SCOPE("Boot.Alignment");
+				OSF::Scene::Alignment::Load();
+			}
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
-			if (!OSF::Papyrus::RegisterFunctions()) {
-				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
+			{
+				OSF_PROFILE_SCOPE("Boot.Papyrus");
+				if (!OSF::Papyrus::RegisterFunctions()) {
+					REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
+				}
 			}
 			OSF::API::MarkReady();
 			// After the registries so initial settings apply to loaded services.
-			OSF::API::InstallEngineSettings();
+			{
+				OSF_PROFILE_SCOPE("Boot.EngineSettings");
+				OSF::API::InstallEngineSettings();
+			}
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
@@ -88,6 +112,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	REX::INFO("[Boot] {} v{} loading — supported game version {}, running on {}",
 		SFSE::GetPluginName(), SFSE::GetPluginVersion().string(),
 		kVerifiedGameVersion.string(), runtime.string());
+	OSF_PROFILE_HOST_INIT(runtime.string());
 	if (runtime != kVerifiedGameVersion) {
 		REX::WARN("[Boot] Unsupported game version: OSF Animation was last tested against Starfield version {} only, but this is {}. "
 			"Not all features may be available",

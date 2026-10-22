@@ -15,7 +15,7 @@ Push-Location $repo
 try {
     $env:XSE_SF_MODS_PATH = Join-Path $repo ('build/packages/staging-' + [guid]::NewGuid().ToString('N'))
     $env:XSE_SF_GAME_PATH = $null
-    & xmake f -y -p windows -a x64 -m releasedbg -o build --animation_smoke=n
+    & xmake f -y -p windows -a x64 -m releasedbg -o build --animation_smoke=n --profiling=n
     if ($LASTEXITCODE) { throw 'Production configuration failed.' }
     & xmake build -y -j4 'OSF Animation'
     if ($LASTEXITCODE) { throw 'Production build failed.' }

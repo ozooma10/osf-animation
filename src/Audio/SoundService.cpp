@@ -1,6 +1,7 @@
 #include "Audio/SoundService.h"
 
 #include "Audio/WwiseBackend.h"
+#include "Profiling/Profile.h"
 #include "Testing/D3AudioProbe.h"
 #include "Util/MonotonicClock.h"
 
@@ -60,6 +61,7 @@ namespace OSF::Audio
 						return false;
 					}
 					_jobs.push_back(std::move(a_job));
+					OSF_PROFILE_GAUGE("Audio.QueueDepth", _jobs.size());
 #ifdef OSF_ANIMATION_SMOKE
 					Testing::D3AudioProbe::Point(d3, "queueDepth", _jobs.size());
 #endif
@@ -104,6 +106,7 @@ namespace OSF::Audio
 
 			void Run()
 			{
+				OSF_PROFILE_THREAD_NAME("OSF Audio Worker");
 				for (;;) {
 					Job job;
 					{
@@ -113,6 +116,7 @@ namespace OSF::Audio
 						_jobs.pop_front();
 					}
 					try {
+						OSF_PROFILE_SCOPE("Audio.Job");
 						job.run();
 					} catch (const std::exception& e) {
 						REX::ERROR("[Audio] background audio job failed: {}", e.what());
@@ -305,6 +309,7 @@ namespace OSF::Audio
 
 	bool SoundService::PlayImpl(std::uint64_t a_slot, std::uint64_t a_channel, const std::string& a_dataRelPath, std::uint64_t a_gameObject, std::uint64_t a_detectedNs)
 	{
+		OSF_PROFILE_SCOPE("Audio.PlayImpl");
 		if (!a_detectedNs) a_detectedNs = Util::MonotonicNs();
 		const auto eventID = Wwise::ParseEventSpec(a_dataRelPath);
 		if (a_dataRelPath.starts_with("event:") && !eventID) return false;
@@ -355,11 +360,12 @@ namespace OSF::Audio
 					std::lock_guard l{ lock };
 					if (!Ready(a_slot, a_channel, ticket, "cancelledBeforePrepareNs")) return;
 				}
-				const auto media = Wwise::PrepareExternalFile(rel);
+				const auto media = OSF_PROFILE_CALL("Audio.Job.Prepare", Wwise::PrepareExternalFile(rel));
 				if (!media.data) {
 					REX::WARN("[Audio] media preparation failed '{}' — cue skipped", path);
 					return;
 				}
+				OSF_PROFILE_SCOPE("Audio.Job.Commit");
 				(void)Commit(a_slot, a_channel, ticket, path, [&] { return Wwise::PostPreparedFile(media, a_gameObject); });
 			},
 			[

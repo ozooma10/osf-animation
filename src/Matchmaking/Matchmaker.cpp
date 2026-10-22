@@ -1,4 +1,5 @@
 #include "Matchmaking/Matchmaker.h"
+#include "Profiling/Profile.h"
 #include "Matchmaking/RoleBinding.h"
 
 #include "Registry/ContentRegistry.h"
@@ -146,6 +147,7 @@ namespace OSF::Matchmaking
 			RE::TESObjectREFR* a_anchor, AnchorMode a_mode, std::string_view a_exclude,
 			std::optional<Animation::WorldPlacementMode> a_placement, const RoleConstraints& a_roles)
 		{
+			OSF_PROFILE_SCOPE("Match.BuildPool");
 			const auto count = static_cast<std::int32_t>(a_actors.size());
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
 
@@ -366,6 +368,7 @@ namespace OSF::Matchmaking
 		RE::TESObjectREFR* a_anchor, AnchorMode a_mode, std::string_view a_exclude,
 		std::optional<Animation::WorldPlacementMode> a_placement, const RoleConstraints& a_roles)
 	{
+		OSF_PROFILE_SCOPE("Match.Pick");
 		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
 		const bool debugLog = spdlog::should_log(spdlog::level::debug);
 		if (debugLog) {

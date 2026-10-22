@@ -1,5 +1,6 @@
 #include "Scene/SceneRuntime.h"
 #include "Animation/GraphManager.h"
+#include "Profiling/Profile.h"
 #include "UI/FadeService.h"
 #include "Util/MonotonicClock.h"
 #include "Util/NativeMainThreadQueue.h"
@@ -21,7 +22,7 @@ namespace OSF::Scene {
         if (resume) Animation::GraphManager::GetSingleton().HoldForPreparation(p->cast.front(),p->published,false);
     }
     void SceneRuntime::PollCover(const std::shared_ptr<PreparedTransition>& p) {
-        Util::NativeMainThreadQueue::Post([this,p] {
+        Util::NativeMainThreadQueue::Post(OSF_PROFILE_TASK("Scene.PollCover", [this,p] {
             if (p->coverReleased) return;
             bool live{};
             {
@@ -48,6 +49,6 @@ namespace OSF::Scene {
             }
             if (p->coverState.Finished(now)) { ReleaseCover(p); return; }
             PollCover(p);
-        });
+        }));
     }
 }

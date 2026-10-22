@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Util/StringUtil.h"
+#include "Profiling/Profile.h"
 
 #include <algorithm>
 #include <chrono>
@@ -66,6 +67,7 @@ namespace OSF::Util
 		std::size_t a_maxFiles = kMaxRegistryFiles,
 		std::size_t a_maxEntriesScanned = kMaxRegistryEntriesScanned)
 	{
+		OSF_PROFILE_SCOPE("Registry.Discover");
 		namespace fs = std::filesystem;
 		RegistryFileDiscovery result;
 

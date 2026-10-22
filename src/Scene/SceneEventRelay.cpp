@@ -1,4 +1,5 @@
 #include "Scene/SceneEventRelay.h"
+#include "Profiling/Profile.h"
 
 #include "API/SceneAPIControl.h"
 
@@ -166,8 +167,12 @@ namespace OSF::Scene
 
 	void SceneEventRelay::Dispatch(const SceneEvent& a_event)
 	{
+		OSF_PROFILE_SCOPE("Scene.Relay.Dispatch");
 		// Native consumers run synchronously at the authored runtime mark.
-		API::DispatchNativeSceneEvent(a_event);
+		{
+			OSF_PROFILE_SCOPE("Scene.Relay.Native");
+			API::DispatchNativeSceneEvent(a_event);
+		}
 		// Opt-in cues stop before collecting VM targets or allocating a Papyrus payload.
 		// Lifecycle events retain their ordinary delivery regardless of this internal flag.
 		if (a_event.event == Event::kCue && a_event.nativeOnly) {
@@ -206,6 +211,7 @@ namespace OSF::Scene
 			REX::WARN("[Scene] Dispatch: no VM");
 			return;
 		}
+		OSF_PROFILE_SCOPE("Scene.Relay.Papyrus");
 		RE::BSScript::Variable payload;
 		if (!PackPayload(vm, a_event, payload)) {
 			return;

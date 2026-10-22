@@ -8,7 +8,7 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the fourteen engine-free C++ suites (shared preparation/rollback, actor-state ownership/reconciliation, persistence broker,
+- **Tests:** `xmake test` builds and runs the fifteen engine-free C++ suites (profiler core, shared preparation/rollback, actor-state ownership/reconciliation, persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
   synthetic AF/rig/BA2 fixtures, playback session transitions/marks, frame clock/clip specs, clip-duration cache, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
   `test/fixtures`; the scene registry suite also exercises the production catalog builder). Run it after
@@ -22,6 +22,13 @@ voice/sound, camera hold);
   hosts; the default uses the pinned releases. `-Plan` is read-only. Runtime instrumentation requires `--animation_smoke=y`,
   defaults off, and must never be deployed to the normal mod or packaged. The bench uses separate
   `build/smoke-native` output and restores production configuration. See `docs/SMOKE_TESTING.md`.
+- **Profiling:** `pwsh -NoProfile -File tools/profiling/Build-ProfilingOverride.ps1` builds the development-only
+  profiler (`--profiling=y`, output `build/profile`) and deploys only its DLL/PDB to the separate MO2 mod
+  `OSF Animation Profiling`, then restores production configuration. Never deploy it to the normal mod or
+  package it (the `OSFAnimationProfilingBuild` marker is rejected). Production stays `--profiling=n`; every
+  scripted `xmake f` passes it. Instrument only through `shared/Profiling/Profile.h` macros (no-ops in
+  production). Commands: `tools/profiling/Invoke-Profiler.ps1`; results: `Show-ProfileStats.ps1`. See
+  `docs/PROFILING.md`.
 - **UI build:** `extensions/browser/ui` uses a local Vite/Octane build. Run `npm ci`
   there before UI scripts. The retired OSF UI authoring CLI is no longer required.
 - **UI / Settings SDKs:** vendored from *released* tags, never a sibling's working tree:
@@ -96,6 +103,11 @@ Each entry: **system** (`path`) — role.
   public C ABI for per-plugin record streams in one atomic `.osf` sidecar (`OSFP` container); deterministic/bounded broker, load remap/delete forwarding, save/load/delete hooks, and internal `OSFA` client. See `docs/PERSISTENCE_API.md`.
 - **Startup** (`src/main.cpp`) — logs game-version vs RE build, loads packs+scenes+sound pools, inits
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
+- **Profiler** (`shared/Profiling/*`, `src/Profiling/ProfilerHost.*`, development-only) — engine-free core:
+  scope registry, per-thread aggregates (owner-cleared on reset), sequence-locked per-thread trace rings,
+  per-frame OSF time from the frame hook, allocation counting via replaced global `operator new`, and
+  stats JSON + gzipped Chrome-trace dumps. The host (profiling build only) owns the profiles folder,
+  `command.json`/`status.json`, auto-dumps at scene end and world reset, and `[Profile]` logging.
 
 ### Layer B - scene runtime
 - **SceneLauncher** (`src/Scene/SceneLauncher.*`) — shared registered-scene launch path for Papyrus,
@@ -208,7 +220,7 @@ file). Two rules keep it cohesive:
     steps, anchor/placement geometry, sync/frame-lock, ledger push/pop.
 - **Tag by subsystem.** Every line starts with one bracketed tag so the log greps cleanly:
   `[Boot] [Feature] [Anim] [Scene] [Registry] [Sound] [Match] [Papyrus] [API] [Audio] [Camera] [Player]
-  [Input] [Hotkey] [Equip] [Weapon] [UI] [Save] [Config]`. Don't restate the subsystem in the message text.
+  [Input] [Hotkey] [Equip] [Weapon] [UI] [Save] [Config] [Profile]`. Don't restate the subsystem in the message text.
   (`[API]` = the native C++ inter-plugin API in `src/API/`; see `docs/API.md`.)
 
 A dev gets the full firehose without recompiling via the in-game OSF Settings menu — OSF

@@ -1,4 +1,5 @@
 #pragma once
+#include "Profiling/Profile.h"
 #include "Util/NativeMainThreadQueue.h"
 #include <atomic>
 #include <cstdint>
@@ -41,7 +42,7 @@ namespace OSF::API
 			if (!callback) return false;
 			try {
 				const auto epoch = Epoch();
-				Util::NativeMainThreadQueue::Post([=, this] { try { callback(context, epoch == Epoch()); } catch (...) {} });
+				Util::NativeMainThreadQueue::Post(OSF_PROFILE_TASK("API.FrameCallback", [=, this] { try { callback(context, epoch == Epoch()); } catch (...) {} }));
 				return true;
 			} catch (...) { return false; }
 		}

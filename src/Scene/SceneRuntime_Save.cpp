@@ -1,4 +1,5 @@
 #include "Scene/SceneRuntime.h"
+#include "Profiling/Profile.h"
 
 namespace OSF::Scene
 {
@@ -6,6 +7,7 @@ namespace OSF::Scene
 	void SceneRuntime::OnSaveEnd() { SetEquipmentSaveWindow(false); }
 	void SceneRuntime::SetEquipmentSaveWindow(bool saving)
 	{
+		OSF_PROFILE_SCOPE("Save.EquipWindow");
 		_preparationSaving = saving;
 		if (saving) {
 			std::lock_guard l{ _lock };

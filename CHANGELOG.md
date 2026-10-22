@@ -26,6 +26,12 @@ for installation, saved preferences, and hotkey changes.
 
 ### Added
 
+- Developer profiling: a separate, development-only profiler override build
+  (`tools/profiling/Build-ProfilingOverride.ps1`) records named scopes, lock waits, allocations,
+  counters and per-frame OSF cost on every thread, and writes stats JSON and Perfetto/Chrome
+  trace files under `SFSE/OSF/profiles`. The released DLL contains no profiler code; packaging
+  rejects profiling builds. See [the profiling guide](docs/PROFILING.md).
+
 - Shared preparation through engine services 3.10: versioned preparers, equipment plans,
   exact resource reservations, bounded readiness and rollback before scene starts, handoffs,
   node changes and internal playback stages. Starts now return reserved handles; lifecycle

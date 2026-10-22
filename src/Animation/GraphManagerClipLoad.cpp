@@ -1,4 +1,5 @@
 #include "Animation/GraphManagerClipLoad.h"
+#include "Profiling/Profile.h"
 
 #include "Animation/GraphManager.h"
 #include "Serialization/AFImport.h"
@@ -37,6 +38,7 @@ namespace OSF::Animation
 
 		std::optional<std::vector<std::uint8_t>> ReadResourceFile(std::string_view a_relPath)
 		{
+			OSF_PROFILE_SCOPE("Load.ReadResource");
 			const auto relPath = Util::NormalizeResourcePath(a_relPath);
 			if (relPath.empty()) {
 				return std::nullopt;
@@ -60,6 +62,7 @@ namespace OSF::Animation
 		// Loose files override BA2 via BSResource, so an extracted rig still wins.
 		std::optional<std::vector<std::uint8_t>> LoadHumanRigBytes()
 		{
+			OSF_PROFILE_SCOPE("Load.RigBytes.Human");
 			const char* candidates[] = {
 				"OSF\\skeleton.rig",
 				"OSF\\Animations\\skeleton.rig",
@@ -78,6 +81,7 @@ namespace OSF::Animation
 		// Falls back to the human rig so an unexpected path binds wrong-but-safe instead of failing.
 		std::optional<std::vector<std::uint8_t>> LoadSpeciesRigBytes(const std::string& a_rigResPath)
 		{
+			OSF_PROFILE_SCOPE("Load.RigBytes.Species");
 			if (auto bytes = ReadResourceFile(a_rigResPath); bytes && !bytes->empty()) {
 				REX::TRACE("[Anim] rig: species resource {} ({} bytes)", a_rigResPath, bytes->size());
 				return bytes;
@@ -111,6 +115,7 @@ namespace OSF::Animation
 		// `.af` -> AFImport (against its species rig); anything else (`.glb`/`.gltf`) -> GLTFImport.
 		Result Load(const Util::ClipSpec& a_spec, std::string_view a_animId)
 		{
+			OSF_PROFILE_SCOPE("Load.Clip");
 			Result out;
 			for (std::size_t candidateIndex = 0; candidateIndex < a_spec.candidates.size(); candidateIndex++) {
 				const auto& cand = a_spec.candidates[candidateIndex];
@@ -176,11 +181,17 @@ namespace OSF::Animation
 					cached = true;
 				}
 
+				if (cached) {
+					OSF_PROFILE_COUNTER("Load.Clip.CacheHit", 1);
+				} else {
+					OSF_PROFILE_COUNTER("Load.Clip.CacheMiss", 1);
+				}
 				if (!cached) {
 					auto bytes = ReadResourceFile(cand.resourcePath);
 					if (!bytes) {
 						continue;
 					}
+					OSF_PROFILE_GAUGE("Load.Clip.Bytes", bytes->size());
 
 					if (isAf) {
 						auto r = Serialization::AFImport::LoadAnimation(cand.resourcePath, *bytes, rigKey, rigProvider);

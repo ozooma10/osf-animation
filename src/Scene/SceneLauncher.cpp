@@ -1,4 +1,5 @@
 #include "Scene/SceneLauncher.h"
+#include "Profiling/Profile.h"
 
 #include "Animation/GraphManager.h"
 #include "Matchmaking/Matchmaker.h"
@@ -128,6 +129,7 @@ namespace OSF::Scene
 	std::int32_t LaunchDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
 		const DefLaunchOptions& a_opts, const char* a_logTag, const std::vector<std::string>* a_roles)
 	{
+		OSF_PROFILE_SCOPE("Launch.Def");
 		if (!ValidActors(a_actors, a_logTag)) {
 			return 0;
 		}

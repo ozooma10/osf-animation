@@ -1,4 +1,5 @@
 #include "Preparation/Coordinator.h"
+#include "Profiling/Profile.h"
 
 #include <algorithm>
 #include <limits>
@@ -81,6 +82,7 @@ namespace OSF::Preparation
 	}
 	void Coordinator::Finish(const std::shared_ptr<Attempt>& a, Outcome outcome)
     {
+        OSF_PROFILE_SCOPE("Prep.Coordinator.Finish");
         if (a->finishing) return;
         a->finishing = true;
         _attempts.erase(a->context.attempt); // callbacks cannot cancel/re-publish this attempt
@@ -123,6 +125,7 @@ namespace OSF::Preparation
     }
     void Coordinator::Pump(const std::shared_ptr<Attempt>& a, std::uint64_t nowMs)
     {
+        OSF_PROFILE_SCOPE("Prep.Coordinator.Pump");
         a->pumping = true;
         try {
             if (nowMs >= a->deadline) a->cancelled = Outcome::TimedOut;
@@ -130,7 +133,7 @@ namespace OSF::Preparation
                 if (a->index < a->providers.size()) {
                     const auto i = a->index;
                     a->entered[i] = true; a->calling = a->providers[i].token;
-                    const auto decision = a->providers[i].provider.invoke(a->context, a->phase);
+                    const auto decision = OSF_PROFILE_CALL("Prep.Provider", a->providers[i].provider.invoke(a->context, a->phase));
                     a->calling = 0;
                     if (!Valid(a)) break;
                     if (decision == Decision::Pending && (a->phase == Phase::Plan || a->phase == Phase::Ready)) break;
@@ -143,32 +146,32 @@ namespace OSF::Preparation
                     if (!Valid(a)) break;
                     if (!accepted) { a->cancelled = Outcome::Vetoed; break; }
                     a->applied = true;
-                    const bool applied = a->hooks.apply();
+                    const bool applied = OSF_PROFILE_CALL("Prep.Phase.Apply", a->hooks.apply());
                     if (!Valid(a)) break;
                     if (!applied) { a->cancelled = Outcome::Failed; break; }
                     a->phase = Phase::Apply; a->index = 0;
                 } else if (a->phase == Phase::Apply) {
                     a->phase = Phase::Ready; a->index = 0;
                 } else if (a->phase == Phase::Ready) {
-                    const auto ready = a->hooks.ready();
+                    const auto ready = OSF_PROFILE_CALL("Prep.Phase.Ready", a->hooks.ready());
                     if (!Valid(a)) break;
                     if (ready == Decision::Pending) break;
                     if (ready != Decision::Approve) { a->cancelled = Outcome::Failed; break; }
                     a->phase = Phase::Validate; a->index = 0;
                 } else {
                     a->sealing = true;
-                    const bool reconciled = !a->hooks.beforeCommit || a->hooks.beforeCommit();
+                    const bool reconciled = OSF_PROFILE_CALL("Prep.Phase.BeforeCommit", !a->hooks.beforeCommit || a->hooks.beforeCommit());
                     if (!Valid(a)) break;
                     if (!reconciled) { a->cancelled = Outcome::Failed; break; }
                     for (auto& entry : a->guards) {
                         entry.entered = true; a->calling = entry.provider;
-                        const bool acquired = entry.guard.acquire();
+                        const bool acquired = OSF_PROFILE_CALL("Prep.Phase.Guard", entry.guard.acquire());
                         a->calling = 0;
                         if (!Valid(a)) break;
                         if (!acquired) { a->cancelled = Outcome::Failed; break; }
                     }
                     if (!Valid(a)) break;
-                    const bool current = !a->hooks.checkCommit || a->hooks.checkCommit();
+                    const bool current = OSF_PROFILE_CALL("Prep.Phase.CheckCommit", !a->hooks.checkCommit || a->hooks.checkCommit());
                     if (!Valid(a)) break;
                     if (!current) { a->cancelled = Outcome::Failed; break; }
                     const bool committed = a->hooks.commit();
@@ -184,6 +187,7 @@ namespace OSF::Preparation
     }
     void Coordinator::Tick(std::uint64_t nowMs)
     {
+        OSF_PROFILE_SCOPE("Prep.Coordinator.Tick");
         if (_ticking) return;
         _ticking = true;
 		struct Guard

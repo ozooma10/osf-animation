@@ -1,4 +1,5 @@
 #include "Registry/ContentRegistry.h"
+#include "Profiling/Profile.h"
 #include "Registry/ContentRegistryClips.h"
 #include "Util/StringUtil.h"
 #include "Util/Species.h"
@@ -28,6 +29,7 @@ namespace OSF::Registry
 
 	void ContentRegistry::PublishProviders()
 	{
+		OSF_PROFILE_SCOPE("Registry.PublishProviders");
 		if (providers.empty()) {
 			snapshot.store(baseSnapshot, std::memory_order_release);
 			return;

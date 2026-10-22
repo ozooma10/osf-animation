@@ -1,4 +1,5 @@
 #include "Serialization/PersistenceBroker.h"
+#include "Profiling/Profile.h"
 
 #include <algorithm>
 #include <array>
@@ -336,6 +337,7 @@ namespace OSF::Serialization
 
 	std::vector<std::byte> PersistenceBroker::SaveToBytes(std::uint32_t hostVersion, SaveStats* outStats)
 	{
+		OSF_PROFILE_SCOPE("Persist.SaveToBytes");
 		std::lock_guard operationLock(_operationMutex);
 		SaveStats stats;
 		std::vector<std::byte> output;
@@ -442,6 +444,7 @@ namespace OSF::Serialization
 	PersistenceBroker::LoadStats PersistenceBroker::LoadFromBytes(
 		std::span<const std::byte> bytes, const FormResolver& resolver, bool revertFirst)
 	{
+		OSF_PROFILE_SCOPE("Persist.LoadFromBytes");
 		std::lock_guard operationLock(_operationMutex);
 		LoadStats stats;
 		const auto clients = Snapshot();
@@ -567,6 +570,7 @@ namespace OSF::Serialization
 
 	void PersistenceBroker::NotifyFormDeleted(std::uint32_t formID)
 	{
+		OSF_PROFILE_SCOPE("Persist.FormDeleted");
 		std::lock_guard operationLock(_operationMutex);
 		for (const auto& client : Snapshot()) {
 			if (!client->formDeleted) {
@@ -596,6 +600,7 @@ namespace OSF::Serialization
 	bool PersistenceBroker::SaveAtomic(const std::filesystem::path& path, std::uint32_t hostVersion,
 		SaveStats* stats, const AtomicReplacer& replacer)
 	{
+		OSF_PROFILE_SCOPE("Persist.SaveAtomic");
 		const auto bytes = SaveToBytes(hostVersion, stats);
 		std::error_code ec;
 		std::filesystem::create_directories(path.parent_path(), ec);
@@ -629,6 +634,7 @@ namespace OSF::Serialization
 	PersistenceBroker::LoadStats PersistenceBroker::LoadFile(const std::filesystem::path& path,
 		const FormResolver& resolver, bool revertFirst, bool* found)
 	{
+		OSF_PROFILE_SCOPE("Persist.LoadFile");
 		std::ifstream input(path, std::ios::binary | std::ios::ate);
 		if (!input) {
 			if (found) {

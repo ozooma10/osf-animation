@@ -37,7 +37,7 @@ function Write-ReleaseBuildReceipt([string]$Repository, [string]$Kind, $Before) 
     $files = $artifacts.files
     if (-not $files.Count) { throw 'Build produced no files.' }
     $receipt = @{ schemaVersion=1; kind=$Kind; source=$after; sdk=(Get-Content (Join-Path $Repository 'sdk-lock.json') -Raw | ConvertFrom-Json)
-        configuration=$(if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n' } else { 'windows/x64/releasedbg; animation_smoke=n; vite/production' })
+        configuration=$(if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n; profiling=n' } else { 'windows/x64/releasedbg; animation_smoke=n; profiling=n; vite/production' })
         root=$root; files=$files; createdAt=[DateTimeOffset]::UtcNow.ToString('o') }
     $receipt | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $Repository "build/$Kind-receipt.json") -Encoding utf8NoBOM
 }
@@ -47,7 +47,7 @@ function Test-ReleaseBuildReceipt([string]$Repository, [string]$Kind) {
     if (-not (Test-Path -LiteralPath $path)) { throw "No $Kind build receipt. Build through the packager or smoke bench before using -SkipBuild." }
     $receipt = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     $expectedRoot = if ($Kind -eq 'engine') { 'build/windows/x64/releasedbg' } else { 'build' }
-    $expectedConfiguration = if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n' } else { 'windows/x64/releasedbg; animation_smoke=n; vite/production' }
+    $expectedConfiguration = if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n; profiling=n' } else { 'windows/x64/releasedbg; animation_smoke=n; profiling=n; vite/production' }
     if ($receipt.schemaVersion -ne 1 -or $receipt.kind -cne $Kind -or $receipt.root -cne $expectedRoot -or $receipt.configuration -cne $expectedConfiguration -or
         $receipt.source.sha256 -cne (Get-SmokeSourceIdentity $Repository).sha256) { throw 'Build receipt does not match current source/configuration.' }
     $files = (Get-ReleaseArtifacts $Repository $Kind).files

@@ -3,6 +3,7 @@
 // Copyright (C) Deweh, https://github.com/Deweh/NativeAnimationFrameworkSF
 
 #include "GLTFImport.h"
+#include "Profiling/Profile.h"
 
 #include "Util/Gzip.h"
 #include "Util/StringUtil.h"
@@ -146,6 +147,7 @@ namespace OSF::Serialization
 		// GLB: 12-byte header, then chunks of [u32 length][u32 type][data]; the first chunk is JSON.
 		bool SanitizeGltfBytes(std::vector<std::byte>& a_bytes)
 		{
+			OSF_PROFILE_SCOPE("Import.GLTF.Sanitize");
 			constexpr uint32_t kGlbMagic = 0x46546C67;  // "glTF"
 			constexpr uint32_t kJsonChunk = 0x4E4F534A; // "JSON"
 
@@ -204,7 +206,8 @@ namespace OSF::Serialization
 		std::optional<fastgltf::Asset> LoadAssetFromBytes(std::vector<std::byte> a_bytes,
 			const std::filesystem::path& a_parentPath, GLTFError& a_error, std::string& a_detail)
 		{
-			auto bytes = MaybeGunzip(std::move(a_bytes));
+			OSF_PROFILE_SCOPE("Import.GLTF.LoadAsset");
+			auto bytes = OSF_PROFILE_CALL("Import.GLTF.Gunzip", MaybeGunzip(std::move(a_bytes)));
 			if (!bytes) {
 				a_error = GLTFError::kFileReadFailed;
 				a_detail = "gzip decompression failed";
@@ -217,7 +220,7 @@ namespace OSF::Serialization
 				return std::nullopt;
 			}
 
-			auto data = fastgltf::GltfDataBuffer::FromBytes(bytes->data(), bytes->size());
+			auto data = OSF_PROFILE_CALL("Import.GLTF.FromBytes", fastgltf::GltfDataBuffer::FromBytes(bytes->data(), bytes->size()));
 			if (data.error() != fastgltf::Error::None) {
 				a_error = GLTFError::kParseFailed;
 				a_detail = std::format("fastgltf buffer error: {}", fastgltf::getErrorMessage(data.error()));
@@ -236,7 +239,7 @@ namespace OSF::Serialization
 				fastgltf::Category::BufferViews |
 				fastgltf::Category::Accessors;
 
-			auto gltf = parser.loadGltf(data.get(), a_parentPath, gltfOptions, gltfCategories);
+			auto gltf = OSF_PROFILE_CALL("Import.GLTF.Parse", parser.loadGltf(data.get(), a_parentPath, gltfOptions, gltfCategories));
 			if (gltf.error() != fastgltf::Error::None) {
 				a_error = GLTFError::kParseFailed;
 				a_detail = std::format("fastgltf parse error: {}", fastgltf::getErrorMessage(gltf.error()));
@@ -259,6 +262,7 @@ namespace OSF::Serialization
 		// Roots = nodes no other node references, so the Scenes category isn't needed.
 		std::shared_ptr<Animation::OzzSkeleton> BuildSkeleton(const fastgltf::Asset& a_asset)
 		{
+			OSF_PROFILE_SCOPE("Import.GLTF.Skeleton");
 			const auto& nodes = a_asset.nodes;
 			const bool hasCom = HasNodeNamed(a_asset, "com");
 			std::vector<bool> isChild(nodes.size(), false);
@@ -377,6 +381,7 @@ namespace OSF::Serialization
 		std::shared_ptr<Animation::OzzAnimation> BuildAnimation(const fastgltf::Asset& a_asset,
 			const fastgltf::Animation& a_anim, const ozz::animation::Skeleton& a_skeleton)
 		{
+			OSF_PROFILE_SCOPE("Import.GLTF.Animation");
 			const bool hasCom = HasNodeNamed(a_asset, "com");
 
 			std::map<std::string, size_t> jointMap;
