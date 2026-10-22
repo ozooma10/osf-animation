@@ -1,6 +1,6 @@
 import { diffImportReports } from "../model";
 import type { BrowserAction } from "./actions";
-import { normalizeBrowseKind, PLAYER_CAST, type BrowserState, type CastMember } from "./state";
+import { PLAYER_CAST, type BrowserState, type CastMember } from "./state";
 
 function moveMember(members: CastMember[], from: number, to: number, after = false): CastMember[] {
   // Dropping on the same row (even its lower half) is a cancel; cast order is role order.
@@ -275,7 +275,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "browse/hidden":
       return { ...state, showHidden: !state.showHidden };
     case "browse/kind":
-      return { ...state, browseKind: normalizeBrowseKind(action.kind) };
+      return { ...state, browseKind: action.kind };
     case "library/group": {
       if (state.filters.search) {
         return { ...state, searchGroupOpen: action.open ? action.key : null };

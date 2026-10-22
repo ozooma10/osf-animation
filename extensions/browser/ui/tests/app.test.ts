@@ -48,11 +48,6 @@ const solo = normalizeScene({
 const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2, pinned: 1 });
 
 describe("browser reducer", () => {
-  it("normalizes the legacy action browse facet to emote", () => {
-    const state = browserReducer(createInitialState(), { type: "browse/kind", kind: "action" });
-    expect(state.browseKind).toBe("emote");
-  });
-
   it("normalizes authoritative playback clock fields for the active timeline", () => {
     expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, cast: [] }])[0])
       .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0 });
@@ -263,8 +258,8 @@ describe("browser settings", () => {
   });
 
   it("falls back from Active when no scene is running", () => {
-    expect(preferredOpenMode("active", "library", false)).toBe("scenes");
-    expect(preferredOpenMode("last", "library", false)).toBe("scenes");
+    expect(preferredOpenMode("active", "scenes", false)).toBe("scenes");
+    expect(preferredOpenMode("last", "active", false)).toBe("scenes");
   });
 });
 
@@ -399,7 +394,7 @@ describe("browser selectors", () => {
     const imported = normalizeScene({ id: "osf.scene-clip/abc", sourceKind: "derivedDebugAnimation", title: "Imported Clip", tags: ["scene.clip"], stages: [{ name: "Pack\\Clip.glb" }] });
     const state = {
       ...createInitialState(),
-      mode: "library" as const,
+      mode: "scenes" as const,
       library: [vanilla, imported],
       libraryReceived: true,
       libCustomOnly: true,

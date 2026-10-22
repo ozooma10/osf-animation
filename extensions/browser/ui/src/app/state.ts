@@ -73,15 +73,9 @@ export interface LaunchOptions {
   speed: string;
 }
 
-export type BrowserMode = "scenes" | "library" | "active" | "wheel";
+export type BrowserMode = "scenes" | "active" | "wheel";
 export type BrowseMode = Exclude<BrowserMode, "wheel">;
 export type BrowseKind = "all" | "animation" | "emote" | "scene";
-/** Older saved snapshots still say `action`. */
-export type BrowseKindInput = BrowseKind | "action";
-
-export function normalizeBrowseKind(value: BrowseKindInput): BrowseKind {
-  return value === "action" ? "emote" : value;
-}
 export type AfterLaunch = "minimize" | "stay" | "close";
 export type OpenTo = "last" | BrowseMode;
 export type UnavailableScenes = "ask" | "show" | "hide";
@@ -135,7 +129,6 @@ export interface WheelEntry {
   scene: string;
   stage: number | null;
   title: string;
-  detail: string;
   key: string;
 }
 

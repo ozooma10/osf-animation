@@ -20,7 +20,7 @@ function wheelState(focus = 0): BrowserState {
     ...createInitialState(),
     wheel: {
       tagPrefix: "player.emote.", target: null, focus, error: "", launching: "", received: true, requested: true,
-      entries: ["wave", "point", "sit"].map((scene) => ({ scene, stage: null, key: scene, title: scene, detail: "" })),
+      entries: ["wave", "point", "sit"].map((scene) => ({ scene, stage: null, key: scene, title: scene })),
     },
   };
 }

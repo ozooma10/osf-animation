@@ -10,7 +10,6 @@ export interface SceneStage {
   clipCount: number;
   pinned: number;
   loopSec: number | null;
-  timerSec: number | null;
   loops: number | null;
   openEnded: boolean;
   estSec: number | null;
@@ -49,7 +48,6 @@ export interface SceneModel {
   estPartial: boolean;
   openEnded: boolean;
   library?: boolean;
-  /** Lower-cased stage-name search index. */
 }
 
 type Raw = Record<string, any>;
@@ -118,7 +116,6 @@ export function normalizeStages(stages: unknown): SceneStage[] {
       clipCount: Number(stage.clipCount || 0),
       pinned: Math.max(0, Math.trunc(Number(stage.pinned) || 0)),
       loopSec: numberOrNull(stage.loopSec),
-      timerSec: numberOrNull(stage.timerSec),
       loops: numberOrNull(stage.loops),
       openEnded: Boolean(stage.openEnded),
       estSec: numberOrNull(stage.estSec),

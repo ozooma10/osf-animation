@@ -52,6 +52,5 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
 
 export function preferredOpenMode(openTo: OpenTo, last: BrowseMode, hasActive: boolean): BrowseMode {
   const requested = openTo === "last" ? last : openTo;
-  if (requested === "library") return "scenes";
   return requested === "active" && !hasActive ? "scenes" : requested;
 }

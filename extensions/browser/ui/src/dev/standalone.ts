@@ -53,7 +53,7 @@ export function createDebugCommands(runtime: DevRuntime): DevCommands {
       dispatch({ type: "catalog/received", scenes });
       if (!stateRef.current.wheel) return;
       const ordered = config.pins ? scenes.slice(0, 3).reverse() : scenes;
-      const entries = ordered.slice(0, WHEEL_MAX).map((scene) => ({ scene: scene.id, stage: null, title: scene.title, detail: scene.title, key: wheelKey(scene.id, null) }));
+      const entries = ordered.slice(0, WHEEL_MAX).map((scene) => ({ scene: scene.id, stage: null, title: scene.title, key: wheelKey(scene.id, null) }));
       dispatch({ type: "wheel/debug", entries, customized: config.pins, received: !config.loading, target: config.target ? { token: 601, name: "Sarah Morgan" } : null, error: config.error ? "No room in front of the actor (debug)." : "" });
     },
   };

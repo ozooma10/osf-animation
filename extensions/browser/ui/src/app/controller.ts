@@ -261,7 +261,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           const scene = String(entry.scene || "");
           const stage = Number.isInteger(entry.stage) ? entry.stage : null;
           const title = String(entry.title || scene || "Animation");
-          return { scene, stage, title, detail: String(entry.detail || title), key: wheelKey(scene, stage) };
+          return { scene, stage, title, key: wheelKey(scene, stage) };
         }).filter((entry) => entry.scene) : [];
         dispatch({ type: "wheel/received", customized: !!record.customized, entries });
         break;
@@ -482,7 +482,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
 
   const commands = useMemo<BrowserCommands>(() => ({
     refresh: () => { requestCatalog(true); requestLibrary(true); },
-    setMode: (mode) => { dispatch({ type: "mode/changed", mode: mode === "library" ? "scenes" : mode }); if (!stateRef.current.libraryReceived) requestLibrary(true); },
+    setMode: (mode) => { dispatch({ type: "mode/changed", mode }); if (!stateRef.current.libraryReceived) requestLibrary(true); },
     selectScene: (sceneId, stage = null) => dispatch({ type: "selection/changed", sceneId, stage }),
     setSearch: (search) => dispatch({ type: "filter/search", search: search.trim().toLowerCase() }),
     toggleSettings: (open) => dispatch({ type: "settings/open", open: open ?? !stateRef.current.settingsOpen }),

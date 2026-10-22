@@ -48,7 +48,6 @@ export interface WheelCandidate {
   scene: string;
   stage: number | null;
   title: string;
-  detail: string;
   pinned: number;
   priority: number;
   weight: number;
@@ -509,7 +508,6 @@ function buildWheelCandidates(state: BrowserState): WheelCandidate[] {
     scene: scene.id,
     stage: null,
     title: playableSceneTitle(scene),
-    detail: playableSceneTitle(scene),
     pinned: scene.pinned,
     priority: scene.priority,
     weight: scene.weight,
@@ -524,7 +522,6 @@ function buildWheelCandidates(state: BrowserState): WheelCandidate[] {
         scene: scene.id,
         stage: stage.index,
         title,
-        detail: stage.name ? `${playableSceneTitle(scene)} · ${playableStageTitle(scene, stage)}` : title,
         pinned: stage.pinned,
         priority: scene.priority,
         weight: scene.weight,

@@ -150,7 +150,7 @@ export class StandaloneBridge implements AnimationBridge {
         items: tokens.map((token, index) => ({ token, x: 0.68 + index * 0.12, y: 0.34 + index * 0.06, visible: true })),
       } }, 5);
     } else if (command === "osf.animation.wheel.get") {
-      const entries = wheelPool(this.getState()).map(({ scene, stage, title, detail, key }) => ({ scene, stage, title, detail, key }));
+      const entries = wheelPool(this.getState()).map(({ scene, stage, title }) => ({ scene, stage, title }));
       this.later({ type: "osf.animation.wheel.data", payload: { customized: this.getState().wheelCustomized, entries } });
     } else if (command === "osf.animation.launch") {
       this.launch(fields);

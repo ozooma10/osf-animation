@@ -18,7 +18,7 @@ export function AnimationWheel({ state, commands }: { state: BrowserState; comma
         : <><div class="wheel-dial"/>{entries.map((entry, index) => {
           const radians = (-90 + 360 / entries.length * index) * Math.PI / 180;
           const transform = `translate(-50%,-50%) translate(${Math.round(Math.cos(radians) * rx)}px,${Math.round(Math.sin(radians) * ry)}px)`;
-          return <button ref={index === focus ? focused : undefined} key={entry.key} class={`wheel-slice ${index === focus ? "focused" : ""}`} style={{ transform }} title={entry.detail || entry.title} onMouseOver={() => commands.focusWheel(index)} onClick={() => commands.pickWheel(index)}>{wheel.launching === entry.key ? "▶ " : ""}{entry.title}</button>;
+          return <button ref={index === focus ? focused : undefined} key={entry.key} class={`wheel-slice ${index === focus ? "focused" : ""}`} style={{ transform }} title={entry.title} onMouseOver={() => commands.focusWheel(index)} onClick={() => commands.pickWheel(index)}>{wheel.launching === entry.key ? "▶ " : ""}{entry.title}</button>;
         })}<button class="wheel-hub" title="Close (Esc)" onClick={commands.cancelWheel}><span class="wheel-hub-who">{wheel.target ? `→ ${wheel.target.name}` : "You"}</span><span class={`wheel-hub-status ${wheel.error ? "err" : ""}`}>{wheel.error || (wheel.launching ? "launching…" : "click to close")}</span></button></>}
     </div>
     <div class="wheel-caption mono">ANIMATION WHEEL · ←→ SELECT · ENTER PLAY · ESC CLOSE</div>
