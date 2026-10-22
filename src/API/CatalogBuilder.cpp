@@ -11,6 +11,16 @@ namespace OSF::API::CatalogBuilder
 {
 	namespace
 	{
+		Catalog::SourceClip BuildSourceClip(const Registry::ContentRegistrySnapshot& registry,
+			const Registry::SceneDef& def, std::uint32_t n, std::uint32_t s, std::uint32_t c)
+		{
+			const auto& clip = def.nodes[n].stages[s].clips[c];
+			const auto available = registry.clipAvailability.find(clip.file);
+			return {def.id, clip.file, clip.animId, Util::ClipSpecDisplay(std::filesystem::path{clip.file}),
+				Util::SpeciesFromAnimPath(clip.file), n, s, c, clip.sec,
+				available != registry.clipAvailability.end() && available->second};
+		}
+
 		Catalog::Stage BuildStage(const Registry::SceneDef& a_def, std::size_t a_index)
 		{
 			Catalog::Stage stage;
@@ -159,10 +169,7 @@ namespace OSF::API::CatalogBuilder
 				for (std::uint32_t s = 0; s < def.nodes[n].stages.size(); ++s)
 					for (std::uint32_t c = 0; c < def.nodes[n].stages[s].clips.size(); ++c) {
 						const auto& clip = def.nodes[n].stages[s].clips[c];
-						const auto available = a_registry.clipAvailability.find(clip.file);
-						out.sourceClips.push_back({def.id, clip.file, clip.animId,
-							Util::ClipSpecDisplay(std::filesystem::path{clip.file}), Util::SpeciesFromAnimPath(clip.file),
-							n, s, c, clip.sec, available != a_registry.clipAvailability.end() && available->second});
+						out.sourceClips.push_back(BuildSourceClip(a_registry, def, n, s, c));
 						if (def.clipsAvailable && !clip.file.empty() && clip.sec <= 0) {
 							auto key = Serialization::ClipDurations::KeyFor(clip.file, clip.animId);
 							if (seen.insert(key).second) out.clips.push_back({std::move(key), clip.file, clip.animId});
@@ -172,6 +179,23 @@ namespace OSF::API::CatalogBuilder
 		out.files.reserve(a_registry.files.size());
 		for (const auto& file : a_registry.files) out.files.push_back(BuildFile(file));
 		out.errors = a_registry.loadErrors;
+		return out;
+	}
+
+	Catalog::ClipSourceSnapshot BuildClipSources(const Registry::ContentRegistrySnapshot& registry)
+	{
+		OSF_PROFILE_SCOPE("API.ClipSourceBuild");
+		Catalog::ClipSourceSnapshot out;
+		out.scenes.reserve(registry.scenes.size());
+		for (const auto& [id, def] : registry.scenes) {
+			const auto filename = def.sourceFile.filename().u8string();
+			out.scenes.push_back({def.id, std::string(filename.begin(), filename.end()), def.pack,
+				def.provider, def.tags, def.library, def.curatedClip});
+			for (std::uint32_t n = 0; n < def.nodes.size(); ++n)
+				for (std::uint32_t s = 0; s < def.nodes[n].stages.size(); ++s)
+					for (std::uint32_t c = 0; c < def.nodes[n].stages[s].clips.size(); ++c)
+							out.sourceClips.push_back(BuildSourceClip(registry, def, n, s, c));
+		}
 		return out;
 	}
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "OSFEngineAPI.h"
 #include "OSFCatalog.h"
+#include "API/CatalogRefreshQueue.h"
 #include <atomic>
 #include <functional>
 #include <string_view>
@@ -29,17 +30,23 @@ namespace OSF::API::EngineClient
 	{
 	public:
 		static CatalogData& GetSingleton();
-		void Invalidate() { m_revision.fetch_add(1, std::memory_order_release); }
+		// Initialize once on the frame owner before subscribing; callbacks run on the frame queue.
+		void Initialize(std::function<void(bool)> onChanged, std::function<void()> onDurationsChanged = {});
+		// Frame owner only. Also resumes a completion canceled by world replacement.
+		void PublishPending();
+		void Invalidate(bool scan = false) { if (m_refresh) m_refresh->Request(scan); }
+		void InvalidateDurations() { m_durationDirty.store(true, std::memory_order_release); }
 		const Catalog::Scene* Find(std::string_view id);
 		void ForEachDef(const std::function<void(const Catalog::Scene&)>& fn);
 		const std::vector<Catalog::File>& FileStats();
 		const std::vector<std::string>& LoadErrors();
 		std::size_t Size();
-		std::vector<Catalog::Clip> Clips();
 	private:
 		void Refresh();
-		std::atomic<std::uint64_t> m_revision{1};
-		std::uint64_t m_loadedRevision{};
-		Catalog::Snapshot m_snapshot;
+		std::unique_ptr<Catalog::Snapshot> m_snapshot = std::make_unique<Catalog::Snapshot>();
+		std::atomic<bool> m_durationDirty{true};
+		std::function<void(bool)> m_onChanged;
+		std::function<void()> m_onDurationsChanged;
+		std::unique_ptr<CatalogRefreshQueue> m_refresh;
 	};
 }

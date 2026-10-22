@@ -270,7 +270,7 @@ namespace OSF::Browser::ClipDurationCache
 						break;
 					}
 				}
-				API::EngineClient::CatalogData::GetSingleton().Invalidate();
+				API::EngineClient::CatalogData::GetSingleton().InvalidateDurations();
 				if (onChanged)
 					API::EngineClient::Post(std::move(onChanged));
 			}).detach();

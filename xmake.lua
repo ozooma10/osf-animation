@@ -141,6 +141,7 @@ target("osf-browser-boundary-test")
     add_files("test/BrowserBoundaryTest.cpp", "src/Util/NativeMainThreadQueue.cpp",
               "extensions/browser/src/API/EngineClient.cpp", "extensions/browser/src/API/UIBridgeCatalog.cpp",
               "extensions/browser/src/API/BrowserClipLibrary.cpp", "test/BrowserClipLibraryTest.cpp",
+              "extensions/browser/src/API/BrowserCatalogJson.cpp", "test/BrowserCatalogJsonTest.cpp",
               "extensions/browser/src/Serialization/ClipDurationCache.cpp")
     add_includedirs("extensions/browser/src", "src", "src/API")
     set_pcxxheader("extensions/browser/src/pch.h")

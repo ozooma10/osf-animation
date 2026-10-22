@@ -48,7 +48,15 @@ function Read-Status {
     for ($attempt = 0; $attempt -lt 5; $attempt++) {
         try {
             if (-not (Test-Path -LiteralPath $statusPath)) { return $null }
-            return Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json -AsHashtable
+            # Share deletion for the host's status replacement. The host also retries a
+            # transiently blocked publication from Poll; a completed dump must not be stranded.
+            $stream = [IO.File]::Open($statusPath, [IO.FileMode]::Open, [IO.FileAccess]::Read,
+                [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+            try {
+                $reader = [IO.StreamReader]::new($stream)
+                try { return $reader.ReadToEnd() | ConvertFrom-Json -AsHashtable }
+                finally { $reader.Dispose() }
+            } finally { $stream.Dispose() }
         } catch { Start-Sleep -Milliseconds 50 }  # replaced mid-read
     }
     return $null

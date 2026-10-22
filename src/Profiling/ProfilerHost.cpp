@@ -31,6 +31,7 @@ namespace OSF::Profiling::Host
 		struct State
 		{
 			std::mutex            lock;  // everything below; the writer thread updates lastDump
+			bool                  statusDirty = false;  // retry a reader-blocked replacement in Poll
 			std::filesystem::path dir;
 			std::string           gameVersion;
 			std::string           dllVersion;
@@ -74,6 +75,7 @@ namespace OSF::Profiling::Host
 			if (a_state.dir.empty()) {
 				return;
 			}
+			a_state.statusDirty = true;
 			const json status{
 				{ "sequence", ++a_state.sequence },
 				{ "build", kProfilingBuildMarker },
@@ -101,6 +103,7 @@ namespace OSF::Profiling::Host
 				}
 			}
 			std::filesystem::rename(temp, target, error);
+			a_state.statusDirty = static_cast<bool>(error);
 		}
 
 		// Frame thread. Copies the window, optionally resets it, and serializes on a detached thread.
@@ -318,6 +321,9 @@ namespace OSF::Profiling::Host
 				if (state.dir.empty()) {
 					return;
 				}
+				// A Windows reader can briefly prevent replacement, even after the dump completed.
+				// Retry the current state without sleeping or blocking gameplay on the reader.
+				if (state.statusDirty) WriteStatusLocked(state);
 				path = state.dir / "command.json";
 			}
 			std::error_code error;

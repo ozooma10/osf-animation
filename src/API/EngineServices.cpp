@@ -2,6 +2,8 @@
 #include "Profiling/Profile.h"
 #include "API/ActorStateAPI.h"
 #include "API/CatalogBuilder.h"
+#include "API/CatalogJson.h"
+#include "API/ClipProviderBridge.h"
 #include "API/EngineServiceState.h"
 #include "API/OSFEngineAPI.h"
 #include "API/PreparationAPI.h"
@@ -40,13 +42,23 @@ namespace OSF::API::EngineServices
 		bool ReadCatalog(TextCallback callback, void* context)
 		{
 			OSF_PROFILE_SCOPE("API.ReadCatalog");
+			if (!callback) return false;
 			try {
+				// Services 3.16: metadata only. Pin the registry for the whole build;
+				// CatalogBuilder's only shared mutable input is the locked duration store.
 				const auto registry = Registry::ContentRegistry::GetSingleton().ReadSnapshot();
 				std::error_code ec;
 				auto root = std::filesystem::current_path(ec);
 				if (ec) root.clear();
 				else root /= "Data/OSF";
-				return Send(CatalogBuilder::Build(*registry, root), callback, context);
+				const auto catalog = CatalogBuilder::Build(*registry, root);
+				const auto text = CatalogJson::Serialize(catalog);
+				OSF_PROFILE_GAUGE("API.ReadCatalog.Bytes", text.size());
+				{
+					OSF_PROFILE_SCOPE("API.CatalogCallback");
+					callback(text.c_str(), context);
+				}
+				return true;
 			} catch (...) { REX::ERROR("[API] Could not read catalog metadata"); return false; }
 		}
 		bool MatchCast(RE::Actor* const* actors, std::uint32_t count, TextCallback callback, void* context)
@@ -143,24 +155,13 @@ namespace OSF::API::EngineServices
 			try { *result = Serialization::ClipDurationProbe::Probe(file, animId ? animId : "", previous); return true; }
 			catch (...) { return false; }
 		}
-		bool RegisterClipSceneProvider(const char* owner, ClipSceneProvider provider, void* context)
+		bool RegisterClipProvider(const char* owner, ClipSceneProvider provider, void* context, bool clipSources)
 		{
 			if (!owner || !provider) return false;
 			try {
 				const bool registered = Registry::ContentRegistry::GetSingleton().RegisterClipProvider(owner,
-					[provider, context](const Registry::ContentRegistrySnapshot& source) {
-						OSF_PROFILE_SCOPE("API.ClipProviderRebuild");
-						struct Output { std::uint32_t calls{}; std::optional<std::vector<ClipScene>> scenes; } output;
-						const auto text = json(CatalogBuilder::Build(source, {})).dump(-1, ' ', false, json::error_handler_t::replace);
-						provider(text.c_str(), [](const char* text, void* value) noexcept {
-							auto& out = *static_cast<Output*>(value);
-							++out.calls;
-							try {
-								if (text && std::strlen(text) <= 16 * 1024 * 1024) out.scenes = json::parse(text).get<std::vector<ClipScene>>();
-							} catch (...) { out.scenes.reset(); }
-						}, &output, context);
-						if (output.calls != 1 || !output.scenes) throw std::runtime_error("invalid provider response");
-						return std::move(*output.scenes);
+					[provider, context, clipSources](const Registry::ContentRegistrySnapshot& source) {
+						return ClipProviderBridge::Invoke(source, provider, context, clipSources);
 					});
 				if (registered) CatalogChanged();
 				return registered;
@@ -241,7 +242,7 @@ namespace OSF::API::EngineServices
 				if (std::isfinite(dx) && std::isfinite(dy) && std::isfinite(wheel))
 					Input::InputService::GetSingleton().InjectOrbitDelta(dx, dy, wheel);
 			},
-			&RegisterClipSceneProvider,
+			[](const char* owner, ClipSceneProvider provider, void* context) { return RegisterClipProvider(owner, provider, context, false); },
 			[](const char* owner) {
 				try {
 					if (!owner || !Registry::ContentRegistry::GetSingleton().UnregisterClipProvider(owner))
@@ -376,7 +377,8 @@ namespace OSF::API::EngineServices
                 std::vector<std::string> names;
                 for (std::uint32_t i=0;i<count;++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
                 return Scene::SceneRuntime::GetSingleton().Replace(scene,id,names,{.covered=covered,.node=node});
-            } };
+            },
+			[](const char* owner, ClipSceneProvider provider, void* context) { return RegisterClipProvider(owner, provider, context, true); } };
 	}
 	void WorldReset() { ActorState::Get().Reset(); g_state.ResetWorld(); }
 	void ContentReloaded() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::ContentReloaded)); }

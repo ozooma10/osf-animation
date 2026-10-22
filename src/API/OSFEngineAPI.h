@@ -7,8 +7,8 @@
 
 namespace OSF::API
 {
-	// Services 3.15 adds independent node matching and exact-node handoffs.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000F;
+	// Services 3.17 appends an optional compact clip-source provider registration.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030011;
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -46,7 +46,7 @@ namespace OSF::API
 	enum class EngineEvent : std::uint32_t { WorldReset = 1, CatalogChanged = 2, ScenesChanged = 4, ContentReloaded = 8 };
 	using EngineCallback = void (*)(EngineEvent, void*);
 	using TextCallback = void (*)(const char*, void*);
-	// Receives the immutable base catalog (schema 3), excluding all provider scenes.
+	// Receives immutable base content (schema 3 or compact schema 1, per registration), excluding provider scenes.
 	// Emit exactly one JSON array of OSFClipScene.h records, synchronously. No registry/API reentry.
 	using ClipSceneProvider = void (*)(const char*, TextCallback emit, void* emitContext, void* context);
 	// Invoked exactly once for an accepted post at a later verified frame drain. execute=false means
@@ -68,7 +68,8 @@ namespace OSF::API
 		std::uint64_t (*Subscribe)(EngineCallback, void*);
 		bool (*Unsubscribe)(std::uint64_t);
 		// Unless marked any-thread, the remaining functions require the game thread (normally via Post).
-		// Game thread. JSON schema 3, defined by OSFCatalog.h.
+		// Any thread as of 3.16. Pins an immutable registry snapshot; reads only metadata and
+		// mutex-protected decoded durations. JSON schema 3, defined by OSFCatalog.h.
 		// Catalog includes diagnostics/load errors. Callback runs once, inline, on success.
 		bool (*ReadCatalog)(TextCallback, void*);
 		// Any thread. Memory-only decoded duration snapshot (OSFCatalog.h); caller copies inline.
@@ -224,6 +225,11 @@ namespace OSF::API
         // Authored graph navigation still uses Navigate/Advance, preserving seamless edges.
         bool (*ReplaceNodeRoles)(std::int32_t, const char* sceneId, const char* nodeId,
             const char* const* roles, std::uint32_t count, bool covered);
+		// 3.17. Same ownership, threading, response and atomic rejection rules as the original
+		// RegisterClipSceneProvider, but input is OSFCatalog.h ClipSourceSnapshot (schema 1).
+		// It includes every base scene ID and clip address; no provider output or presentation data.
+		// UnregisterClipSceneProvider removes either registration kind. Owners share one namespace.
+		bool (*RegisterClipSourceProvider)(const char* owner, ClipSceneProvider, void*);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

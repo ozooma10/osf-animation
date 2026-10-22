@@ -625,7 +625,7 @@ starts age at entry. These are submission limits, not audible-onset or sound-dur
 Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
 continues without coalescing or expiry, including its existing failed-replacement behavior.
 
-The scene ABI is 1.7. The separate `OSF_RequestEngineAPI` export provides services ABI 3.15
+The scene ABI is 1.7. The separate `OSF_RequestEngineAPI` export provides services ABI 3.17
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, shared camera/input mechanisms, and actor-state scopes. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay

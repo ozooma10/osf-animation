@@ -1,8 +1,10 @@
 #include "Check.h"
 #include "Util/KeywordLabel.h"
 void RunBrowserClipLibraryTests();
-#include "API/UIBridgeCatalog.h"
+void RunBrowserCatalogJsonTests();
+void RunBrowserCatalogJsonBenchmark();
 #include "API/EngineClient.h"
+#include "API/UIBridgeCatalog.h"
 #include "API/BrowserSessionQueue.h"
 #include "API/BrowserLaunchSequence.h"
 #include "API/BrowserJsonTransport.h"
@@ -29,13 +31,67 @@ namespace OSF::Serialization::WheelPins
 namespace
 {
 	OSF::Catalog::Snapshot catalog;
-	int reads{};
+	std::atomic<int> reads{};
+	std::atomic<bool> cancelNextPost{};
+	std::atomic<int> canceledPosts{};
+	std::optional<std::string> catalogTextOverride;
 	bool ReadCatalog(OSF::API::TextCallback callback, void* context)
 	{
 		++reads;
-		const auto text=nlohmann::json(catalog).dump();
+		const auto text=catalogTextOverride.value_or(nlohmann::json(catalog).dump());
 		callback(text.c_str(),context);
 		return true;
+	}
+	void RunCatalogRefreshTests()
+	{
+		using OSF::Test::Check;
+		using Queue = OSF::API::EngineClient::CatalogRefreshQueue;
+		std::promise<void> entered, release, releaseLatest;
+		auto gate = release.get_future();
+		auto latestGate = releaseLatest.get_future();
+		std::mutex lock;
+		std::condition_variable wake;
+		int notified{};
+		std::atomic<int> calls{};
+		const auto owner = std::this_thread::get_id();
+		std::atomic<bool> offThread{};
+		Queue queue([&]() -> std::unique_ptr<OSF::Catalog::Snapshot> {
+			offThread = std::this_thread::get_id() != owner;
+			const auto call = ++calls;
+			if (call == 1) { entered.set_value(); gate.wait(); }
+			if (call == 3) return {};
+			if (call == 4) throw std::runtime_error("fixture read failure");
+			if (call == 6) latestGate.wait();
+			auto snapshot = std::make_unique<OSF::Catalog::Snapshot>();
+			snapshot->errors.push_back(std::to_string(call));
+			return snapshot;
+		}, [&] { std::scoped_lock guard{lock}; ++notified; wake.notify_one(); });
+		const auto wait = [&](int count) {
+			std::unique_lock guard{lock};
+			Check(wake.wait_for(guard, std::chrono::seconds(3), [&] { return notified >= count; }), "catalog worker completes within deadline");
+		};
+		auto current = std::make_unique<OSF::Catalog::Snapshot>();
+		current->errors = {"previous"};
+		queue.Request(true);
+		Check(entered.get_future().wait_for(std::chrono::seconds(3)) == std::future_status::ready, "catalog load started on worker");
+		queue.Request(); queue.Request();
+		Check(!queue.Publish(current) && current->errors[0] == "previous", "readers keep last good catalog without waiting for blocked IO");
+		release.set_value(); wait(1);
+		auto completed = queue.Publish(current);
+		Check(offThread && calls == 2 && completed && completed->success && completed->scan && current->errors[0] == "2",
+			"overlapping refreshes coalesce, discard stale result, and retain requested scan");
+		Check(!queue.Publish(current), "completed catalog publishes once");
+		queue.Request(); wait(2); completed = queue.Publish(current);
+		Check(completed && !completed->success && current->errors[0] == "2", "failed refresh reports failure without clearing last good catalog");
+		queue.Request(); wait(3); completed = queue.Publish(current);
+		Check(completed && !completed->success && current->errors[0] == "2", "throwing loader remains retryable");
+		queue.Request(true); wait(4);
+		queue.Request();
+		Check(!queue.Publish(current), "already completed result is rejected after a newer invalidation");
+		releaseLatest.set_value();
+		wait(5); completed = queue.Publish(current);
+		Check(completed && completed->success && completed->scan && current->errors[0] == "6",
+			"replacement retains scan intent even when previous ready result was never adopted");
 	}
 
 	void RunBrowserLaunchSequenceTests()
@@ -144,11 +200,17 @@ namespace
 	}
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	using OSF::Test::Check;
 	using namespace OSF::API;
+	if (argc == 2 && std::string_view(argv[1]) == "--catalog-bench") {
+		RunBrowserCatalogJsonBenchmark();
+		return OSF::Test::Finish("catalog parse benchmark");
+	}
+	RunBrowserCatalogJsonTests();
 	RunBrowserClipLibraryTests();
+	RunCatalogRefreshTests();
 	RunBrowserLaunchSequenceTests();
 	{
 		using Transport = BrowserJsonTransport;
@@ -275,6 +337,12 @@ int main()
 	Check(!EngineClient::Connect(&api), "different major refused");
 	api.version=0x00030000;
 	Check(!EngineClient::Connect(&api), "older host minor refused even with sufficient bytes");
+	api.version=0x0003000F;
+	Check(!EngineClient::Connect(&api), "3.15 host is refused before starting any-thread catalog reads");
+	api.version=0x00030010;
+	Check(!EngineClient::Connect(&api), "3.16 host is refused before compact provider registration");
+	Check(EngineTableSupported(0x00030010, kOSFEngineAPIVersion, sizeof(api), offsetof(OSFEngineAPI, RegisterClipSourceProvider)),
+		"3.17 preserves the complete 3.16 service prefix for existing consumers");
 	Check(EngineRequestSupported(0x00030000, kOSFEngineAPIVersion) &&
 		!EngineRequestSupported(kOSFEngineAPIVersion + 1, kOSFEngineAPIVersion) &&
 		!EngineRequestSupported(0x00020000, kOSFEngineAPIVersion), "host accepts older minor only within its major");
@@ -286,6 +354,13 @@ int main()
 	api.version=kOSFEngineAPIVersion; api.size=8;
 	Check(!EngineClient::Connect(&api), "truncated table refused before use");
 	api.size=sizeof(api); api.ReadCatalog=ReadCatalog;
+	api.Post=[](FrameCallback callback, void* context) {
+		const bool cancel = cancelNextPost.exchange(false);
+		OSF::Util::NativeMainThreadQueue::Post([=] {
+			callback(context, !cancel);
+			if (cancel) ++canceledPosts;
+		}); return true;
+	};
 	api.ReadClipDurations=[](TextCallback callback,void* context) { callback("{}",context); return true; };
 	const auto legacyAPI = LegacyEngineAPI(api);
 	nlohmann::json legacyDurations;
@@ -422,6 +497,19 @@ int main()
 	OSF::Catalog::File file; file.path="broken.osf.json"; file.file=file.path; file.errors=13; file.declaredScenes=2; file.rejectedScenes=2;
 	for (int i=0;i<13;++i) file.problems.push_back({.code="invalid",.message="Problem "+std::to_string(i)});
 	catalog.files.push_back(file);
+	int catalogUpdates{};
+	bool lastCatalogSuccess{};
+	auto& catalogData = EngineClient::CatalogData::GetSingleton();
+	catalogData.Initialize([&](bool ok) { lastCatalogSuccess = ok; ++catalogUpdates; });
+	const auto awaitCatalog = [&](int updates) {
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+		while (catalogUpdates < updates && std::chrono::steady_clock::now() < deadline) {
+			OSF::Util::NativeMainThreadQueue::Drain(); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		Check(catalogUpdates == updates, "catalog completion returns to the frame queue");
+	};
+	catalogData.Invalidate(); awaitCatalog(1);
+	Check(lastCatalogSuccess, "initial metadata refresh succeeded");
 
 	namespace Catalog=UIBridgeCatalog;
 	const auto cards=Catalog::BuildCatalog(false);
@@ -442,6 +530,28 @@ int main()
 	Check(reads == 1, "browser caches one owned metadata snapshot");
 	catalog.scenes.front().name="Updated";
 	EngineClient::CatalogData::GetSingleton().Invalidate();
+	awaitCatalog(2);
 	Check(Catalog::BuildCatalog(false)[0]["title"] == "Updated" && reads == 2, "catalog invalidation refreshes copied metadata");
+	catalogData.InvalidateDurations();
+	Check(Catalog::BuildCatalog(false)[0]["title"] == "Updated" && reads == 2, "duration changes do not rebuild or reparse static metadata");
+	catalog.scenes.front().name="After reset";
+	cancelNextPost = true; catalogData.Invalidate();
+	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+	while (!canceledPosts && std::chrono::steady_clock::now() < deadline) {
+		OSF::Util::NativeMainThreadQueue::Drain(); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+	Check(canceledPosts == 1 && catalogUpdates == 2 && Catalog::BuildCatalog(false)[0]["title"] == "Updated",
+		"canceled frame completion does not publish from getters or clear previous metadata");
+	catalogData.PublishPending();
+	Check(catalogUpdates == 3 && Catalog::BuildCatalog(false)[0]["title"] == "After reset" && reads == 3,
+		"world-reset frame callback resumes retained metadata without another read");
+	catalogTextOverride = "{\"schema\":3,\"scenes\":[{\"id\":\"partial\"}]}";
+	catalogData.Invalidate(); awaitCatalog(4);
+	Check(!lastCatalogSuccess && Catalog::BuildCatalog(false)[0]["title"] == "After reset" && reads == 4,
+		"malformed catalog reports failure and retains the last good snapshot through the real Browser worker");
+	catalogTextOverride.reset(); catalog.scenes.front().name = "Recovered";
+	catalogData.Invalidate(); awaitCatalog(5);
+	Check(lastCatalogSuccess && Catalog::BuildCatalog(false)[0]["title"] == "Recovered" && reads == 5,
+		"catalog parsing recovers on the next request after a malformed response");
 	return OSF::Test::Finish("browser boundary");
 }

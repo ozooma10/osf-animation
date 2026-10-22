@@ -314,7 +314,7 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.catalog.data", BuildCatalog(false));
 		}
 
-		// Static after load: the view caches it; catalog updates never re-push it.
+		// The view caches this; metadata publication also refreshes an already-visible library.
 		void OnLibraryGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.library.data", BuildCatalog(true));
@@ -368,6 +368,7 @@ namespace OSF::API
 		}
 
 		bool g_importReloading = false;
+		std::function<void(bool)> g_finishImportReload;
 
 		void OnImportsReload(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
@@ -381,9 +382,17 @@ namespace OSF::API
 			json reply;
 			try {
 				reply["scenes"] = EngineClient::Get().ReloadContent();
-				EngineClient::CatalogData::GetSingleton().Invalidate();
-				reply["report"] = BuildFileReport();
-				reply["ok"] = true;
+				// ContentReloaded requests an asynchronous refresh. Reply only after its
+				// completed metadata has reached the frame owner, never with the old report.
+				g_finishImportReload = [view = std::string(a_srcView), begun, reply = std::move(reply)](bool ok) mutable {
+					reply["ok"] = ok;
+					if (ok) reply["report"] = BuildFileReport();
+					else reply["error"] = "Packs reloaded, but catalog metadata could not be refreshed.";
+					reply["durationMs"] = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - begun).count();
+					g_importReloading = false;
+					SendJson(view.c_str(), "osf.animation.imports.reloadResult", reply);
+				};
+				return;
 			} catch (const std::exception& e) {
 				reply = { { "ok", false }, { "error", std::string{ "Reload failed: " } + e.what() } };
 				REX::ERROR("[UI] Imports pack reload failed: {}", e.what());
@@ -1218,6 +1227,17 @@ namespace OSF::API
 		BrowserSession::RegisterSend("osf.animation.orbit", &OnOrbit);
 		BrowserSession::RegisterSend("osf.animation.requestClose", &OnRequestClose);
 
+		EngineClient::CatalogData::GetSingleton().Initialize([](bool ok) {
+			if (auto finish = std::exchange(g_finishImportReload, {})) {
+				finish(ok);
+				return; // reloadResult already makes the document request the fresh catalog/library.
+			}
+			if (!ok || !g_viewVisible) return;
+			PushCatalogUpdate();
+			SendJson(kViewId, "osf.animation.library.data", BuildCatalog(true));
+			SendJson(kViewId, "osf.animation.imports.data", BuildFileReport());
+			if (g_wheel.active) SendJson(kViewId, "osf.animation.wheel.data", BuildWheelData(g_wheel.tagPrefix));
+		}, &PushCatalogUpdate);
 		const auto subscription = EngineClient::Get().Subscribe([](EngineEvent event, void*) noexcept {
 			try {
 				if (event == EngineEvent::WorldReset) {
@@ -1225,18 +1245,16 @@ namespace OSF::API
 						// The engine revoked mechanisms and scene handles; never restore the old world.
 						g_orbitHeld = false;
 						g_closeStops.clear(); g_resumeSpeeds.clear(); g_lastHandle = 0;
+						g_finishImportReload = {}; g_importReloading = false;
 						OnHidden();
 						UIBridgeWorld::ClearWorldTokens();
 						++g_worldGeneration;
 						SendJson(kViewId, "osf.animation.world", json{ { "generation", g_worldGeneration } });
 						g_ui.RequestMenu(kViewId, false);
+						EngineClient::CatalogData::GetSingleton().PublishPending();
 					});
 				} else if (event == EngineEvent::CatalogChanged || event == EngineEvent::ContentReloaded) {
-					EngineClient::CatalogData::GetSingleton().Invalidate();
-					if (event == EngineEvent::ContentReloaded) {
-						EngineClient::Post([] { Browser::ClipDurationCache::Scan(EngineClient::CatalogData::GetSingleton().Clips(), &PushCatalogUpdate); });
-					}
-					BrowserSession::Post([] { PushCatalogUpdate(); }, false);
+					EngineClient::CatalogData::GetSingleton().Invalidate(event == EngineEvent::ContentReloaded);
 				} else {
 					BrowserSession::Post([] { PushActiveScenes(); });
 				}
@@ -1244,7 +1262,7 @@ namespace OSF::API
 		}, nullptr);
 		BrowserSession::FinishRegistration(subscription != 0);
 		if (!BrowserSession::Available()) return;
-		EngineClient::Post([] { Browser::ClipDurationCache::Scan(EngineClient::CatalogData::GetSingleton().Clips(), &PushCatalogUpdate); });
+		EngineClient::CatalogData::GetSingleton().Invalidate(true);
 		REX::INFO("[Feature] OSF UI connected (API {}.{}); relative pointer {}",
 			g_ui.Version() >> 16, g_ui.Version() & 0xFFFF, g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
 	}
