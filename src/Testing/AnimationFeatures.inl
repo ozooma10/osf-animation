@@ -273,7 +273,7 @@ void AdvanceFeatures()
 		if (!WaitFeature("papyrus.binding",ready,8,"OSF.IsReady/GetVersion/callback registration did not return through Papyrus")) break;
 		if (!Check("papyrus.binding",true,"Shipped OSF.pex natives return readiness/version and a callback token through Papyrus")) return;
 		auto options = Options();
-		g.scene = g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph",options);
+		g.scene = g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph/first",options);
 		if (!g.scene) { Check("papyrus.callbacks",false,"Could not start the Papyrus event fixture"); return; }
 		Phase(102); break;
 	}
@@ -556,7 +556,7 @@ void AdvanceFeatures()
 		if (!WaitFeature("papyrus.rebind",ready,10,"OSF natives did not return from the rebuilt VM")) break;
 		if (!Check("papyrus.rebind",true,"OSF readiness native executed through Papyrus after a real quickload")) return;
 		{ std::scoped_lock lock(g.eventsMutex); g.events.clear(); }
-		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph",options);
+		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph/first",options);
 		if (!g.scene || g.scene == feature.beforeLoadScene) {
 			Check("api.callbacks-after-load",false,"Could not start a distinct fresh graph after quickload"); return;
 		}
