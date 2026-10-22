@@ -314,9 +314,6 @@ export function activeLaunches(state: BrowserState): ActiveLaunch[] {
     : [];
 }
 
-/** Alias matching the frozen native `activeScenes` event name. */
-export const activeScenes = activeLaunches;
-
 export function busyTokens(state: BrowserState): ReadonlySet<number> {
   const tokens = new Set<number>();
   for (const launch of activeLaunches(state)) {

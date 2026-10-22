@@ -167,7 +167,7 @@ it. A clip-only file needs no dummy scene or `id`:
   browser's **Show author details** switch because they are a raw-clip inspection surface. The two share
   an id namespace. The catalog identifies an explicit registration with
   `sourceKind:"curatedAnimation"` and an automatic entry with
-  `sourceKind:"derivedDebugAnimation"`; legacy consumers also receive `curated:true` or `false`.
+  `sourceKind:"derivedDebugAnimation"`.
   A pack that ships nothing but a `clipLibrary` is normal, complete content and works without Browser.
   Automatic inspection entries exist only with Browser installed; their generation and playback
   defaults belong to the addon. Core exposes generic clip-scene registration so these entries can

@@ -476,12 +476,9 @@ namespace OSF::API
 			}
 
 			auto& options = a_plan.options;
-			const auto vocabularyTri = [&opts](const char* a_canonical, const char* a_legacy) {
-				return opts.contains(a_canonical) ? OptTri(opts, a_canonical) : OptTri(opts, a_legacy);
-			};
-			options.stripMode = vocabularyTri("hideApparel", "strip");
-			options.lockPlayerMode = vocabularyTri("playerInputLock", "lockPlayer");
-			options.playerControlMode = vocabularyTri("sceneControls", "playerControl");
+			options.stripMode = OptTri(opts, "hideApparel");
+			options.lockPlayerMode = OptTri(opts, "playerInputLock");
+			options.playerControlMode = OptTri(opts, "sceneControls");
 			options.fadeMode = OptTri(opts, "fade");
 			options.speed = NumOr(opts, "speed", 1.0f);
 
@@ -1213,8 +1210,6 @@ namespace OSF::API
 		BrowserSession::RegisterSend("osf.animation.wheel.get", &OnWheelGet, false);
 		BrowserSession::RegisterSend("osf.animation.wheel.set", &OnWheelSet);
 		BrowserSession::RegisterSend("osf.animation.opened", &ReplayBrowser);
-		// Older documents may still report close; native lifecycle owns teardown.
-		BrowserSession::RegisterSend("osf.animation.closed", [](const char*, const char*, const char*, void*) noexcept {});
 		BrowserSession::RegisterSend("osf.animation.orbit", &OnOrbit);
 		BrowserSession::RegisterSend("osf.animation.requestClose", &OnRequestClose);
 

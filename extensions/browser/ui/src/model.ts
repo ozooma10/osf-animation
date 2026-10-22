@@ -30,8 +30,6 @@ export interface SceneModel {
   worldPlacement: WorldPlacement;
   anchors: string[];
   unlisted: boolean;
-  /** Fallback for native builds that don't emit `sourceKind`. */
-  curated: boolean;
   wheelCustomized: boolean;
   pinned: number;
   priority: number;
@@ -64,14 +62,8 @@ export function normalizeScene(raw: Raw): SceneModel {
   const requiresFurniture = Boolean(raw.requiresFurniture);
   const sourceKind: CatalogSourceKind = ["authoredScene", "curatedAnimation", "derivedDebugAnimation", "referenceAnimation"].includes(String(raw.sourceKind))
     ? raw.sourceKind as CatalogSourceKind
-    : Boolean(raw.curated)
-      ? "curatedAnimation"
-      : id.toLowerCase().startsWith("osf.scene-clip/")
-        ? "derivedDebugAnimation"
-        : "authoredScene";
-  const worldPlacement: WorldPlacement = raw.placement === "anchorAndPin" || raw.placement === "followActor"
-    ? raw.placement
-    : Boolean(raw.inPlace) ? "followActor" : "anchorAndPin";
+    : "authoredScene";
+  const worldPlacement: WorldPlacement = raw.placement === "followActor" ? "followActor" : "anchorAndPin";
   return {
     id,
     title: String(raw.title || raw.name || id || "Unnamed scene"),
@@ -83,7 +75,6 @@ export function normalizeScene(raw: Raw): SceneModel {
     worldPlacement,
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map(String) : [],
     unlisted: Boolean(raw.unlisted),
-    curated: sourceKind === "curatedAnimation",
     wheelCustomized: Boolean(raw.wheelCustomized),
     pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
@@ -112,7 +103,7 @@ export function safeNormalizeScene(raw: unknown): SceneModel | null {
 export function normalizeCatalog(payload: unknown, library = false): SceneModel[] {
   if (!Array.isArray(payload)) return [];
   return payload.map(safeNormalizeScene).filter((scene): scene is SceneModel => !!scene).map((scene) => library
-    ? { ...scene, library: true, sourceKind: scene.sourceKind === "authoredScene" ? "referenceAnimation" : scene.sourceKind }
+    ? { ...scene, library: true }
     : scene);
 }
 
@@ -169,18 +160,17 @@ function normalizeRoles(roles: unknown, actorCount: number): SceneRole[] {
   }));
 }
 
-function policyText(value: unknown, fallback: unknown, empty: "inherit" | "off"): "on" | "off" | "inherit" {
-  const resolved = value !== undefined ? value : fallback;
-  if (resolved === true) return "on";
-  if (resolved === false) return "off";
+function policyText(value: unknown, empty: "inherit" | "off"): "on" | "off" | "inherit" {
+  if (value === true) return "on";
+  if (value === false) return "off";
   return empty;
 }
 
 function normalizePolicy(raw: Raw): SceneModel["policy"] {
   return {
-    hideApparel: policyText(raw.hideApparel, raw.stripActors, "inherit"),
-    playerInputLock: policyText(raw.playerInputLock, raw.lockPlayer, "inherit"),
-    fade: policyText(raw.fade, undefined, "off") as "on" | "off",
+    hideApparel: policyText(raw.hideApparel, "inherit"),
+    playerInputLock: policyText(raw.playerInputLock, "inherit"),
+    fade: policyText(raw.fade, "off") as "on" | "off",
   };
 }
 
@@ -277,19 +267,6 @@ function count(value: unknown): number {
 }
 
 function normalizeImportProblem(value: unknown): ImportProblem {
-  if (typeof value === "string") {
-    const severity = value.startsWith("[warn]") ? "warn" : "error";
-    return {
-      severity,
-      code: severity === "warn" ? "legacy-warning" : "legacy-error",
-      message: value.replace(/^\[(?:warn|error)\]\s*/, ""),
-      hint: "",
-      scene: "",
-      node: "",
-      role: "",
-      clip: "",
-    };
-  }
   const problem: Raw = value && typeof value === "object" ? value as Raw : {};
   return {
     severity: problem.severity === "warn" ? "warn" : "error",

@@ -3,7 +3,6 @@ export type BridgeCommand =
   | "osf.animation.anchorMatch"
   | "osf.animation.castMatch"
   | "osf.animation.catalog.get"
-  | "osf.animation.closed"
   | "osf.animation.imports.get"
   | "osf.animation.imports.copy"
   | "osf.animation.imports.reload"

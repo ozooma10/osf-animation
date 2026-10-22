@@ -113,8 +113,6 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              worldPlacement = "anchorAndPin";
 			std::vector<std::string> anchorNames;
 			bool                     unlisted = false;
-			// Registered via `clipLibrary`; harvested stage clips share the `osf.scene-clip/` id prefix.
-			bool                     curated = false;
 			bool                     wheelCustomized = false;  // whole-wheel state, mirrored onto every card
 			std::int32_t             pinned = 0;  // 1-based wheel order; 0 = absent/default-derived
 			std::vector<StageCard>   stages;  // empty for a non-linear graph
@@ -140,16 +138,12 @@ namespace OSF::API::UIBridgeCatalog
 				{ "priority", a_card.priority },
 				{ "weight", a_card.weight },
 				{ "hideApparel", a_card.hideApparel },
-				{ "stripActors", a_card.hideApparel },  // legacy bridge field
 				{ "playerInputLock", a_card.playerInputLock },
-				{ "lockPlayer", a_card.playerInputLock },  // legacy bridge field
 				{ "fade", a_card.fade },
 				{ "requiresFurniture", a_card.requiresFurniture },
 				{ "placement", a_card.worldPlacement },
-				{ "inPlace", a_card.worldPlacement == "followActor" },  // legacy bridge field
 				{ "anchors", a_card.anchorNames },
 				{ "unlisted", a_card.unlisted },
-				{ "curated", a_card.curated },
 				{ "wheelCustomized", a_card.wheelCustomized },
 				{ "pinned", a_card.pinned },
 				{ "stages", a_card.stages },
@@ -301,7 +295,6 @@ namespace OSF::API::UIBridgeCatalog
 				c.anchorNames.push_back(edid && edid[0] ? std::string{ edid } : std::format("{:#010x}", b));
 			}
 			c.unlisted = d.unlisted;
-			c.curated = d.curatedClip;
 			c.wheelCustomized = wheelCustomized;
 			c.pinned = wheelOrder(d.id, -1);
 			// Each desugared linear node holds exactly one StageDef.

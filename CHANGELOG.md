@@ -110,6 +110,10 @@ for installation, saved preferences, and hotkey changes.
 
 ### Changed
 
+- Browser uses canonical catalog/launch fields and structured import problems throughout its
+  native bridge, UI, generators, and fixtures. Removed unused close-command and internal aliases.
+  Install matching Browser DLL and view assets; authored content and public engine API compatibility remain.
+
 - Simplified OSF Settings: Browser exposes only its two hotkeys, scene bindings are grouped
   into Playback and Alignment, and the unused stage-transition popup toggle is removed.
   Browser preferences are saved in `SFSE/OSF/browser-preferences.json`. Browsing state is always

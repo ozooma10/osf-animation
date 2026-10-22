@@ -8,7 +8,7 @@ describe("scene normalization", () => {
       name: "Test Scene",
       folder: "Furniture / Seated",
       roles: [{ name: "lead", filters: { gender: "female" } }],
-      inPlace: true,
+      placement: "followActor",
       stages: [{ name: "idle", loopSec: "2.5", loops: 0 }],
     });
     expect(scene).toMatchObject({
@@ -38,19 +38,19 @@ describe("scene normalization", () => {
     expect(safeNormalizeScene({ id: "ok" })?.id).toBe("ok");
   });
 
-  it("uses explicit catalog source kinds while preserving legacy bridge inference", () => {
+  it("uses explicit source kinds without inferring them from old flags, IDs or the catalog lane", () => {
     expect(normalizeScene({
       id: "osf.scene-clip/registered",
       curated: true,
       sourceKind: "derivedDebugAnimation",
-    })).toMatchObject({ sourceKind: "derivedDebugAnimation", curated: false });
+    })).toMatchObject({ sourceKind: "derivedDebugAnimation" });
     expect(normalizeScene({
       id: "plain",
       curated: false,
       sourceKind: "curatedAnimation",
-    })).toMatchObject({ sourceKind: "curatedAnimation", curated: true });
-    expect(normalizeScene({ id: "osf.scene-clip/curated", curated: true }).sourceKind).toBe("curatedAnimation");
-    expect(normalizeScene({ id: "osf.scene-clip/harvested" }).sourceKind).toBe("derivedDebugAnimation");
+    })).toMatchObject({ sourceKind: "curatedAnimation" });
+    expect(normalizeScene({ id: "osf.scene-clip/curated", curated: true }).sourceKind).toBe("authoredScene");
+    expect(normalizeScene({ id: "osf.scene-clip/harvested" }).sourceKind).toBe("authoredScene");
     expect(normalizeScene({ id: "pack.scene" }).sourceKind).toBe("authoredScene");
     expect(normalizeCatalog([
       { id: "a", sourceKind: "authoredScene" },
@@ -58,18 +58,22 @@ describe("scene normalization", () => {
       { id: "d", sourceKind: "derivedDebugAnimation" },
       { id: "r", sourceKind: "referenceAnimation" },
     ], true).map(({ sourceKind, library }) => [sourceKind, library])).toEqual([
-      ["referenceAnimation", true],
+      ["authoredScene", true],
       ["curatedAnimation", true],
       ["derivedDebugAnimation", true],
       ["referenceAnimation", true],
     ]);
   });
 
-  it("prefers canonical placement and policy fields while accepting legacy bridge fields", () => {
+  it("reads canonical placement and policy fields and ignores retired aliases", () => {
     expect(normalizeScene({ placement: "anchorAndPin", inPlace: true,
       hideApparel: false, stripActors: true, playerInputLock: false, lockPlayer: true })).toMatchObject({
       worldPlacement: "anchorAndPin",
       policy: { hideApparel: "off", playerInputLock: "off" },
+    });
+    expect(normalizeScene({ inPlace: true, stripActors: false, lockPlayer: false })).toMatchObject({
+      worldPlacement: "anchorAndPin",
+      policy: { hideApparel: "inherit", playerInputLock: "inherit" },
     });
   });
 });
@@ -159,9 +163,10 @@ describe("import report normalization", () => {
 
   it("never reports fewer problems than actually arrived", () => {
     // A count below the shipped lines would claim negative hidden problems.
-    const truncated = normalizeImportReport({ files: [{ problems: ["[warn] a", "[error] b"], problemCount: 40 }] });
+    const problems = [{ severity: "warn", message: "a" }, { severity: "error", message: "b" }];
+    const truncated = normalizeImportReport({ files: [{ problems, problemCount: 40 }] });
     expect(truncated.files[0].problemCount).toBe(40);
-    const understated = normalizeImportReport({ files: [{ problems: ["[warn] a", "[error] b"], problemCount: 1 }] });
+    const understated = normalizeImportReport({ files: [{ problems, problemCount: 1 }] });
     expect(understated.files[0].problemCount).toBe(2);
   });
 

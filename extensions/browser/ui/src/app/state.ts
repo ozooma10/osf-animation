@@ -51,9 +51,6 @@ export interface ActiveLaunch {
   speed: number;
 }
 
-/** Name used by the frozen `activeScenes` bridge event. */
-export type ActiveScene = ActiveLaunch;
-
 export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";
 
 export interface FurnitureTarget {

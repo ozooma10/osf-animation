@@ -395,8 +395,8 @@ describe("browser selectors", () => {
   });
 
   it("filters vanilla animations and keeps generated source clips hidden until requested", () => {
-    const vanilla = normalizeScene({ id: "vanilla/common/idle", title: "Vanilla Idle", tags: ["vanilla"], stages: [{ name: "Idle" }] });
-    const imported = normalizeScene({ id: "osf.scene-clip/abc", title: "Imported Clip", tags: ["scene.clip"], stages: [{ name: "Pack\\Clip.glb" }] });
+    const vanilla = normalizeScene({ id: "vanilla/common/idle", sourceKind: "referenceAnimation", title: "Vanilla Idle", tags: ["vanilla"], stages: [{ name: "Idle" }] });
+    const imported = normalizeScene({ id: "osf.scene-clip/abc", sourceKind: "derivedDebugAnimation", title: "Imported Clip", tags: ["scene.clip"], stages: [{ name: "Pack\\Clip.glb" }] });
     const state = {
       ...createInitialState(),
       mode: "library" as const,
@@ -416,12 +416,12 @@ describe("browser selectors", () => {
   });
 
   it("shows clipLibrary registrations to everyone, not only to authors", () => {
-    // Shaped as the engine serializes them; `curated` is the signal for builds without `sourceKind`.
+    // Both catalog lanes carry explicit source kinds from the native Browser.
     const registered = normalizeScene({
       id: "osf.scene-clip/aaa",
       title: "Hand Extended 01",
       tags: ["scene.clip"],
-      curated: true,
+      sourceKind: "curatedAnimation",
       unlisted: true,
       actorCount: 1,
       roles: [{ name: "", gender: "any" }],
@@ -431,6 +431,7 @@ describe("browser selectors", () => {
     });
     const harvested = normalizeScene({
       id: "osf.scene-clip/bbb",
+      sourceKind: "derivedDebugAnimation",
       title: "NAF\\RZSPU02.glb",
       tags: ["scene.clip"],
       unlisted: true,
@@ -442,10 +443,10 @@ describe("browser selectors", () => {
     expect(isDerivedDebugAnimation(harvested)).toBe(true);
 
     const explicitDerived = normalizeScene({
-      id: "plain-derived", sourceKind: "derivedDebugAnimation", curated: true,
+      id: "plain-derived", sourceKind: "derivedDebugAnimation",
     });
     const explicitCurated = normalizeScene({
-      id: "osf.scene-clip/explicit-curated", sourceKind: "curatedAnimation", curated: false,
+      id: "osf.scene-clip/explicit-curated", sourceKind: "curatedAnimation",
     });
     expect(isDerivedDebugAnimation(explicitDerived)).toBe(true);
     expect(isDerivedDebugAnimation(explicitCurated)).toBe(false);
@@ -536,8 +537,8 @@ describe("import report panel", () => {
   it("sorts worst-first and filters by outcome and search", () => {
     const report = normalizeImportReport({ files: [
       { path: "a/clean.osf.json", file: "clean.osf.json", scenes: 2 },
-      { path: "b/broken.osf.json", file: "broken.osf.json", errors: 1, problems: ["[error] 'broken.osf.json': schema 0 unsupported"] },
-      { path: "c/warned.osf.json", file: "warned.osf.json", scenes: 1, warnings: 1, problems: ["[warn] 'warned.osf.json': 1 scene(s) hidden"] },
+      { path: "b/broken.osf.json", file: "broken.osf.json", errors: 1, problems: [{ severity: "error", code: "file-invalid", message: "'broken.osf.json': schema 0 unsupported" }] },
+      { path: "c/warned.osf.json", file: "warned.osf.json", scenes: 1, warnings: 1, problems: [{ severity: "warn", code: "missing-clips", message: "'warned.osf.json': 1 scene(s) hidden" }] },
     ] });
     const state = { ...createInitialState(), imports: report.files, importsReceived: true, importsFilter: "all" as const };
 

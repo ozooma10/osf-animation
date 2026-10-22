@@ -195,13 +195,6 @@ export class StandaloneBridge implements AnimationBridge {
         : [];
       // Re-emit the served catalog rather than re-reading the (~600KB) snapshot.
       this.emitCatalog(this.catalogRaw ?? MOCK_CATALOG);
-    } else if (command === "osf.animation.closed") {
-      for (const active of this.active) {
-        const resume = this.resumeSpeeds.get(active.handle);
-        if (resume != null) active.speed = resume;
-      }
-      this.resumeSpeeds.clear();
-      this.active = this.active.filter((scene) => !scene.player);
     } else if (command === "osf.animation.opened") {
       this.emit({ type: "osf.animation.world", payload: { generation: 1 } });
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 50);

@@ -78,6 +78,12 @@ state. Hiding the view cancels pending transfers. Install the browser DLL and we
 assets from the same archive. Native boundary and browser tests exercise this
 protocol; the live suite also transfers and renders the shipped animation library.
 
+Browser cards use `hideApparel`, `playerInputLock`, `placement`, and explicit `sourceKind` fields.
+Launch options use `hideApparel`, `playerInputLock`, and `sceneControls`. Import problems are
+structured objects with severity, code, message, and repair context. The private web transport
+does not accept older aliases or infer source kinds from IDs. Authored content aliases and the
+public engine APIs retain their compatibility behavior.
+
 Browser's `BrowserClipLibrary` provider generates the automatic inspection entries formerly harvested
 by core. It retains the `osf.scene-clip/*` hash, source ordering, duplicate precedence, and collision
 suffixes, so ordinary existing wheel pins and direct-ID starts continue working while the addon is

@@ -226,7 +226,7 @@ describe("native launch contracts", () => {
   });
 
   it("keeps follow-actor content attached to its cast despite a front placement choice", async () => {
-    const { host, result } = await browser([{ id: "solo", inPlace: true }]);
+    const { host, result } = await browser([{ id: "solo", placement: "followActor" }]);
     await act(() => result.current.commands.selectLocation("front"));
     await act(() => result.current.commands.launch());
     expect(host.send).toHaveBeenLastCalledWith("osf.animation.launch", expect.objectContaining({ location: { mode: "cast", token: 0 } }));
@@ -347,7 +347,7 @@ describe("cast, world selection and animation wheel", () => {
 describe("import reload and preference failures", () => {
   it("coalesces a pending reload and refreshes both catalogs after a successful report", async () => {
     const { host, result } = await browser();
-    await host.emit("osf.animation.imports.data", { files: [{ path: "pack.osf.json", errors: 1, problems: ["Missing clip"] }] });
+    await host.emit("osf.animation.imports.data", { files: [{ path: "pack.osf.json", errors: 1, problems: [{ severity: "error", code: "missing-clip", message: "Missing clip" }] }] });
     await act(() => result.current.commands.reloadImports());
     await act(() => result.current.commands.reloadImports());
     expect(host.calls("osf.animation.imports.reload")).toHaveLength(1);

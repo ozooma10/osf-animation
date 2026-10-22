@@ -403,9 +403,11 @@ int main()
 	OSF::Catalog::Scene emote;
 	emote.id="custom.wave"; emote.name="Wave"; emote.tags={"Player.Emote.Wave"}; emote.actorCount=1;
 	emote.roles.push_back({"actor","any"}); emote.placement="followActor";
+	emote.sourceKind="authoredScene";
 	emote.stages.push_back({.index=0,.clipCount=1,.loopCount=2,.name="Wave loop",.loopMode="count",.tags={"wave"},.loopSec=3.0f,.resolved=true});
 	catalog.scenes.push_back(emote);
 	auto library=emote; library.id="library.wave"; library.library=true; library.curatedClip=true;
+	library.sourceKind="curatedAnimation";
 	library.name="Library wave"; library.stages.front().hold=0.5f; library.stages.front().timerSec=4.0f;
 	catalog.scenes.push_back(library);
 	auto missing=emote; missing.id="missing.wave"; missing.clipsAvailable=false; catalog.scenes.push_back(missing);
@@ -417,8 +419,12 @@ int main()
 	const auto cards=Catalog::BuildCatalog(false);
 	Check(cards.size() == 1 && cards[0]["id"] == "custom.wave", "catalog uses public copied metadata and excludes missing/library entries");
 	Check(cards[0]["estSec"] == 6.0f && cards[0]["stages"][0]["loopSec"] == 3.0f, "authored loop durations retain presentation estimates");
+	Check(cards[0]["sourceKind"] == "authoredScene" && cards[0]["placement"] == "followActor" &&
+		cards[0]["hideApparel"] == emote.hideApparel && cards[0]["playerInputLock"] == emote.playerInputLock &&
+		!cards[0].contains("stripActors") && !cards[0].contains("lockPlayer") && !cards[0].contains("inPlace") && !cards[0].contains("curated"),
+		"browser catalog publishes canonical policy and source fields only");
 	const auto clips=Catalog::BuildCatalog(true);
-	Check(clips.size() == 1 && clips[0]["estSec"] == 4.0f && clips[0]["curated"] == true, "library frozen-stage timing is preserved");
+	Check(clips.size() == 1 && clips[0]["estSec"] == 4.0f && clips[0]["sourceKind"] == "curatedAnimation", "library frozen-stage timing and explicit source kind are preserved");
 	Check(Catalog::BuildWheelData("")["entries"].size() == 1, "wheel defaults preserve case-insensitive tag eligibility");
 	OSF::Serialization::WheelPins::customized=true;
 	OSF::Serialization::WheelPins::entries={{"LIBRARY.WAVE",0}};
