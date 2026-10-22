@@ -216,7 +216,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         const merged = { ...current.preferences, ...preferences };
         if (!current.wheel) {
           const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
-          dispatch({ type: "browser/opened", mode, resetBrowsing: !merged.rememberBrowsing });
+          dispatch({ type: "browser/opened", mode });
           if (!current.libraryReceived) requestLibrary(true);
         }
         break;
@@ -355,7 +355,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           dispatch({ type: "visibility/shown" });
           const current = stateRef.current;
           const mode = preferredOpenMode(current.preferences.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
-          dispatch({ type: "browser/opened", mode, resetBrowsing: !current.preferences.rememberBrowsing });
+          dispatch({ type: "browser/opened", mode });
           if (!current.libraryReceived) requestLibrary(true);
         }
         if (record.visible) send("osf.animation.opened");

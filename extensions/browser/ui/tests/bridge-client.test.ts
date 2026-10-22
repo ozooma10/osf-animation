@@ -202,4 +202,21 @@ describe("standalone settings state", () => {
     });
     bridge.dispose();
   });
+
+  it("rejects removed preferences and invalid values without publishing a changed snapshot", () => {
+    vi.useFakeTimers();
+    (globalThis as any).window = { setTimeout };
+    const bridge = new StandaloneBridge(createInitialState);
+    const received: NativeMessage[] = [];
+    bridge.subscribe((message) => received.push(message));
+    received.length = 0;
+    for (const [key, value] of [["launch.speed", "2"], ["browser.rememberBrowsing", false],
+      ["browser.actorLabels", "false"], ["launch.camera", "invalid"]]) {
+      bridge.send("settings.set", { key, value });
+    }
+    vi.runAllTimers();
+    expect(received).toHaveLength(4);
+    expect(received.every((message) => message.type === "bridge.requestFailed")).toBe(true);
+    bridge.dispose();
+  });
 });

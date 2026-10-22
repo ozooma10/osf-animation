@@ -30,8 +30,9 @@ voice/sound, camera hold);
   file's source tag, commit, and LF-normalized SHA-256; `tools/Test-SdkLock.ps1` checks it (smoke
   stage `sdk`). Re-vendor with `git show <tag>:sdk/<file>` and update the lock in the same change.
   The UI API has no readiness callback: the view fetches its data on document init, and retained
-  settings go out via `SetState` immediately. OSF UI renders views; OSF Settings owns values, hotkeys,
-  launchers, and issues. The schema ships under `dist/SFSE/Plugins/OSF/Settings/schemas`.
+  preferences go out via `SetState` immediately. OSF UI renders views; OSF Settings owns engine values,
+  hotkeys, launchers, and issues. Browser saves its preferences separately. The engine schema ships
+  under `dist/SFSE/Plugins/OSF/Settings/schemas`.
 - **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see
   `docs/PACKAGING.md`). Output: `packaging\out\OSF Animation v<version>.zip`.
   Packaging uses private staging, never MO2. `-SkipBuild` requires a current build receipt;
@@ -183,9 +184,11 @@ Each entry: **system** (`path`) — role.
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no
-  user-settings feature toggle; user settings (hotkeys, `logLevel`, HUD toggles) live in OSF Settings's
+  user-settings feature toggle; engine settings (scene bindings, `logLevel`, scene gear) live in OSF Settings's
   in-game menu (`src/API/EngineSettings.cpp` subscribes to `osf.animation.engine`; Browser owns the
-  `osf.animation.browser` schema and hotkeys. Each imports its own legacy `osf.animation` values once;
+  `osf.animation.browser` hotkey-only schema. Browser preferences live in the SFSE-log-parent
+  `OSF/browser-preferences.json`, with defaults when the file is absent.
+  Engine imports its supported legacy `osf.animation` values once;
   the browser hotkeys need rebinding after the ID change. The old
   `Data/OSF/settings.json` is no longer read).
 

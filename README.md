@@ -46,11 +46,11 @@ Key Features:
 Install **OSF Animation v1.5.0.zip** for the engine. For the browser and wheel, also
 install **OSF Animation Browser v1.5.0.zip** and OSF UI 2.0.0+. The Browser installer
 offers the optional vanilla/creature library and emote content. OSF Settings 1.0.0+
-provides settings and the launcher.
+provides engine settings, hotkeys, and the launcher. Configure Browser preferences inside the Browser.
 
 Replace the old Animation mod files instead of merging; preserve custom content
 and saved user data. Install matching engine/Browser versions and **rebind the two
-browser hotkeys**. Preferences from OSF Settings import once; values from the older
+browser hotkeys**. Engine preferences from OSF Settings import once; values from the older
 combined OSF UI service do not. Wheel pins and scene IDs remain unchanged.
 
 Follow the [1.5.0 upgrade guide](docs/UPGRADING.md) for the replacement steps,

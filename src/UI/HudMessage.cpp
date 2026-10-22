@@ -6,11 +6,6 @@ namespace OSF::UI::HudMessage
 {
 	namespace
 	{
-		std::atomic_bool g_debugEnabled{ false };
-	}
-
-	namespace
-	{
 		// a_isWarning selects the HUD warning styling.
 		void Fire(std::string_view a_text, bool a_isWarning)
 		{
@@ -33,24 +28,6 @@ namespace OSF::UI::HudMessage
 	void Show(std::string_view a_text)
 	{
 		Fire(a_text, false);
-	}
-
-	void SetDebugEnabled(bool a_on)
-	{
-		g_debugEnabled.store(a_on, std::memory_order_relaxed);
-		REX::DEBUG("[UI] debug notifications {}", a_on ? "ENABLED" : "disabled");
-	}
-
-	bool DebugEnabled()
-	{
-		return g_debugEnabled.load(std::memory_order_relaxed);
-	}
-
-	void Debug(std::string_view a_text)
-	{
-		if (g_debugEnabled.load(std::memory_order_relaxed)) {
-			Show(a_text);
-		}
 	}
 
 	void Warning(std::string_view a_text)

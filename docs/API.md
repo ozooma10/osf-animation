@@ -34,7 +34,7 @@ their header. The released 3.0 Browser checks exact equality, so requests for 3.
 stable 3.0 version/prefix view of the current implementation. Requests for 3.1 or later receive
 the full current table. Never read appended functions without checking the table size.
 
-Scene keyboard controls use key settings under OSF Animation > Scenes - Keyboard controls.
+Scene keyboard controls use key settings under OSF Animation > Controls - Playback / Alignment.
 They are dispatched only while the active scene grants their capability. Rebinding replaces
 the default key, and unbinding disables it. The input hook continues to pass keys to the game.
 
@@ -650,7 +650,8 @@ pose-layer composition remains separate work.
 
 The optional **OSF Animation Browser** addon provides the scene browser, animation wheel,
 vanilla library, and emote pack; **OSF UI 2.0** renders the view. **OSF Settings 1.0**
-owns settings and hotkeys on the **OSF Animation** page. Both hotkeys ship unbound; the browser
+owns engine settings on **OSF Animation** and hotkeys on **OSF Animation Browser**. Browser preferences
+are edited and saved by the Browser itself. Both hotkeys ship unbound; the browser
 is also available from the OSF Settings Launcher tab. `OSF.OpenBrowser()` remains available to
 Papyrus through an optional addon forwarder and returns false when Browser or OSF UI is unavailable.
 The wheel is opened by the addon hotkey or native `OSFBrowser_OpenWheel`; there is no `OSF.OpenWheel`

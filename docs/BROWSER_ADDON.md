@@ -154,22 +154,32 @@ produce addon-owned diagnostics. The engine never registers views/hotkeys or sca
 merely because it is installed. The addon binds at PostPostDataLoad regardless of DLL enumeration order.
 
 Browser owns `extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json`,
-using Settings ID `osf.animation.browser` for preferences, launch defaults, hotkeys, and launcher ownership.
+using Settings ID `osf.animation.browser` for hotkeys and launcher ownership. Its Settings page contains
+only the two opener bindings; preferences are edited in the Browser itself.
 Its `openBrowser`/`openWheel` hotkeys must be rebound once: released Settings 1.0 derives native
 ControlMap event names from the schema filename and has no binding-migration API. Core-only installation
 contains no browser settings or hotkey declarations.
 
-Core owns `osf.animation.engine.json`: `logLevel`, `debugNotifications`, and `gear.autoEquip`. On first
-normal startup it reads those three values from Settings 1.0's legacy `osf.animation.json` user-values
+Core owns `osf.animation.engine.json`: `logLevel`, `gear.autoEquip`, and scene key bindings in separate
+Playback and Alignment groups. The unused `debugNotifications` setting has been removed. On first
+normal startup it reads the two supported preferences from Settings 1.0's legacy `osf.animation.json` user-values
 file and saves them through the released Settings API, leaving the source untouched. Explicit values
 already stored for the new engine ID win. A separate `osf.animation.engine.migrated` receipt prevents
 later resets from reimporting old values; failed saves remain retryable. Private instrumented builds
 skip player-file migration. Browser subscribes to the engine's log level separately.
 
-Browser performs the same one-time import for its valid browser/launch preferences through
-`BrowserSettingsMigration`, saving to `osf.animation.browser.json` and recording
-`osf.animation.browser.migrated`. Existing destination values win; engine keys and invalid values
-are ignored. The legacy user-values file is left intact for both imports.
+Browser saves its ten preferences in the SFSE-log-parent `OSF/browser-preferences.json` using a
+versioned JSON file and atomic replacement. A missing file uses defaults; changing a preference
+creates or updates the file. Failed saves do not publish changes, and malformed/unsupported files
+are not overwritten.
+Private smoke builds use session-only preferences without accessing player files.
+
+Browsing state is always retained between openings during the game session. The former
+`browser.rememberBrowsing` and `launch.speed` values are ignored. Launch speed starts at 1x and can
+be changed in Start Overrides; it resets after success, when selecting another scene, or on reopening.
+Library detail/source controls live beside the Browse filters. Other preferences, launch defaults,
+and author details remain in the Browser settings panel. The web endpoint and retained-state format
+are unchanged except for the two retired keys.
 
 Replace the old engine/browser installations when upgrading: neither component ships the legacy
 `osf.animation.json` schema. Ordinary XMake deployment removes that obsolete schema from both mods.

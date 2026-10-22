@@ -12,15 +12,15 @@ for installation, saved preferences, and hotkey changes.
 - OSF Animation and the optional **OSF Animation Browser** now ship as separate
   archives. Install both at version **1.5.0** to use the browser or emote wheel.
   The Browser installer owns the optional vanilla/creature library and emote pack.
-- **OSF Settings 1.0.0+** owns settings, hotkeys, launchers, and Mod Issues.
+- **OSF Settings 1.0.0+** owns engine settings, hotkeys, launchers, and Mod Issues.
   **OSF UI 2.0.0+** is required for the optional Browser. Gameplay consumers can
   use the engine and native/Papyrus APIs without Browser or OSF UI.
 - Replace the previous Animation installation instead of merging old files into
   the new packages. Preserve custom content and saved user data. The obsolete
   combined `osf.animation.json` **schema** must no longer be active.
-- Settings are split into `osf.animation.engine` and `osf.animation.browser`.
-  Valid preferences previously stored by OSF Settings under `osf.animation` import
-  once, without replacing explicit destination values. Values from the older
+- Engine settings and Browser hotkeys use `osf.animation.engine` and `osf.animation.browser`.
+  Browser preferences are saved separately and edited inside the Browser. Valid engine preferences
+  previously stored by OSF Settings import once, preserving explicit choices. Values from the older
   combined OSF UI settings service are not migrated. **Rebind both browser hotkeys.**
   Wheel pins, scene IDs, and the browser view ID are unchanged.
 
@@ -109,6 +109,13 @@ for installation, saved preferences, and hotkey changes.
   are a load error.
 
 ### Changed
+
+- Simplified OSF Settings: Browser exposes only its two hotkeys, scene bindings are grouped
+  into Playback and Alignment, and the unused stage-transition popup toggle is removed.
+  Browser preferences are saved in `SFSE/OSF/browser-preferences.json`. Browsing state is always
+  remembered within the session; launch speed is a per-launch override starting at 1x.
+  Library source/detail filters have one home beside Browse. Preference updates preserve
+  unrelated pending launch overrides.
 
 - Content validation is stricter in 1.5.0. Authored `loops` and `loops.default` must
   be JSON integers in `[0, 2147483647]`; fractional, negative and floating-point

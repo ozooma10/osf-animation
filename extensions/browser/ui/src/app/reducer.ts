@@ -78,6 +78,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ...state,
         lastHandle: action.handle,
         lastSceneId: action.sceneId,
+        opts: { ...state.opts, speed: "1" },
         minimized: !state.wheel && action.afterLaunch === "minimize",
         mode: state.mode,
       };
@@ -88,9 +89,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         : state;
     case "settings/received": {
       const preferences = { ...state.preferences, ...action.preferences };
-      // Re-seed a launch override only when this payload carries its key, so unrelated
-      // preference writes don't discard overrides the user just set.
-      const carried = action.preferences;
+      // The host publishes full snapshots. Re-seed only changed defaults so changing
+      // a display preference cannot discard the user's pending launch overrides.
       return {
         ...state,
         preferences,
@@ -98,10 +98,10 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         libFull: preferences.libraryDetail === "full",
         libCustomOnly: preferences.librarySource === "custom",
         opts: {
-          hideApparel: "hideApparel" in carried ? preferences.hideApparel : state.opts.hideApparel,
-          playerInputLock: "playerInputLock" in carried ? preferences.playerInputLock : state.opts.playerInputLock,
-          camera: "camera" in carried ? preferences.camera : state.opts.camera,
-          speed: "speed" in carried ? preferences.speed : state.opts.speed,
+          ...state.opts,
+          hideApparel: preferences.hideApparel !== state.preferences.hideApparel ? preferences.hideApparel : state.opts.hideApparel,
+          playerInputLock: preferences.playerInputLock !== state.preferences.playerInputLock ? preferences.playerInputLock : state.opts.playerInputLock,
+          camera: preferences.camera !== state.preferences.camera ? preferences.camera : state.opts.camera,
         },
       };
     }
@@ -240,6 +240,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         selectedId: action.sceneId,
         selectedStage: action.stage ?? null,
         briefFullAnims: false,
+        opts: action.sceneId !== state.selectedId ? { ...state.opts, speed: "1" } : state.opts,
       };
     case "mode/changed":
       return {
@@ -258,15 +259,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         settingsOpen: false,
         importsOpen: false,
 
-        ...(action.resetBrowsing ? {
-          filters: { ...state.filters, search: "" },
-          browseAll: false,
-          showHidden: false,
-          browseKind: "all",
-          allSpecies: false,
-          libOpen: new Map<string, boolean>(),
-          searchGroupOpen: null,
-        } : {}),
+        opts: { ...state.opts, speed: "1" },
       };
     case "filter/search":
       return {

@@ -10,7 +10,7 @@ void RunBrowserClipLibraryTests();
 #include "API/BrowserForwarder.h"
 #include "API/BrowserInput.h"
 #include "API/EngineSettingsMigration.h"
-#include "API/BrowserSettingsMigration.h"
+#include "Serialization/BrowserPreferences.h"
 #include "Serialization/WheelPins.h"
 #include <atomic>
 #include <future>
@@ -321,11 +321,11 @@ int main()
 		int writes=0;
 		const auto write=[&](const std::string& key,const json& value) { saved[key]=value; ++writes; persist(); return true; };
 		Check(!EngineSettingsMigration::Run(root,[](const auto&,const auto&) { return false; }), "failed Settings save leaves migration retryable");
-		Check(EngineSettingsMigration::Run(root,write) && writes == 2 && saved["logLevel"] == "warn" &&
-			saved["gear.autoEquip"] == false && saved["debugNotifications"] == true && !saved.contains("browser.afterLaunch"),
+		Check(EngineSettingsMigration::Run(root,write) && writes == 1 && saved["logLevel"] == "warn" &&
+			saved["gear.autoEquip"] == false && !saved.contains("debugNotifications") && !saved.contains("browser.afterLaunch"),
 			"migration copies only engine values and preserves explicit destination settings");
 		saved.erase("gear.autoEquip"); persist(); // A later reset must remain reset.
-		Check(EngineSettingsMigration::Run(root,write) && writes == 2 && !saved.contains("gear.autoEquip"), "completed migration never reimports reset values");
+		Check(EngineSettingsMigration::Run(root,write) && writes == 1 && !saved.contains("gear.autoEquip"), "completed migration never reimports reset values");
 		std::ifstream source(root / "osf.animation.json");
 		Check(json::parse(source) == legacy, "migration leaves browser values and legacy storage untouched");
 		source.close();
@@ -335,28 +335,43 @@ int main()
 	EngineServiceState engine;
 	{
 		using json=nlohmann::json;
-		const auto root=std::filesystem::temp_directory_path() / ("osf-browser-settings-migration-" +
+		using Preferences=OSF::Serialization::BrowserPreferences;
+		const auto root=std::filesystem::temp_directory_path() / ("osf-browser-preferences-" +
 			std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 		std::filesystem::create_directories(root);
-		const json legacy={{"formatVersion",1},{"values",{{"logLevel","trace"},{"gear.autoEquip",false},
-			{"browser.afterLaunch","close"},{"browser.authorDetails",true},{"launch.speed","1.5"},
-			{"browser.openTo","invalid"},{"browser.actorLabels","false"},{"unknown.preference",true}}}};
-		std::ofstream(root / "osf.animation.json") << legacy;
-		json saved={{"browser.afterLaunch","stay"}};
-		const auto persist=[&] { std::ofstream(root / "osf.animation.browser.json") << json{{"formatVersion",1},{"values",saved}}; };
-		persist();
-		int writes=0;
-		const auto write=[&](const std::string& key,const json& value) { saved[key]=value; ++writes; persist(); return true; };
-		Check(!BrowserSettingsMigration::Run(root,[](const auto&,const auto&) { return false; }), "failed browser preference save remains retryable");
-		Check(BrowserSettingsMigration::Run(root,write) && writes == 2 && saved == json{
-			{"browser.afterLaunch","stay"},{"browser.authorDetails",true},{"launch.speed","1.5"}},
-			"browser migration imports valid preferences only, preserving explicit destination values");
-		saved.erase("browser.authorDetails"); persist();
-		Check(BrowserSettingsMigration::Run(root,write) && writes == 2 && !saved.contains("browser.authorDetails"),
-			"completed browser migration never reimports reset values");
-		std::ifstream source(root / "osf.animation.json");
-		Check(json::parse(source) == legacy, "browser migration leaves the legacy file intact for engine migration");
-		source.close();
+		const auto file=root / "browser-preferences.json";
+		Preferences preferences(file);
+		std::string error;
+		Check(preferences.Load(error) && preferences.Values().size() == 10 &&
+			preferences.Values()["browser.afterLaunch"] == "stay" && preferences.Values()["browser.authorDetails"] == false &&
+			preferences.Values()["browser.openTo"] == "last" && preferences.Values()["browser.actorLabels"] == true &&
+			!std::filesystem::exists(file), "missing preference file uses defaults without writing a file");
+		Check(preferences.Set("browser.authorDetails",true,error) && preferences.Set("launch.camera","freefly",error),
+			"browser preferences create and replace the saved file");
+		Preferences reloaded(file);
+		Check(reloaded.Load(error) && reloaded.Values()["browser.authorDetails"] == true && reloaded.Values()["launch.camera"] == "freefly",
+			"saved browser choices survive restart");
+		const json rejected={{"launch.speed","2"},{"browser.rememberBrowsing",false},
+			{"logLevel","trace"},{"launch.camera","invalid"},{"browser.actorLabels","false"},{"browser.openTo",3}};
+		for (const auto& [key,value] : rejected.items())
+			Check(!preferences.Set(key,value,error), "unknown, retired and mistyped preferences are rejected");
+		const auto before=preferences.Values();
+		std::filesystem::create_directory(file.string()+".tmp");
+		Check(!preferences.Set("browser.actorLabels",false,error) && preferences.Values() == before,
+			"failed write does not publish unsaved preferences");
+		std::filesystem::remove(file.string()+".tmp");
+		Preferences afterFailure(file);
+		Check(afterFailure.Load(error) && afterFailure.Values() == before, "failed write preserves the previous disk snapshot");
+		// Malformed or future-version storage is preserved and cannot be overwritten by a UI edit.
+		for (const auto* contents : { "broken", "{\"formatVersion\":2,\"values\":{}}" }) {
+			std::ofstream(root / "invalid.json") << contents;
+			Preferences invalid(root / "invalid.json");
+			Check(!invalid.Load(error) && !invalid.Set("browser.actorLabels",false,error), "unreadable preferences refuse edits");
+			std::ifstream input(root / "invalid.json");
+			Check(std::string(std::istreambuf_iterator<char>(input),{}) == contents, "unreadable file remains unchanged");
+		}
+		Preferences smoke(std::filesystem::path{});
+		Check(smoke.Load(error) && smoke.Set("browser.actorLabels",false,error), "smoke preferences work without player storage");
 		std::filesystem::remove_all(root); // Unique temporary fixture created above.
 	}
 	struct Result { int executed{}, disposed{}; } result;

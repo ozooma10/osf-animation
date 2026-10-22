@@ -96,7 +96,7 @@ from the combined Animation package. Choose the library and emote options in the
    `Data/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json`.
    The engine now supplies `osf.animation.engine.json`; Browser supplies
    `osf.animation.browser.json`. Replace obsolete mod files, but **keep saved
-   settings values** named `osf.animation.json` so the migration can read them.
+   settings values** named `osf.animation.json` so the engine migration can read them.
 7. Start through SFSE, open OSF Settings, and use **OSF Animation Browser** in the
    Launcher tab. Assign the browser and wheel keys again under the Browser's
    controls. Both hotkeys start unbound under the new provider ID.
@@ -109,12 +109,20 @@ Do not remove other mods' schemas or clear your user settings, wheel pins, or
 | Previous installation | 1.5.0 behavior |
 | --- | --- |
 | Older combined OSF UI settings service | Starts with the new OSF Settings defaults. Old values and hotkeys are not imported. |
-| Development build using OSF Settings provider `osf.animation` | Valid engine/browser preferences import once into `osf.animation.engine` and `osf.animation.browser`. Explicit values already saved under either new ID win. |
-| Build already using the two new provider IDs | Existing preferences remain in their respective providers. |
+| Development build using OSF Settings provider `osf.animation` | Supported engine preferences import into `osf.animation.engine`. Explicit values already stored for the new engine ID win. |
+| Build already using the two new provider IDs | Engine values and hotkeys stay in OSF Settings. |
 
-The one-time import covers supported preference keys, not keybindings. Rebind the
+The one-time import covers supported engine preference keys, not keybindings. Rebind the
 browser and wheel hotkeys after moving from the combined provider. The obsolete
 `Data/OSF/settings.json` file is no longer read.
+
+The Browser's OSF Settings page now contains only its two hotkeys. Change Browser preferences
+inside the Browser; detail/source filters sit beside Browse. Browsing state is always remembered
+within a game session. The saved speed default and unused stage-transition popup setting have
+been removed. Launches start at 1x unless you change Start Overrides for that launch; keyboard
+speed controls still work during playback. Playback and Alignment bindings have separate groups.
+Browser preferences load from `SFSE/OSF/browser-preferences.json` under the game's documents
+folder, or use defaults when that file is absent. Changes are saved there.
 
 Scene IDs, generated inspection IDs, and the browser view ID are unchanged. Wheel
 pins keep their existing file and IDs; their referenced content must still be

@@ -3,7 +3,6 @@
 #include "API/OSFSettings.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/SceneKeymap.h"
-#include "UI/HudMessage.h"
 
 #include <spdlog/spdlog.h>
 #include <mutex>
@@ -72,10 +71,6 @@ namespace OSF::API
 				std::uint32_t value = key.key;
 				if ((refreshAll || a_key == key.setting) && g_settings.GetKey(kModId, key.setting, &value) == Status::Ok)
 					Input::g_sceneKeymap.Set(i, value);
-			}
-			if ((refreshAll || a_key == "debugNotifications") &&
-				g_settings.GetBool(kModId, "debugNotifications", &enabled) == Status::Ok) {
-				UI::HudMessage::SetDebugEnabled(enabled);
 			}
 			if ((refreshAll || a_key == "gear.autoEquip") &&
 				g_settings.GetBool(kModId, "gear.autoEquip", &enabled) == Status::Ok) {

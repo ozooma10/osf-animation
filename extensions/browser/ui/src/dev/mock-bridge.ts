@@ -1,7 +1,7 @@
 import type { AnimationBridge, NativeMessageListener } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
 import { WHEEL_MAX, sceneById, wheelPool } from "../app/selectors";
-import { PREFERENCE_KEYS } from "../app/settings";
+import { decodePreferences, PREFERENCE_KEYS } from "../app/settings";
 import { PLAYER_TOKEN, type ActiveLaunch, type BrowserPreferences, type BrowserState } from "../app/state";
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY } from "./mock-data";
 
@@ -154,10 +154,15 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.wheel.data", payload: { customized: this.getState().wheelCustomized, entries } });
     } else if (command === "osf.animation.launch") {
       this.launch(fields);
-    } else if (command === "settings.set" && typeof fields.key === "string" && Object.prototype.hasOwnProperty.call(this.preferenceValues, fields.key)) {
+    } else if (command === "settings.set") {
+      const value = fields.key === "launch.camera" && fields.value === "" ? "scene" : fields.value;
+      if (typeof fields.key !== "string" || Object.keys(decodePreferences({ [fields.key]: value })).length !== 1) {
+        this.later({ type: "bridge.requestFailed", payload: { command, message: "Unknown browser preference or invalid value" } }, 10);
+        return;
+      }
       this.preferenceValues = {
         ...this.preferenceValues,
-        [fields.key]: fields.key === "launch.camera" && fields.value === "" ? "scene" : fields.value,
+        [fields.key]: value,
       };
       this.later({ type: "settings.data", payload: this.preferenceValues }, 10);
     } else if (command === "osf.animation.stop") {

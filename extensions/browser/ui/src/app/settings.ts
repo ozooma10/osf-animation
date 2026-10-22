@@ -9,7 +9,6 @@ import {
 export const PREFERENCE_KEYS: { [K in keyof BrowserPreferences]: string } = {
   afterLaunch: "browser.afterLaunch",
   openTo: "browser.openTo",
-  rememberBrowsing: "browser.rememberBrowsing",
   actorLabels: "browser.actorLabels",
   libraryDetail: "browser.libraryDetail",
   librarySource: "browser.librarySource",
@@ -17,7 +16,6 @@ export const PREFERENCE_KEYS: { [K in keyof BrowserPreferences]: string } = {
   hideApparel: "launch.strip",
   playerInputLock: "launch.lock",
   camera: "launch.camera",
-  speed: "launch.speed",
   authorDetails: "browser.authorDetails",
 };
 
@@ -36,14 +34,11 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   const hideApparel = oneOf<BrowserPreferences["hideApparel"]>(values[PREFERENCE_KEYS.hideApparel], ["-1", "0", "1"]);
   const playerInputLock = oneOf<BrowserPreferences["playerInputLock"]>(values[PREFERENCE_KEYS.playerInputLock], ["-1", "0", "1"]);
   const camera = oneOf<BrowserPreferences["camera"]>(values[PREFERENCE_KEYS.camera] === "scene" ? "" : values[PREFERENCE_KEYS.camera], ["", "thirdperson_hold", "scene_orbit", "freefly", "vanity_orbit"]);
-  const speed = oneOf(values[PREFERENCE_KEYS.speed], ["0.5", "0.75", "1", "1.25", "1.5", "2"]);
-  const rememberBrowsing = bool(values[PREFERENCE_KEYS.rememberBrowsing]);
   const actorLabels = bool(values[PREFERENCE_KEYS.actorLabels]);
   const authorDetails = bool(values[PREFERENCE_KEYS.authorDetails]);
 
   if (afterLaunch) preferences.afterLaunch = afterLaunch;
   if (openTo) preferences.openTo = openTo;
-  if (rememberBrowsing !== undefined) preferences.rememberBrowsing = rememberBrowsing;
   if (actorLabels !== undefined) preferences.actorLabels = actorLabels;
   if (libraryDetail) preferences.libraryDetail = libraryDetail;
   if (librarySource) preferences.librarySource = librarySource;
@@ -51,7 +46,6 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   if (hideApparel) preferences.hideApparel = hideApparel;
   if (playerInputLock) preferences.playerInputLock = playerInputLock;
   if (camera !== undefined) preferences.camera = camera;
-  if (speed) preferences.speed = speed;
   if (authorDetails !== undefined) preferences.authorDetails = authorDetails;
   return preferences;
 }

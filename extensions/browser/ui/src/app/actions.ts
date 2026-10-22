@@ -53,7 +53,7 @@ export type BrowserAction =
   | { type: "location/selected"; mode: LocationMode; token?: number | null }
   | { type: "selection/changed"; sceneId: string | null; stage?: number | null }
   | { type: "mode/changed"; mode: BrowserMode }
-  | { type: "browser/opened"; mode: Exclude<BrowserMode, "wheel">; resetBrowsing: boolean }
+  | { type: "browser/opened"; mode: Exclude<BrowserMode, "wheel"> }
   | { type: "filter/search"; search: string }
   | { type: "filter/species" }
   | { type: "browse/all" }

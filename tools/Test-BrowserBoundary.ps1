@@ -39,15 +39,15 @@ foreach ($file in $private) {
 }
 $coreSchema = Get-Content (Join-Path $repo 'dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json') -Raw | ConvertFrom-Json
 $browserSchema = Get-Content (Join-Path $repo 'extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json') -Raw | ConvertFrom-Json
-$coreKeys = @($coreSchema.groups.PSObject.Properties.Value | ForEach-Object { $_.key })
-$browserKeys = @($browserSchema.groups.PSObject.Properties.Value | ForEach-Object { $_.key })
+$coreKeys = @(foreach ($group in $coreSchema.groups.PSObject.Properties) { foreach ($control in $group.Value) { $control.key } })
+$browserKeys = @(foreach ($group in $browserSchema.groups.PSObject.Properties) { foreach ($control in $group.Value) { $control.key } })
 $coreHotkeys = $coreSchema.PSObject.Properties['hotkeys']
 $browserHotkeys = $browserSchema.PSObject.Properties['hotkeys']
 if (($coreHotkeys -and $coreHotkeys.Value) -or @($coreKeys | Where-Object { $_ -like 'browser.*' -or $_ -like 'launch.*' }).Count -or
-    @($browserKeys | Where-Object { $_ -in $coreKeys }).Count -or
+    $browserKeys.Count -or 'debugNotifications' -in $coreKeys -or
     -not $browserHotkeys -or -not $browserHotkeys.Value.PSObject.Properties['openBrowser'] -or
     -not $browserHotkeys.Value.PSObject.Properties['openWheel']) {
-    throw 'Engine and browser schemas must have separate settings ownership and retain browser hotkey IDs.'
+    throw 'Browser schema must retain its hotkey IDs without duplicating preferences; engine must omit retired popup settings.'
 }
 # The view retains its picked cast/placement on hide. Keep the native invalidation
 # boundary at world replacement; UI tests exercise reopen, rescan and reset replay.

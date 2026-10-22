@@ -157,6 +157,39 @@ describe("browser reducer", () => {
     expect(state.showHidden).toBe(false);
   });
 
+  it("keeps launch overrides when a full preference snapshot changes only display settings", () => {
+    const initial = createInitialState();
+    const overridden = { ...initial, opts: { hideApparel: "0" as const, playerInputLock: "0" as const, camera: "freefly", speed: "1.7" } };
+    const received = browserReducer(overridden, {
+      type: "settings/received", preferences: { ...initial.preferences, authorDetails: true },
+    });
+    expect(received.opts).toEqual(overridden.opts);
+    expect(browserReducer(received, {
+      type: "settings/received", preferences: { ...received.preferences, camera: "scene_orbit" },
+    }).opts).toEqual({ ...overridden.opts, camera: "scene_orbit" });
+  });
+
+  it("always retains browsing state across hide and reopen while clearing one-launch speed", () => {
+    const initial = createInitialState();
+    const browsing = { ...initial, filters: { ...initial.filters, search: "pose" },
+      browseAll: true, allSpecies: true, browseKind: "animation" as const,
+      libOpen: new Map([["poses", true]]), opts: { ...initial.opts, speed: "1.5" } };
+    const hidden = browserReducer(browsing, { type: "visibility/hidden" });
+    const opened = browserReducer(hidden, { type: "browser/opened", mode: "scenes" });
+    expect(opened).toMatchObject({ filters: { search: "pose" }, browseAll: true, allSpecies: true, browseKind: "animation" });
+    expect(opened.libOpen).toEqual(browsing.libOpen);
+    expect(opened.opts.speed).toBe("1");
+  });
+
+  it("keeps speed for a failed launch and resets it after success or selecting another scene", () => {
+    const initial = createInitialState();
+    const pending = { ...initial, selectedId: "solo", opts: { ...initial.opts, speed: "1.5" } };
+    expect(browserReducer(pending, { type: "launch/failed", error: "not ready" }).opts.speed).toBe("1.5");
+    expect(browserReducer(pending, { type: "selection/changed", sceneId: "solo", stage: 2 }).opts.speed).toBe("1.5");
+    expect(browserReducer(pending, { type: "selection/changed", sceneId: "pair" }).opts.speed).toBe("1");
+    expect(browserReducer(pending, { type: "launch/succeeded", handle: 7, sceneId: "solo", afterLaunch: "stay" }).opts.speed).toBe("1");
+  });
+
   it("distinguishes an explicit wheel from reset defaults", () => {
     const customized = browserReducer(createInitialState(), { type: "wheel/customized", catalog: [solo], library: [] });
     expect(customized.wheelCustomized).toBe(true);
@@ -211,7 +244,7 @@ describe("browser reducer", () => {
 });
 
 describe("browser settings", () => {
-  it("maps the Settings schema's scene camera value to the default launch override", () => {
+  it("maps the native scene camera value to the default launch override", () => {
     expect(decodePreferences({ "launch.camera": "scene" }).camera).toBe("");
   });
 
@@ -223,7 +256,8 @@ describe("browser settings", () => {
       "launch.strip": "0",
       "launch.lock": "1",
       "launch.camera": "scene_orbit",
-    })).toMatchObject({ afterLaunch: "close", rememberBrowsing: false, actorLabels: false,
+      "launch.speed": "2",
+    })).toEqual({ afterLaunch: "close", actorLabels: false,
       hideApparel: "0", playerInputLock: "1", camera: "scene_orbit" });
     expect(decodePreferences({}).actorLabels).toBeUndefined();
   });
@@ -477,7 +511,7 @@ describe("import report panel", () => {
   it("closes with the rest of the console when the view is hidden", () => {
     const open = browserReducer(createInitialState(), { type: "imports/open", open: true });
     expect(browserReducer(open, { type: "visibility/hidden" }).importsOpen).toBe(false);
-    expect(browserReducer(open, { type: "browser/opened", mode: "scenes", resetBrowsing: false }).importsOpen).toBe(false);
+    expect(browserReducer(open, { type: "browser/opened", mode: "scenes" }).importsOpen).toBe(false);
     expect(browserReducer(open, { type: "mode/changed", mode: "active" }).importsOpen).toBe(false);
   });
 

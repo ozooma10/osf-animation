@@ -29,7 +29,7 @@ namespace OSF::API::EngineSettingsMigration
 			};
 			const auto source = read("osf.animation.json");
 			const auto target = read("osf.animation.engine.json");
-			for (const char* key : { "logLevel", "debugNotifications", "gear.autoEquip" }) {
+			for (const char* key : { "logLevel", "gear.autoEquip" }) {
 				if (!source.contains(key) || target.contains(key))
 					continue;
 				const auto& value = source.at(key);

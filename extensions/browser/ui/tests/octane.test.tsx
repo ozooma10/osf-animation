@@ -144,7 +144,7 @@ describe("Octane view runtime", () => {
     } as NonNullable<Window["osfui"]>;
     const { result } = renderHook(() => useBrowserController());
     const snapshot = (authorDetails: boolean) => ({
-      "browser.openTo": "scenes", "browser.rememberBrowsing": false, "browser.authorDetails": authorDetails,
+      "browser.openTo": "scenes", "browser.authorDetails": authorDetails,
     });
     await act(() => publish(snapshot(false)));
     await act(() => result.current.commands.setSearch("pose"));

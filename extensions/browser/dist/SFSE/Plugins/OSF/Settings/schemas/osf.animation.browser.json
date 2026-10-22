@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/ozooma10/osf-settings/dev/sdk/osf-settings.schema.json",
   "schemaVersion": 1,
   "title": "OSF Animation Browser",
-  "description": "Optional animation browser, wheel, and launch preferences.",
+  "description": "Browser and wheel hotkeys. Configure browsing and launch preferences inside the animation browser.",
   "version": "1.5.0",
   "dependencies": {
     "osfsettings": "1.2.0",
@@ -10,146 +10,7 @@
     "osf.animation.engine": "1.5.0"
   },
   "groups": {
-    "Browser - Behavior": [
-      {
-        "key": "browser.afterLaunch",
-        "type": "enum",
-        "default": "stay",
-        "options": {
-          "minimize": "Live controls",
-          "stay": "Stay open",
-          "close": "Close browser"
-        },
-        "label": "After launching a scene",
-        "hint": "Choose what the animation browser does after a successful launch."
-      },
-      {
-        "key": "browser.openTo",
-        "type": "enum",
-        "default": "last",
-        "options": {
-          "last": "Last used",
-          "scenes": "Browse",
-          "active": "Active"
-        },
-        "label": "Open browser to",
-        "hint": "Active falls back to Browse when nothing is running."
-      },
-      {
-        "key": "browser.rememberBrowsing",
-        "type": "bool",
-        "default": true,
-        "label": "Remember browsing state",
-        "hint": "Keep search, filters, and expanded folders between browser openings in this game session."
-      }
-    ],
-    "Browser - Library": [
-      {
-        "key": "browser.libraryDetail",
-        "type": "enum",
-        "default": "curated",
-        "options": {
-          "curated": "Poses and loops",
-          "full": "Full library"
-        },
-        "label": "Animation detail",
-        "hint": "Choose whether transitions and animation layers are shown by default."
-      },
-      {
-        "key": "browser.librarySource",
-        "type": "enum",
-        "default": "all",
-        "options": {
-          "all": "Custom and vanilla",
-          "custom": "Custom only"
-        },
-        "label": "Animation source",
-        "hint": "Hide vanilla animations without affecting custom animation packs."
-      },
-      {
-        "key": "browser.unavailableScenes",
-        "type": "enum",
-        "default": "ask",
-        "options": {
-          "ask": "On request",
-          "show": "Always below",
-          "hide": "Hide"
-        },
-        "label": "Unavailable scenes",
-        "hint": "Control scenes that need a different cast or furniture."
-      }
-    ],
-    "Browser - Display": [
-      {
-        "key": "browser.actorLabels",
-        "type": "bool",
-        "default": true,
-        "label": "World selection labels",
-        "hint": "Tag selected cast members and furniture in the world while the browser is open."
-      },
-      {
-        "key": "browser.authorDetails",
-        "type": "bool",
-        "default": false,
-        "label": "Show author details",
-        "hint": "Reveal scene IDs, source files, and diagnostics."
-      }
-    ],
-    "Scenes - Launch defaults": [
-      {
-        "key": "launch.strip",
-        "type": "enum",
-        "default": "-1",
-        "options": {
-          "-1": "Use scene",
-          "1": "Always",
-          "0": "Never"
-        },
-        "label": "Strip actors",
-        "hint": "Default apparel override for browser launches."
-      },
-      {
-        "key": "launch.lock",
-        "type": "enum",
-        "default": "-1",
-        "options": {
-          "-1": "Use scene",
-          "1": "Always",
-          "0": "Never"
-        },
-        "label": "Lock player controls",
-        "hint": "Default player-control override for browser launches."
-      },
-      {
-        "key": "launch.camera",
-        "type": "enum",
-        "default": "scene",
-        "options": {
-          "scene": "Use scene",
-          "thirdperson_hold": "Third person",
-          "scene_orbit": "Scene orbit",
-          "freefly": "Free fly",
-          "vanity_orbit": "Vanity orbit"
-        },
-        "label": "Camera",
-        "hint": "Default camera policy for browser launches."
-      },
-      {
-        "key": "launch.speed",
-        "type": "enum",
-        "default": "1",
-        "options": {
-          "0.5": "0.5x",
-          "0.75": "0.75x",
-          "1": "1x",
-          "1.25": "1.25x",
-          "1.5": "1.5x",
-          "2": "2x"
-        },
-        "label": "Playback speed",
-        "hint": "Default clock multiplier for browser launches."
-      }
-    ]
+    "General - Hotkeys": []
   },
   "hotkeys": {
     "openBrowser": {

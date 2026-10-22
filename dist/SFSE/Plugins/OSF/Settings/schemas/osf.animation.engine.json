@@ -19,30 +19,7 @@
         "hint": "Equip registered gear (belts, props, etc...) carried by scene participants for the scene's duration. Register items via *.osfgear.json files."
       }
     ],
-    "Advanced - Diagnostics": [
-      {
-        "key": "debugNotifications",
-        "type": "bool",
-        "default": false,
-        "label": "Stage-transition popups",
-        "hint": "Debug HUD popup on each scene stage transition."
-      },
-      {
-        "key": "logLevel",
-        "type": "enum",
-        "default": "info",
-        "options": {
-          "trace": "Trace",
-          "debug": "Debug",
-          "info": "Info",
-          "warn": "Warnings",
-          "error": "Errors"
-        },
-        "label": "Log level",
-        "hint": "OSF Animation.log verbosity."
-      }
-    ],
-    "Scenes - Keyboard controls": [
+    "Controls - Playback": [
       {
         "key": "keys.advance",
         "type": "key",
@@ -106,7 +83,9 @@
         "label": "End scene",
         "allowUnbound": true,
         "hint": "Active only while the scene grants this control."
-      },
+      }
+    ],
+    "Controls - Alignment": [
       {
         "key": "keys.alignSelect",
         "type": "key",
@@ -202,6 +181,22 @@
         "label": "Save alignment",
         "allowUnbound": true,
         "hint": "Active only while the scene grants this control."
+      }
+    ],
+    "Advanced - Diagnostics": [
+      {
+        "key": "logLevel",
+        "type": "enum",
+        "default": "info",
+        "options": {
+          "trace": "Trace",
+          "debug": "Debug",
+          "info": "Info",
+          "warn": "Warnings",
+          "error": "Errors"
+        },
+        "label": "Log level",
+        "hint": "OSF Animation.log verbosity."
       }
     ]
   }

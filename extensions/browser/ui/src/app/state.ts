@@ -111,7 +111,6 @@ function emptyImportReload(): ImportReloadState {
 export interface BrowserPreferences {
   afterLaunch: AfterLaunch;
   openTo: OpenTo;
-  rememberBrowsing: boolean;
   actorLabels: boolean;
   libraryDetail: "curated" | "full";
   librarySource: "all" | "custom";
@@ -119,14 +118,12 @@ export interface BrowserPreferences {
   hideApparel: "-1" | "0" | "1";
   playerInputLock: "-1" | "0" | "1";
   camera: "" | "thirdperson_hold" | "scene_orbit" | "freefly" | "vanity_orbit";
-  speed: string;
   authorDetails: boolean;
 }
 
 export const DEFAULT_PREFERENCES: BrowserPreferences = {
   afterLaunch: "stay",
   openTo: "last",
-  rememberBrowsing: true,
   actorLabels: true,
   libraryDetail: "curated",
   librarySource: "all",
@@ -134,7 +131,6 @@ export const DEFAULT_PREFERENCES: BrowserPreferences = {
   hideApparel: "-1",
   playerInputLock: "-1",
   camera: "",
-  speed: "1",
   authorDetails: false,
 };
 

@@ -64,20 +64,12 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
             { value: "scenes", label: "Browse" },
             { value: "active", label: "Active" },
           ]}/>
-        <ToggleRow label="Remember browsing state" hint="Keep search, filters, and expanded folders between openings in this game session."
-          enabled={preferences.rememberBrowsing} onChange={(value) => set("rememberBrowsing", value)}/>
         <ToggleRow label="Actor name labels" hint="Tag selected cast members over their heads in the world, and list them in the corner while they are off screen."
           enabled={preferences.actorLabels} onChange={(value) => set("actorLabels", value)}/>
       </section>
 
       <section class="settings-group">
         <h3>Browse</h3>
-        <ChoiceRow label="Animation detail" hint="Keep transitions and animation layers folded away, or show every installed clip."
-          value={preferences.libraryDetail} onChange={(value) => set("libraryDetail", value)}
-          choices={[{ value: "curated", label: "Poses & loops" }, { value: "full", label: "Full library" }]}/>
-        <ChoiceRow label="Content source" hint="Vanilla animations can be hidden without affecting custom packs."
-          value={preferences.librarySource} onChange={(value) => set("librarySource", value)}
-          choices={[{ value: "all", label: "Custom + vanilla" }, { value: "custom", label: "Custom only" }]}/>
         <ChoiceRow label="Unavailable scenes" hint="Scenes that need a different cast or furniture can remain optional, always visible, or hidden."
           value={preferences.unavailableScenes} onChange={(value) => set("unavailableScenes", value)}
           choices={[
@@ -105,16 +97,13 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
             { value: "freefly", label: "Free fly" },
             { value: "vanity_orbit", label: "Vanity" },
           ]}/>
-        <ChoiceRow label="Playback speed" hint="Default clock multiplier for browser launches."
-          value={preferences.speed} onChange={(value) => set("speed", value)}
-          choices={["0.5", "0.75", "1", "1.25", "1.5", "2"].map((value) => ({ value, label: `${value}×` }))}/>
       </section>
 
       <section class="settings-group">
         <h3>Advanced</h3>
         <ToggleRow label="Show author details" hint="Reveal scene IDs, source files, and diagnostics."
           enabled={preferences.authorDetails} onChange={(value) => set("authorDetails", value)}/>
-        <p class="settings-footnote">Stage-transition popups and log verbosity remain in the OSF Animation page in OSF Settings.</p>
+        <p class="settings-footnote">Key bindings and log verbosity are in OSF Settings. Animation detail and content source are beside the Browse filters.</p>
       </section>
     </div>
   </section>;
