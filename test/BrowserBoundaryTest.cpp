@@ -1,8 +1,8 @@
 #include "Check.h"
 #include "Util/KeywordLabel.h"
 void RunBrowserClipLibraryTests();
-#include "API/EngineClient.h"
 #include "API/UIBridgeCatalog.h"
+#include "API/EngineClient.h"
 #include "API/BrowserSessionQueue.h"
 #include "API/BrowserLaunchSequence.h"
 #include "API/BrowserJsonTransport.h"
