@@ -645,9 +645,16 @@ namespace OSF::Camera
 			pad.leftY != 0.0f || padLift != 0.0f || padZoom != 0.0f;
 		// GetAsyncKeyState is desktop-wide. Background simulation must not pan while
 		// the player types in another application; the engine owns mouse/pad delivery.
-		DWORD foregroundPid = 0;
-		GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
-		const auto keyDown = [focused = foregroundPid == GetCurrentProcessId()](int key) {
+		// Foreground lookup is a cross-process desktop query; refresh it at most every 250 ms (driveLock held).
+		static std::int64_t focusCheckedMs = 0;
+		static bool         gameFocused = false;
+		if (now - focusCheckedMs >= 250 || now < focusCheckedMs) {
+			DWORD foregroundPid = 0;
+			GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
+			gameFocused = foregroundPid == GetCurrentProcessId();
+			focusCheckedMs = now;
+		}
+		const auto keyDown = [focused = gameFocused](int key) {
 			return focused && (GetAsyncKeyState(key) & 0x8000) != 0;
 		};
 		const bool keyW = keyDown('W');

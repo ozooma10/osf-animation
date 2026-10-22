@@ -844,9 +844,9 @@ namespace OSF::API
 				}
 				entries.push_back(std::move(entry));
 			}
+			// The view applied these pins optimistically; re-shipping the whole catalog would also drop its cast match.
 			if (Serialization::WheelPins::SetEntries(entries)) {
 				REX::DEBUG("[UI] animation wheel customized with {} entr{}", entries.size(), entries.size() == 1 ? "y" : "ies");
-				PushCatalogUpdate();
 			}
 		}
 

@@ -8,6 +8,7 @@
 #include <format>
 #include <random>
 #include <unordered_set>
+#include <spdlog/spdlog.h>
 
 namespace OSF::Matchmaking
 {
@@ -338,8 +339,11 @@ namespace OSF::Matchmaking
 		std::optional<Animation::WorldPlacementMode> a_placement, const RoleConstraints& a_roles)
 	{
 		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
-		REX::DEBUG("[Match] searching for {} actor(s), tags {}, roles [{}], {}",
-			actorCount, DescribeQuery(a_query), DescribeRoles(a_roles), DescribeAnchorSearch(a_anchor, a_mode));
+		const bool debugLog = spdlog::should_log(spdlog::level::debug);
+		if (debugLog) {
+			REX::DEBUG("[Match] searching for {} actor(s), tags {}, roles [{}], {}",
+				actorCount, DescribeQuery(a_query), DescribeRoles(a_roles), DescribeAnchorSearch(a_anchor, a_mode));
+		}
 		if (a_actors.empty()) {
 			REX::DEBUG("[Match] no match (no actors supplied)");
 			return std::nullopt;
@@ -350,8 +354,10 @@ namespace OSF::Matchmaking
 		}
 		auto pool = BuildPool(a_query, a_actors, a_anchor, a_mode, a_exclude, a_placement, a_roles);
 		if (pool.empty()) {
-			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + anchor filters + a complete actor binding; {})",
-				actorCount, DescribeAnchorSearch(a_anchor, a_mode));
+			if (debugLog) {
+				REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + anchor filters + a complete actor binding; {})",
+					actorCount, DescribeAnchorSearch(a_anchor, a_mode));
+			}
 			return std::nullopt;
 		}
 		std::int32_t maxPriority = pool.front().priority;

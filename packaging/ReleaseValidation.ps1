@@ -10,9 +10,7 @@ function Get-ReleaseFileHashes([string]$Root) {
 function Assert-ProductionDll([string]$Path) {
     $bytes = [IO.File]::ReadAllBytes($Path)
     if ($bytes.Length -lt 2 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw 'Invalid production DLL.' }
-    foreach ($encoding in @([Text.Encoding]::UTF8, [Text.Encoding]::Unicode)) {
-        if ($encoding.GetString($bytes).Contains('OSFAnimationTestHarness.json')) { throw 'Instrumented Animation DLL cannot be packaged.' }
-    }
+    if (Test-InstrumentedDll $Path) { throw 'Instrumented Animation DLL cannot be packaged.' }
 }
 
 function Get-ReleaseArtifacts([string]$Repository, [string]$Kind) {
@@ -72,7 +70,7 @@ function Test-ReleasePapyrus([string]$Repository) {
 function Write-ReleaseArchive([string]$Stage, [string]$Archive, $BuildReceipt, [string]$ResultPath, [string]$Repository) {
     $files = @(Get-ReleaseFileHashes $Stage)
     foreach ($file in $files) {
-        if ($file.path -match '(?i)(OSFTest\.(pex|psc)|TestHarness|smoke|\.map$|(^|/)(values|node_modules)/)') { throw "Forbidden release entry: $($file.path)" }
+        if (Test-ReleaseForbiddenEntry $file.path) { throw "Forbidden release entry: $($file.path)" }
     }
     foreach ($file in $BuildReceipt.files) {
         $relative = if ($BuildReceipt.kind -eq 'engine') { "Core/SFSE/Plugins/$($file.path)" }

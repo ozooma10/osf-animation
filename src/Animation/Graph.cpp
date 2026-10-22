@@ -392,16 +392,18 @@ namespace OSF::Animation
 		if (++enginePoseRevision == 0) {
 			++enginePoseRevision;
 		}
-		lastSampleMs.store(std::chrono::duration_cast<std::chrono::milliseconds>(
-			std::chrono::steady_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
+		// One clock read per Sample (~7x/frame per graph): heartbeat, blend clock, session and solo clocks share it.
+		const std::int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count();
+		lastSampleMs.store(nowMs, std::memory_order_relaxed);
 
-		if (blendPhase != BlendPhase::kNone && blendClock.ShouldAdvance(a_token)) {
+		if (blendPhase != BlendPhase::kNone && blendClock.ShouldAdvance(a_token, nowMs)) {
 			blendClock.time += a_deltaTime;
 		}
 
 		// A segment switch clears the binding, so the new clip binds again in this call.
 		if (playbackSession) {
-			const auto tick = playbackSession->Advance(a_token, a_deltaTime);
+			const auto tick = playbackSession->Advance(a_token, a_deltaTime, nowMs);
 			if (tick.stage != appliedStage && participantIndex >= 0 && tick.stage < playbackSession->stages.size()) {
 				const auto& stage = playbackSession->stages[tick.stage];
 				const auto& slot = stage.participants[participantIndex];
@@ -440,8 +442,6 @@ namespace OSF::Animation
 		if (!playbackSession && syncGroup) {
 			std::scoped_lock sgl{ syncGroup->lock };
 			auto& clk = syncGroup->clock;
-			const int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-				std::chrono::steady_clock::now().time_since_epoch()).count();
 			if (clk.ShouldAdvance(a_token, nowMs)) {
 				clk.time += a_deltaTime * syncGroup->speed.load(std::memory_order_relaxed);
 			}

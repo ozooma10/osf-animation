@@ -121,7 +121,9 @@ function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: 
   const groups = new Map<string, EvaluatedPlayable[]>();
   for (const entry of entries) {
     const key = playableGroupKey(entry.item);
-    groups.set(key, [...(groups.get(key) ?? []), entry]);
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
   }
   return <div class={`playable-groups ${muted ? "dim" : ""}`}>
     {[...groups.entries()].sort(([a], [b]) => comparePlayableGroupKeys(a, b)).map(([key, list]) => {

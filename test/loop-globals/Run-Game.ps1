@@ -3,6 +3,7 @@
 [CmdletBinding()]
 param([string]$Harness = 'C:\Modding\Starfield\OSF Test Harness', [switch]$MenuPauses, [switch]$Interactive)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '../../tools/ReleaseRules.ps1')
 if ($Interactive -and -not $MenuPauses) { throw 'Interactive is only needed for menu pause checks.' }
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $runId = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
@@ -147,7 +148,7 @@ try {
     if ($marker.harnessRoot -ne $Harness) { throw 'Test profile is not owned by this harness.' }
     if ((Get-Content $pluginList) -match '^\*?OSFLoopGlobals\.esm$') { throw 'Test plugin is already listed.' }
     $dll = Join-Path $repo $(if ($MenuPauses) { 'build/smoke-native/windows/x64/releasedbg/OSF Animation.dll' } else { 'build/windows/x64/releasedbg/OSF Animation.dll' })
-    if ([Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($dll)).Contains('OSFAnimationTestHarness.json') -ne [bool]$MenuPauses) {
+    if ((Test-InstrumentedDll $dll) -ne [bool]$MenuPauses) {
         throw 'Menu tests require the private smoke DLL; loop tests require the production DLL.'
     }
     Run-Harness @('-Action','Initialize','-SkipBuild')

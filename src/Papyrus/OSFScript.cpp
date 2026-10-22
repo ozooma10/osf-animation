@@ -70,14 +70,15 @@ namespace OSF::Papyrus
 				return out;
 			}
 
-			std::unordered_map<std::string, std::uint32_t> index;
-			for (const auto& kv : proxy->type->varNameIndexMap) {
-				index[Util::ToLower(kv.key.c_str())] = kv.value;
-			}
+			// Scan the small engine map case-insensitively instead of building a lowercase copy per call.
 			const auto count = proxy->type->variables.size();
 			const auto member = [&](const char* a_name) -> const RE::BSScript::Variable* {
-				const auto it = index.find(Util::ToLower(a_name));
-				return (it != index.end() && it->second < count) ? &proxy->variables[it->second] : nullptr;
+				for (const auto& kv : proxy->type->varNameIndexMap) {
+					if (Util::IEquals(kv.key.c_str(), a_name)) {
+						return kv.value < count ? &proxy->variables[kv.value] : nullptr;
+					}
+				}
+				return nullptr;
 			};
 
 			if (const auto* v = member("Anchor"); v && v->is<RE::BSScript::Object>() && RE::BSScript::get<RE::BSScript::Object>(*v)) {

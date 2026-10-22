@@ -54,6 +54,8 @@ function isTextInput(element: Element | null): element is HTMLInputElement {
 }
 
 export function useBrowserInput(state: BrowserState, commands: BrowserCommands, standalone: boolean): void {
+  // `active` is a new array on every poll; the key handler only needs whether exactly one scene runs.
+  const singleActive = state.active?.length === 1;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -86,7 +88,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       // Space advances, but never steals activation from a focused control.
       const activatable = active instanceof HTMLElement && active.matches("button, a[href], select, [role=switch]");
       if ((event.key === " " || event.key === "Spacebar") && !isTextInput(active) && !activatable &&
-        (state.lastHandle || state.active?.length === 1)) {
+        (state.lastHandle || singleActive)) {
         event.preventDefault(); commands.advance(); return;
       }
       if (event.key === "Tab") document.body.classList.add("nav-kb");
@@ -104,7 +106,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       document.removeEventListener("mousemove", pointer);
       document.removeEventListener("contextmenu", context);
     };
-  }, [commands, standalone, state.active, state.importsOpen, state.lastHandle, state.pickMode, state.settingsOpen, state.wheel]);
+  }, [commands, standalone, singleActive, state.importsOpen, state.lastHandle, state.pickMode, state.settingsOpen, state.wheel]);
 
   useEffect(() => {
     const orbit = { dragging: false, selecting: false, native: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, timer: 0 };

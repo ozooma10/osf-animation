@@ -89,7 +89,8 @@
     "feature": "Scene launch, stages and navigation",
     "native": [
       "osf-scene-registry-test",
-      "osf-scene-launcher-test"
+      "osf-scene-launcher-test",
+      "osf-preparation-test"
     ],
     "runtime": [
       "scene.stage",
@@ -171,7 +172,8 @@
   {
     "feature": "Equipment, weapons and props",
     "native": [
-      "osf-scene-registry-test"
+      "osf-scene-registry-test",
+      "osf-actor-state-test"
     ],
     "runtime": [
       "mechanisms.engage",

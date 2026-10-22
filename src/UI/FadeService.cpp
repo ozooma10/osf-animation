@@ -74,11 +74,10 @@ namespace OSF::UI
 
 	void FadeService::ScheduleRelease(float a_fadeSecs, float a_holdSecs)
 	{
+		// Caller holds transitionLock (every writer does). max(): a second fade-out only extends the hold.
 		const auto deadline = NowMs() + static_cast<int64_t>((a_fadeSecs + a_holdSecs) * 1000.0f);
-		// max(): a second fade-out only extends the hold.
-		int64_t current = releaseAtMs.load(std::memory_order_relaxed);
-		while (deadline > current &&
-		       !releaseAtMs.compare_exchange_weak(current, deadline, std::memory_order_relaxed)) {
+		if (deadline > releaseAtMs.load(std::memory_order_relaxed)) {
+			releaseAtMs.store(deadline, std::memory_order_relaxed);
 		}
 	}
 
@@ -123,14 +122,16 @@ namespace OSF::UI
 
 	void FadeService::Tick()
 	{
+		// Per frame: peek without the lock; writers all hold transitionLock, so re-check under it.
+		if (const auto peek = releaseAtMs.load(std::memory_order_relaxed); peek == 0 || NowMs() < peek) {
+			return;
+		}
 		std::lock_guard guard{transitionLock};
-		int64_t deadline = releaseAtMs.load(std::memory_order_relaxed);
+		const int64_t deadline = releaseAtMs.load(std::memory_order_relaxed);
 		if (deadline == 0 || NowMs() < deadline) {
 			return;
 		}
-		if (!releaseAtMs.compare_exchange_strong(deadline, 0, std::memory_order_relaxed)) {
-			return;
-		}
+		releaseAtMs.store(0, std::memory_order_relaxed);
 		PostFade(/*fadingOut*/ false, 0.5f, /*stayFaded*/ false);
 		transitionOwner = 0;
 	}

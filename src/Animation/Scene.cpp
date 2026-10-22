@@ -60,15 +60,19 @@ namespace OSF::Animation
 
 	PlaybackSession::Tick PlaybackSession::Advance(const void* a_token, float a_deltaTime)
 	{
+		return Advance(a_token, a_deltaTime, std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count());
+	}
+
+	PlaybackSession::Tick PlaybackSession::Advance(const void* a_token, float a_deltaTime, std::int64_t a_nowMs)
+	{
 		std::scoped_lock l{ lock };
 
-		const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-			std::chrono::steady_clock::now().time_since_epoch()).count();
 		// Any participant is a heartbeat; FrameClock re-elects a stale owner.
-		lastAdvanceMs.store(nowMs, std::memory_order_relaxed);
+		lastAdvanceMs.store(a_nowMs, std::memory_order_relaxed);
 
 		if (!preparationHeld.load(std::memory_order_relaxed) && pendingSegment.load(std::memory_order_relaxed) < 0 &&
-            !ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token, nowMs)) {
+            !ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token, a_nowMs)) {
 			float remaining = a_deltaTime * speed.load(std::memory_order_relaxed);
 			if (!std::isfinite(remaining) || remaining <= 0.0f) {
 				remaining = 0.0f;
@@ -280,8 +284,11 @@ namespace OSF::Animation
 	void PlaybackSession::DrainFiredMarks(std::vector<FiredMark>& a_out)
 	{
 		std::scoped_lock l{ lock };
-		a_out.swap(firedMarks);
-		firedMarks.clear();
+		// a_out is replaced, never appended. Swapping hands its (cleared) capacity back to firedMarks.
+		a_out.clear();
+		if (!firedMarks.empty()) {
+			a_out.swap(firedMarks);
+		}
 	}
 
 	void PlaybackSession::ApplySegmentLocked(uint32_t a_segment)

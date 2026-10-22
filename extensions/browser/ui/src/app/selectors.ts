@@ -65,6 +65,10 @@ export interface PlayableItem {
   stage: SceneStage | null;
   title: string;
   collection: string;
+  /** Lowercased search haystack, built once per memoized item list. */
+  hay: string;
+  /** Sort bucket (pose/photomode first), built once so the comparator stays regex-free. */
+  preference: number;
 }
 
 export function isEmote(scene: SceneModel | null | undefined): boolean {
@@ -153,22 +157,32 @@ export function playableItems(state: BrowserState): PlayableItem[] {
   return items;
 }
 
+type PlayableBase = Omit<PlayableItem, "hay" | "preference">;
+
+function finishPlayable(base: PlayableBase): PlayableItem {
+  const scene = base.scene;
+  const roles = scene.roles.map((role) => `${role.name} ${role.gender}`).join(" ");
+  const hay = `${base.title} ${base.collection} ${scene.title} ${scene.id} ${scene.tags.join(" ")} ${base.stage?.tags.join(" ") ?? ""} ${roles} ${scene.pack} ${scene.sourceFile} ${scene.sourcePath}`
+    .toLowerCase();
+  return { ...base, hay, preference: playablePreference(base) };
+}
+
 function buildPlayableItems(state: BrowserState): PlayableItem[] {
   const items: PlayableItem[] = [];
   for (const scene of state.catalog) {
     const kind: PlayableKind = isEmote(scene) ? "emote" : "scene";
-    items.push({
+    items.push(finishPlayable({
       key: playableKey(scene.id, null),
       kind,
       scene,
       stage: null,
       title: playableSceneTitle(scene),
       collection: scene.folder,
-    });
+    }));
   }
   for (const scene of filteredLibrary(state)) {
     for (const stage of scene.stages) {
-      items.push({
+      items.push(finishPlayable({
         key: playableKey(scene.id, stage.index),
         kind: "animation",
         scene,
@@ -178,13 +192,13 @@ function buildPlayableItems(state: BrowserState): PlayableItem[] {
           ? readableCollectionName(scene.title.replace(/^Vanilla · /, ""))
           : ""]
           .filter(Boolean).join(" / "),
-      });
+      }));
     }
   }
   return items;
 }
 
-function playablePreference(item: PlayableItem): number {
+function playablePreference(item: PlayableBase): number {
   if (item.kind === "animation" && item.stage) {
     const pose = item.stage.tags.some((tag) => tag.toLowerCase() === "pose");
     const photomode = /(^|\/)photomode(\/|$)/i.test(item.scene.id)
@@ -201,7 +215,7 @@ export function comparePlayableItems(state: BrowserState, a: PlayableItem, b: Pl
   const anchored = (item: PlayableItem) => Number(
     !!state.furniture && item.scene.requiresFurniture && fitsKeyedAnchor(state, item.scene) === true);
   return anchored(b) - anchored(a)
-    || playablePreference(a) - playablePreference(b)
+    || a.preference - b.preference
     || b.scene.priority - a.scene.priority
     || a.title.localeCompare(b.title)
     || a.key.localeCompare(b.key);
@@ -214,10 +228,7 @@ export function playableGroupOpen(state: BrowserState, key: string, containsSele
 
 export function matchesPlayableSearch(state: BrowserState, item: PlayableItem): boolean {
   if (!state.filters.search) return true;
-  const scene = item.scene;
-  const roles = scene.roles.map((role) => `${role.name} ${role.gender}`).join(" ");
-  return `${item.title} ${item.collection} ${scene.title} ${scene.id} ${scene.tags.join(" ")} ${item.stage?.tags.join(" ") ?? ""} ${roles} ${scene.pack} ${scene.sourceFile} ${scene.sourcePath}`
-    .toLowerCase().includes(state.filters.search);
+  return item.hay.includes(state.filters.search);
 }
 
 export function playableVisible(state: BrowserState, item: PlayableItem): boolean {

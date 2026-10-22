@@ -6,6 +6,8 @@
 #include "Registry/SoundRegistry.h"
 #include "UI/Subtitle.h"
 
+#include <spdlog/spdlog.h>
+
 namespace OSF::Audio::SoundPlayback
 {
 	void Play(RE::Actor* a_actor, std::uint64_t a_fallbackChannel, std::string_view a_spec,
@@ -33,11 +35,20 @@ namespace OSF::Audio::SoundPlayback
 			((2ull << 62) | a_fallbackChannel);
 		auto& service = SoundService::GetSingleton();
 		std::uint64_t gameObject = 0;
-		if (a_emitter == Registry::SoundEmitter::kRole) {
+		const bool roleRequested = a_emitter == Registry::SoundEmitter::kRole;
+		if (roleRequested) {
 			gameObject = service.PrepareRoleEmitter(a_actor);
+			// Documented fallback (SCENE_SCHEMA "Sound emitters"): no verified engine Wwise object on this build.
+			static std::atomic<bool> warnedFallback{ false };
+			if (!gameObject && !warnedFallback.exchange(true, std::memory_order_relaxed)) {
+				REX::WARN("[Sound] emitter 'role' requested by {} — no verified Wwise game-object entry point on this game version; positioned audio falls back to the listener",
+					a_diagnosticOwner);
+			}
 		}
-		REX::DEBUG("[Sound] {} playing '{}' (emitter {}, slot {:#x})", a_diagnosticOwner, spec,
-			gameObject ? "role" : "listener", slot);
+		if (spdlog::should_log(spdlog::level::debug)) {
+			REX::DEBUG("[Sound] {} playing '{}' (emitter {}, slot {:#x})", a_diagnosticOwner, spec,
+				gameObject ? "role" : (roleRequested ? "listener (role fallback)" : "listener"), slot);
+		}
 		service.Play(slot, spec, gameObject);
 		const std::string text = Registry::SoundRegistry::GetSingleton().TextForClip(spec);
 		if (!text.empty()) UI::Subtitle::Show(a_actor, text, 0.0f);

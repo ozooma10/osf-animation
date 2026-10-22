@@ -306,6 +306,8 @@ namespace OSF::Animation
 		std::uint64_t worldEpoch = 0;
 
 		Tick Advance(const void* a_token, float a_deltaTime);
+		// Hot path: the caller already read the steady clock for this Sample.
+		Tick Advance(const void* a_token, float a_deltaTime, std::int64_t a_nowMs);
 
 		// Also sets the initial stage. Resets the stage clock; false if out of range.
 		bool SetSegment(int32_t a_segment, bool a_prepared = false);

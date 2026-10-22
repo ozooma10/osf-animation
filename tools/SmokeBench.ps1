@@ -1,5 +1,6 @@
 # Shared smoke-bench evidence helpers. No build, deployment, or game actions.
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ReleaseRules.ps1')
 
 function Invoke-SmokeGit([string]$Repository, [string[]]$Arguments) {
     $start = [Diagnostics.ProcessStartInfo]::new('git')
@@ -332,7 +333,7 @@ function Test-SmokeArchives([string]$Directory, [string]$ExpectedDllHash) {
             if (@($names | Where-Object { $_ -like '*/schemas/osf.animation.json' }).Count) {
                 throw '[failed] Obsolete combined settings schema leaked into archive.'
             }
-            if (@($names | Where-Object { $_ -match '(?i)(OSFTest\.(pex|psc)|AnimationTestHarness|smoke|\.map$|(^|/)values/)' }).Count) {
+            if (@($names | Where-Object { Test-ReleaseForbiddenEntry $_ }).Count) {
                 throw "[failed] Development or player-state payload leaked into $($file.Name)."
             }
             $engine = $file.Name -notlike 'OSF Animation Browser*'

@@ -25,16 +25,20 @@ namespace OSF::Scene
 				return false;
 			}
 
-			std::unordered_map<std::string, std::uint32_t> index;
-			for (const auto& kv : proxy->type->varNameIndexMap) {
-				index[Util::ToLower(kv.key.c_str())] = kv.value;
-			}
-
+			// Per event: scan the small engine map case-insensitively instead of building a lowercase copy.
 			const auto count = proxy->type->variables.size();
+			const auto slotOf = [&](const char* a_member) -> std::optional<std::uint32_t> {
+				for (const auto& kv : proxy->type->varNameIndexMap) {
+					if (Util::IEquals(kv.key.c_str(), a_member)) {
+						return kv.value;
+					}
+				}
+				return std::nullopt;
+			};
 			auto set = [&](const char* a_member, const RE::BSScript::Variable& a_val) {
-				const auto it = index.find(Util::ToLower(a_member));
-				if (it != index.end() && it->second < count) {
-					proxy->variables[it->second] = a_val;
+				const auto slot = slotOf(a_member);
+				if (slot && *slot < count) {
+					proxy->variables[*slot] = a_val;
 				} else {
 					REX::TRACE("[Scene] member '{}' not found in OSFTypes:SceneEvent", a_member);
 				}

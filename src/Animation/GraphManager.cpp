@@ -1482,15 +1482,16 @@ namespace OSF::Animation
 		if (!a_graph.playbackSession) {
 			return;
 		}
-		const PlaybackSinkId sinkId = a_graph.playbackSession->playbackSinkId;
-		const auto sink = GetPlaybackSink(sinkId);
-		if (!sink || !sink->timedMarks) {
-			return;
-		}
-		// Token-gated: only the advancing graph fills the buffer; any participant drains it once.
+		// Token-gated: only the advancing graph fills the buffer; any participant drains it once. Drain before
+		// the sink lookup so the common no-mark Sample never copies the sink, and sinkless marks never pile up.
 		std::vector<FiredMark> marks;
 		a_graph.playbackSession->DrainFiredMarks(marks);
 		if (marks.empty()) {
+			return;
+		}
+		const PlaybackSinkId sinkId = a_graph.playbackSession->playbackSinkId;
+		const auto sink = GetPlaybackSink(sinkId);
+		if (!sink || !sink->timedMarks) {
 			return;
 		}
 		// Game thread: the handler enters the VM (and may transition). NiPointers keep the actors alive.

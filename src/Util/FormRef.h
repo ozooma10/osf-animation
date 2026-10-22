@@ -56,9 +56,9 @@ namespace OSF::Util
 		if (!dh) {
 			return std::nullopt;
 		}
-		const auto want = ToLower(parsed->plugin);
+		const std::string_view want = parsed->plugin;
 		auto nameMatches = [&](RE::TESFile* a_file) {
-			return a_file && ToLower(a_file->fileName) == want;
+			return a_file && IEquals(a_file->fileName, want);
 		};
 		const auto& c = dh->compiledFileCollection;
 		for (std::uint32_t i = 0; i < c.files.size(); i++) {

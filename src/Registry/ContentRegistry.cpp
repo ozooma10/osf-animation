@@ -2327,9 +2327,8 @@ namespace OSF::Registry
 
 	const SceneNode* SceneDef::FindNode(std::string_view a_id) const
 	{
-		const auto want = ToLower(std::string(a_id));
 		for (const auto& n : nodes) {
-			if (ToLower(n.id) == want) {
+			if (Util::IEquals(n.id, a_id)) {
 				return &n;
 			}
 		}
@@ -2338,9 +2337,8 @@ namespace OSF::Registry
 
 	std::int32_t SceneDef::LinearStageOf(std::string_view a_nodeId) const
 	{
-		const auto want = ToLower(std::string(a_nodeId));
 		for (std::size_t i = 0; i < linearStages.size(); i++) {
-			if (ToLower(linearStages[i]) == want) {
+			if (Util::IEquals(linearStages[i], a_nodeId)) {
 				return static_cast<std::int32_t>(i);
 			}
 		}

@@ -518,7 +518,11 @@ namespace OSF::API::UIBridgeWorld
 
 		// ProcessLists::highActorHandles (+0x60) only: low-list actors are partially loaded and their
 		// vfuncs __fastfail uncatchably.
-		std::uintptr_t VtableAddr(REL::ID a_id) { return REL::Relocation<std::uintptr_t>{ a_id }.address(); }
+		std::uintptr_t ActorVtable()
+		{
+			static const std::uintptr_t address = REL::Relocation<std::uintptr_t>{ REL::ID(451614) }.address();
+			return address;
+		}
 		void EnumerateHighActors(std::vector<RE::Actor*>& a_out)
 		{
 			auto* pl = RE::ProcessLists::GetSingleton();
@@ -533,7 +537,7 @@ namespace OSF::API::UIBridgeWorld
 			}
 
 			// Mixed REFR/Actor entries: require the Actor primary vtable (ID 451614).
-			const std::uintptr_t actorVtbl = VtableAddr(REL::ID(451614));
+			const std::uintptr_t actorVtbl = ActorVtable();
 			a_out.reserve(a_out.size() + size);
 			for (std::uint32_t i = 0; i < size; ++i) {
 				RE::BSPointerHandle<RE::Actor>& h = handles[i];
@@ -559,7 +563,7 @@ namespace OSF::API::UIBridgeWorld
 				return;
 			}
 			std::unordered_set<const RE::Actor*> seen(a_out.begin(), a_out.end());
-			const std::uintptr_t                 actorVtbl = VtableAddr(REL::ID(451614));
+			const std::uintptr_t                 actorVtbl = ActorVtable();
 			RE::NiPoint3A                        origin{};
 			origin.x = a_origin.x;
 			origin.y = a_origin.y;
@@ -610,6 +614,8 @@ namespace OSF::API::UIBridgeWorld
 			float        radiusX{ 0.0f };
 			float        radiusY{ 0.0f };
 			float        sizePx{ 0.0f };  // unfloored extent at 1080p
+			RE::NiPoint3 labelWorld;      // actor capsule only: the RenderedActorLabelPoint result
+			bool         hasLabel{ false };
 		};
 
 		// Uses C_Head/C_Hips bones: worldBound and the data3D root drift from the visible body on
@@ -671,6 +677,9 @@ namespace OSF::API::UIBridgeWorld
 			const float minScale = PickFloorScale(a_out.sizePx, kFullFloorActorSizePx);
 			a_out.radiusX = std::clamp(std::max(dxPx * 0.62f, span * 0.22f), 38.0f * minScale, 260.0f);
 			a_out.radiusY = std::clamp(std::max(dyPx * 0.62f, span * 0.22f), 52.0f * minScale, 320.0f);
+			// headWorld is exactly what RenderedActorLabelPoint returns on both branches above.
+			a_out.labelWorld = headWorld;
+			a_out.hasLabel = std::isfinite(headWorld.x) && std::isfinite(headWorld.y) && std::isfinite(headWorld.z);
 			return true;
 		}
 
@@ -864,7 +873,8 @@ namespace OSF::API::UIBridgeWorld
 				RE::NiPoint3 center;
 				float        radius = 0.0f;
 				const bool   anchored = actorSlot
-				      ? RenderedActorLabelPoint(candidate.ref, anchorWorld)
+				      ? (candidate.bound.hasLabel ? (anchorWorld = candidate.bound.labelWorld, true)
+				                                  : RenderedActorLabelPoint(candidate.ref, anchorWorld))
 				      : (RenderedBound(candidate.ref, false, center, radius) &&
 							(anchorWorld = center + RE::NiPoint3{ 0.0f, 0.0f, std::clamp(radius, 0.25f, 1.4f) }, true));
 				if (anchored) {

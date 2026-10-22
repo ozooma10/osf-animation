@@ -90,9 +90,16 @@ namespace OSF::Scene
 			return;
 		}
 
-		std::vector<Animation::FiredMark> marks = a_marks;
-		std::stable_sort(marks.begin(), marks.end(),
-			[](const Animation::FiredMark& a_lhs, const Animation::FiredMark& a_rhs) { return a_lhs.lane < a_rhs.lane; });
+		// Lane order action -> camera -> sound -> cue. Batches usually arrive ordered (one mark, or one lane), so copy
+		// and stable-sort only when they don't.
+		const auto byLane = [](const Animation::FiredMark& a_lhs, const Animation::FiredMark& a_rhs) { return a_lhs.lane < a_rhs.lane; };
+		std::vector<Animation::FiredMark> sortedMarks;
+		const std::vector<Animation::FiredMark>* ordered = &a_marks;
+		if (!std::is_sorted(a_marks.begin(), a_marks.end(), byLane)) {
+			sortedMarks = a_marks;
+			std::stable_sort(sortedMarks.begin(), sortedMarks.end(), byLane);
+			ordered = &sortedMarks;
+		}
 
 		std::int32_t handle = 0;
 		std::string oldNode;
@@ -120,16 +127,16 @@ namespace OSF::Scene
 		const bool hasPlayer = player &&
 			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
 
-		// Cues are deferred until the tick's other entries have run.
-		std::vector<Registry::CueEntry> cues;
+		// Cues are deferred until the tick's other entries have run. `def` pins the definition, so node entries stay valid.
+		std::vector<const Registry::CueEntry*> cues;
 		std::vector<const Animation::FiredMark*> cueMarks;
-		for (const auto& m : marks) {
+		for (const auto& m : *ordered) {
 			if (!LifecycleValid(handle, oldNode, true))
 				return;
 			if (m.lane == kLaneCue) {
 				std::size_t idx = 0;
 				if (node && ParseIndexToken(m.token, node->cues.size(), idx)) {
-					cues.push_back(node->cues[idx]);
+					cues.push_back(&node->cues[idx]);
 					cueMarks.push_back(&m);
 				}
 			} else if (m.lane == kLaneAction && node) {
@@ -161,7 +168,7 @@ namespace OSF::Scene
 		for (std::size_t cueIndex = 0; cueIndex < cues.size(); ++cueIndex) {
 			if (!LifecycleValid(handle, oldNode, true))
 				return;
-			const auto& cue = cues[cueIndex];
+			const auto& cue = *cues[cueIndex];
 			const auto& mark = *cueMarks[cueIndex];
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::D3AudioProbe::BeginMark(handle, a_playbackId, oldNode, mark.lane, mark.token, mark.detectedNs, mark.d3MotionLateNs, mark.d3InputDelta);
@@ -184,11 +191,10 @@ namespace OSF::Scene
 				const auto d = s->definition;
 				const auto* n = d ? d->FindNode(s->node) : nullptr;
 				if (n) {
-					for (const auto& cue : cues) {
-						const auto want = Util::ToLower(cue.id);
+					for (const auto* cue : cues) {
 						const Registry::SceneEdge* edge = nullptr;
 						for (const auto& e : n->edges) {
-							if (e.when == Registry::EdgeWhen::kTrigger && Util::ToLower(e.trigger) == want) {
+							if (e.when == Registry::EdgeWhen::kTrigger && Util::IEquals(e.trigger, cue->id)) {
 								edge = &e;
 								break;
 							}

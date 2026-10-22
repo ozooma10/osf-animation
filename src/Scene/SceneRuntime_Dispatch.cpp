@@ -14,6 +14,7 @@
 #include "Weapon/WeaponService.h"
 
 #include <algorithm>
+#include <spdlog/spdlog.h>
 
 namespace OSF::Scene
 {
@@ -52,7 +53,9 @@ namespace OSF::Scene
 
 		if (a_event == Event::kNodeExit && !LifecycleValid(a_handle, a_node, false))
 			return;
-		REX::DEBUG("[Scene] scene {:#010x} event {:#x} node='{}' trackPosition='{}'", a_handle, a_event, a_node, a_trackPosition);
+		if (spdlog::should_log(spdlog::level::debug)) {
+			REX::DEBUG("[Scene] scene {:#010x} event {:#x} node='{}' trackPosition='{}'", a_handle, a_event, a_node, a_trackPosition);
+		}
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = a_event;
@@ -101,8 +104,10 @@ namespace OSF::Scene
 	void SceneRuntime::DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
 		std::string_view a_role, std::string_view a_trackPosition, float a_time, std::uint64_t a_detectedNs, bool a_nativeOnly)
 	{
-		REX::DEBUG("[Scene] scene {:#010x} CUE '{}' node='{}' role='{}' trackPosition='{}' time={:.3f}",
-			a_handle, a_cue, a_node, a_role, a_trackPosition, a_time);
+		if (spdlog::should_log(spdlog::level::debug)) {
+			REX::DEBUG("[Scene] scene {:#010x} CUE '{}' node='{}' role='{}' trackPosition='{}' time={:.3f}",
+				a_handle, a_cue, a_node, a_role, a_trackPosition, a_time);
+		}
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kCue;
@@ -235,8 +240,10 @@ namespace OSF::Scene
 	void SceneRuntime::DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
 		std::string_view a_role, std::string_view a_trackPosition)
 	{
-		REX::DEBUG("[Scene] scene {:#010x} ACTION '{}' node='{}' role='{}' trackPosition='{}'",
-			a_handle, a_type, a_node, a_role, a_trackPosition);
+		if (spdlog::should_log(spdlog::level::debug)) {
+			REX::DEBUG("[Scene] scene {:#010x} ACTION '{}' node='{}' role='{}' trackPosition='{}'",
+				a_handle, a_type, a_node, a_role, a_trackPosition);
+		}
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kAction;
@@ -269,9 +276,8 @@ namespace OSF::Scene
 		if (!def) {
 			return nullptr;
 		}
-		const auto want = Util::ToLower(std::string(a_role));
 		for (std::size_t i = 0; i < def->roles.size(); i++) {
-			if (Util::ToLower(def->roles[i].name) == want) {
+			if (Util::IEquals(def->roles[i].name, a_role)) {
 				return i < participants.size() ? participants[i] : nullptr;
 			}
 		}

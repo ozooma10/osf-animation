@@ -170,7 +170,9 @@ namespace OSF::Input
 				return true;
 			}
 			if (auto* ui = RE::UI::GetSingleton()) {
-				return ui->IsMenuOpen(RE::Console::MENU_NAME);
+				// Interned once; leaked so process teardown never releases into a destroyed string pool.
+				static const auto* const consoleMenu = new RE::BSFixedString(RE::Console::MENU_NAME);
+				return ui->IsMenuOpen(*consoleMenu);
 			}
 			return false;
 		}
@@ -181,8 +183,10 @@ namespace OSF::Input
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
 			const auto routing = g_inputRouting.load(std::memory_order_relaxed);
 			const bool nativeFreeCamGamepad = g_nativeFreeCamGamepad.load(std::memory_order_relaxed);
-			const bool menuOwns = MenuOwnsInput();
-			if ((active || capture || routing) && !menuOwns) {
+			// Idle frames skip the menu query; every consumer below is gated on one of these.
+			const bool engaged = active || capture || routing;
+			const bool menuOwns = engaged && MenuOwnsInput();
+			if (engaged && !menuOwns) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
 					if (capture && et == RE::InputEvent::EventType::kDeviceConnect) {
