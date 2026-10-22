@@ -50,11 +50,11 @@ provides engine settings, hotkeys, and the launcher. Configure Browser preferenc
 
 Replace the old Animation mod files instead of merging; preserve custom content
 and saved user data. Install matching engine/Browser versions and **rebind the two
-browser hotkeys**. Engine preferences from OSF Settings import once; values from the older
-combined OSF UI service do not. Wheel pins and scene IDs remain unchanged.
+browser hotkeys**. Engine settings use defaults unless saved under `osf.animation.engine`.
+Wheel pins and scene IDs remain unchanged.
 
 Follow the [1.5.0 upgrade guide](docs/UPGRADING.md) for the replacement steps,
-settings migration details, and first-launch checks. See the [changelog](CHANGELOG.md)
+saved-preference behavior, and first-launch checks. See the [changelog](CHANGELOG.md)
 for the complete release notes.
 
 ### Build (to compile from source)

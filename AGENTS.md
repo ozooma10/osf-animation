@@ -188,7 +188,7 @@ Each entry: **system** (`path`) — role.
   in-game menu (`src/API/EngineSettings.cpp` subscribes to `osf.animation.engine`; Browser owns the
   `osf.animation.browser` hotkey-only schema. Browser preferences live in the SFSE-log-parent
   `OSF/browser-preferences.json`, with defaults when the file is absent.
-  Engine imports its supported legacy `osf.animation` values once;
+  Engine values load and save through OSF Settings, using schema defaults when unsaved;
   the browser hotkeys need rebinding after the ID change. The old
   `Data/OSF/settings.json` is no longer read).
 

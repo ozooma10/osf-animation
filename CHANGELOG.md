@@ -19,9 +19,9 @@ for installation, saved preferences, and hotkey changes.
   the new packages. Preserve custom content and saved user data. The obsolete
   combined `osf.animation.json` **schema** must no longer be active.
 - Engine settings and Browser hotkeys use `osf.animation.engine` and `osf.animation.browser`.
-  Browser preferences are saved separately and edited inside the Browser. Valid engine preferences
-  previously stored by OSF Settings import once, preserving explicit choices. Values from the older
-  combined OSF UI settings service are not migrated. **Rebind both browser hotkeys.**
+  Engine values load and save normally through OSF Settings, using schema defaults when unsaved.
+  Browser preferences are saved separately and edited inside the Browser. Old combined settings
+  are not imported. **Rebind both browser hotkeys.**
   Wheel pins, scene IDs, and the browser view ID are unchanged.
 
 ### Added

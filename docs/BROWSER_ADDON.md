@@ -161,12 +161,9 @@ ControlMap event names from the schema filename and has no binding-migration API
 contains no browser settings or hotkey declarations.
 
 Core owns `osf.animation.engine.json`: `logLevel`, `gear.autoEquip`, and scene key bindings in separate
-Playback and Alignment groups. The unused `debugNotifications` setting has been removed. On first
-normal startup it reads the two supported preferences from Settings 1.0's legacy `osf.animation.json` user-values
-file and saves them through the released Settings API, leaving the source untouched. Explicit values
-already stored for the new engine ID win. A separate `osf.animation.engine.migrated` receipt prevents
-later resets from reimporting old values; failed saves remain retryable. Private instrumented builds
-skip player-file migration. Browser subscribes to the engine's log level separately.
+Playback and Alignment groups. The unused `debugNotifications` setting has been removed. OSF Settings
+loads and saves engine values under `osf.animation.engine`, using schema defaults when unsaved.
+Browser subscribes to the engine's log level separately.
 
 Browser saves its ten preferences in the SFSE-log-parent `OSF/browser-preferences.json` using a
 versioned JSON file and atomic replacement. A missing file uses defaults; changing a preference

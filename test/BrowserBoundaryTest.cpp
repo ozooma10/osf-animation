@@ -9,7 +9,6 @@ void RunBrowserClipLibraryTests();
 #include "API/EngineServiceState.h"
 #include "API/BrowserForwarder.h"
 #include "API/BrowserInput.h"
-#include "API/EngineSettingsMigration.h"
 #include "Serialization/BrowserPreferences.h"
 #include "Serialization/WheelPins.h"
 #include <atomic>
@@ -306,30 +305,6 @@ int main()
 		Check(dx == 6 && dy == -12 && wheel == 2, "addon converts logical pointer pixels, preserving wheel units");
 		BrowserInput::SetVisible(api,false);
 		Check(routing == 0, "browser hide releases its input policy");
-	}
-	{
-		using json=nlohmann::json;
-		const auto root=std::filesystem::temp_directory_path() / ("osf-settings-migration-" +
-			std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-		std::filesystem::create_directories(root);
-		const json legacy={{"formatVersion",1},{"values",{{"logLevel","trace"},{"gear.autoEquip",false},
-			{"debugNotifications",true},{"browser.afterLaunch","close"}}}};
-		std::ofstream(root / "osf.animation.json") << legacy;
-		json saved={{"logLevel","warn"}};
-		const auto persist=[&] { std::ofstream(root / "osf.animation.engine.json") << json{{"formatVersion",1},{"values",saved}}; };
-		persist();
-		int writes=0;
-		const auto write=[&](const std::string& key,const json& value) { saved[key]=value; ++writes; persist(); return true; };
-		Check(!EngineSettingsMigration::Run(root,[](const auto&,const auto&) { return false; }), "failed Settings save leaves migration retryable");
-		Check(EngineSettingsMigration::Run(root,write) && writes == 1 && saved["logLevel"] == "warn" &&
-			saved["gear.autoEquip"] == false && !saved.contains("debugNotifications") && !saved.contains("browser.afterLaunch"),
-			"migration copies only engine values and preserves explicit destination settings");
-		saved.erase("gear.autoEquip"); persist(); // A later reset must remain reset.
-		Check(EngineSettingsMigration::Run(root,write) && writes == 1 && !saved.contains("gear.autoEquip"), "completed migration never reimports reset values");
-		std::ifstream source(root / "osf.animation.json");
-		Check(json::parse(source) == legacy, "migration leaves browser values and legacy storage untouched");
-		source.close();
-		std::filesystem::remove_all(root); // Unique temporary fixture created above.
 	}
 
 	EngineServiceState engine;

@@ -95,8 +95,7 @@ from the combined Animation package. Choose the library and emote options in the
 6. Check that the old Animation **schema** is no longer supplied by an enabled mod:
    `Data/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json`.
    The engine now supplies `osf.animation.engine.json`; Browser supplies
-   `osf.animation.browser.json`. Replace obsolete mod files, but **keep saved
-   settings values** named `osf.animation.json` so the engine migration can read them.
+   `osf.animation.browser.json`. Replace obsolete mod files while preserving saved user data.
 7. Start through SFSE, open OSF Settings, and use **OSF Animation Browser** in the
    Launcher tab. Assign the browser and wheel keys again under the Browser's
    controls. Both hotkeys start unbound under the new provider ID.
@@ -106,15 +105,10 @@ Do not remove other mods' schemas or clear your user settings, wheel pins, or
 
 ## What happens to saved preferences
 
-| Previous installation | 1.5.0 behavior |
-| --- | --- |
-| Older combined OSF UI settings service | Starts with the new OSF Settings defaults. Old values and hotkeys are not imported. |
-| Development build using OSF Settings provider `osf.animation` | Supported engine preferences import into `osf.animation.engine`. Explicit values already stored for the new engine ID win. |
-| Build already using the two new provider IDs | Engine values and hotkeys stay in OSF Settings. |
-
-The one-time import covers supported engine preference keys, not keybindings. Rebind the
-browser and wheel hotkeys after moving from the combined provider. The obsolete
-`Data/OSF/settings.json` file is no longer read.
+OSF Settings loads and saves engine values under `osf.animation.engine`, using schema defaults
+when no value is saved. Existing values under that ID continue to load normally. Old combined
+OSF UI/Settings values and `Data/OSF/settings.json` are no longer read. Rebind the browser and
+wheel hotkeys after moving from the combined provider.
 
 The Browser's OSF Settings page now contains only its two hotkeys. Change Browser preferences
 inside the Browser; detail/source filters sit beside Browse. Browsing state is always remembered
