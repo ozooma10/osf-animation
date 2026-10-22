@@ -625,7 +625,7 @@ starts age at entry. These are submission limits, not audible-onset or sound-dur
 Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
 continues without coalescing or expiry, including its existing failed-replacement behavior.
 
-The scene ABI is 1.6. The separate `OSF_RequestEngineAPI` export provides services ABI 3.14
+The scene ABI is 1.7. The separate `OSF_RequestEngineAPI` export provides services ABI 3.15
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, shared camera/input mechanisms, and actor-state scopes. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
@@ -694,3 +694,15 @@ The combined 3.14 table retains the guard slot before the covered-handoff slot. 
 3.13 branches assigned incompatible functions to that same slot, so requests for 3.13 are
 rejected. Rebuild those consumers against 3.14 and update the provider and consumer together.
 Requests for the stable 3.0 through 3.12 prefixes remain supported.
+
+## Independent node APIs (1.7 / 3.15)
+
+See [Node catalog and execution](NODE_CATALOG.md) for the additive catalog `nodes` array,
+`OSFStartOptions.startNode`, `MatchNodeCast`, `MatchNodeAnchor` and `ReplaceNodeRoles`.
+An exact `(scene, node)` address selects a node while retaining its authored graph. Existing
+scene starts, tag queries, and table prefixes keep their behavior; authored edge navigation
+still uses the seamless scene executor. Intimacy owns semantic tags, poses, policy and ranking.
+
+Local verification on 2026-10-22: staged production DLL built with smoke instrumentation off;
+all fourteen engine-free native suites passed, including catalog and exact-node launch checks.
+This is not fresh in-game visual or lifecycle acceptance.
