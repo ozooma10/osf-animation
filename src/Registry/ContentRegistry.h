@@ -227,6 +227,11 @@ namespace OSF::Registry
 	struct SceneNode
 	{
 		std::string              id;
+        // Independent discovery metadata; omitted ranking/visibility inherits the route.
+        std::string name;
+        std::vector<std::string> tags;
+        std::optional<std::int32_t> priority, weight;
+        std::optional<bool> unlisted;
 		// Exactly one of `use` (scene id) or `stages` (inline timeline).
 		std::string              use;
 		std::vector<StageDef>    stages;

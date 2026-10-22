@@ -71,7 +71,19 @@ namespace
 		Registry::ContentRegistrySnapshot registry;
 		registry.scenes.emplace("demo.scene", MakeScene());
 		registry.clipAvailability["Data/NAF/builder-cached.glb"] = true;
+        registry.scenes.at("demo.scene").roles.resize(1);
+        auto& independent = registry.scenes.at("demo.scene").nodes[1];
+        independent.tags = {"GREETING", "only-this-node"}; independent.priority = 9; independent.weight = 3; independent.unlisted = false;
+        const auto node = Builder::BuildNode(registry, registry.scenes.at("demo.scene"), independent);
+        Check(node.scene == "Demo.Scene" && node.id == "cached" && node.entry && node.stage == 1 && node.clipsAvailable,
+            "an available node is independently addressable despite unavailable route siblings");
+        Check(node.tags == std::vector<std::string>{"Greeting", "seated", "only-this-node"} && node.priority == 9 && node.weight == 3 && !node.unlisted,
+            "node tags union case-insensitively and ranking overrides route defaults");
+        Check(!Builder::BuildNode(registry, registry.scenes.at("demo.scene"), registry.scenes.at("demo.scene").nodes[0]).clipsAvailable,
+            "missing clips and inconsistent segment casts cannot match");
+        registry.scenes.at("demo.scene") = MakeScene();
 		const auto result = Builder::Build(registry, kRoot);
+        Check(result.nodes.size() == 5 && result.nodes[1].id == "cached", "all nodes publish independently including nonlinear and unavailable nodes");
 		Check(result.sourceClips.size() == 4 && result.sourceClips[2].source == "Demo.Scene" &&
 			result.sourceClips[2].node == 1 && result.sourceClips[2].stage == 0 && result.sourceClips[2].clip == 0 &&
 			result.sourceClips[2].animId == "named" && result.sourceClips[2].available && !result.sourceClips[0].available,
@@ -205,7 +217,7 @@ namespace
 
 void CheckCatalogBuilder()
 {
-	Check(json(Builder::Build({}, {})) == json::parse(R"({"schema":3,"scenes":[],"files":[],"errors":[],"clips":[],"sourceClips":[]})"),
+	Check(json(Builder::Build({}, {})) == json::parse(R"({"schema":3,"scenes":[],"files":[],"errors":[],"clips":[],"sourceClips":[],"nodes":[]})"),
 		"empty registries still produce the complete schema-3 envelope");
 	CheckScenesAndStages();
 	CheckActorCountsAndPaths();

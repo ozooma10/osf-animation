@@ -33,6 +33,8 @@ namespace OSF::Registry::ContentRegistryClips
 			SceneNode node;
 			node.id = "#s" + std::to_string(i);
 			node.stages = { stage };
+            node.name = stage.name;
+            node.tags = stage.tags;
 			node.loopGlobal = stage.loopGlobal;
 			node.allowManualHold = stage.allowManualHold;
 			node.cues = stage.cues;
@@ -117,22 +119,12 @@ namespace OSF::Registry::ContentRegistryClips
 		std::map<std::string, FileTally> byFile;
 		for (auto& [key, definition] : a_scenes) {
 			std::string missing;
-			for (const auto& node : definition.nodes) {
-				for (const auto& stage : node.stages) {
-					for (const auto& clip : stage.clips) {
-						if (!ClipInstalled(a_cache, clip.file)) {
-							missing = clip.file;
-							break;
-						}
-					}
-					if (!missing.empty()) {
-						break;
-					}
-				}
-				if (!missing.empty()) {
-					break;
-				}
-			}
+            // Visit every clip: a missing sibling must not hide independently playable nodes.
+            for (const auto& node : definition.nodes)
+                for (const auto& stage : node.stages)
+                    for (const auto& clip : stage.clips)
+                        if (!ClipInstalled(a_cache, clip.file) && missing.empty()) missing = clip.file;
+
 			if (!missing.empty()) {
 				definition.clipsAvailable = false;
 				auto& tally = byFile[definition.sourceFile.string()];

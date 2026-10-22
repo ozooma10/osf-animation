@@ -54,6 +54,15 @@ namespace OSF::Catalog
 			placement, priority, weight, actorCount, unlisted, curatedClip, library, clipsAvailable,
 			playerInputLock, hideApparel, fade, tags, roles, stages, anchorKeywords, anchorBaseForms, provider)
 	};
+    // Address is the exact (scene, id) pair. Retains the containing route and its edges.
+    struct Node {
+        std::string scene, id, name;
+        std::vector<std::string> tags;
+        std::int32_t stage{-1}, priority{}, weight{1};
+        std::uint32_t segments{};
+        bool entry{}, unlisted{}, clipsAvailable{};
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(Node, scene, id, name, tags, stage, priority, weight, segments, entry, unlisted, clipsAvailable)
+    };
 	struct Problem {
 		bool warning{};
 		std::string code, message, hint, scene, node, role, clip;
@@ -84,6 +93,7 @@ namespace OSF::Catalog
 		// Unique unmeasured clip references across all nodes, including nonlinear scenes.
 		std::vector<Clip> clips;
 		std::vector<SourceClip> sourceClips;
-		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Snapshot, schema, scenes, files, errors, clips, sourceClips)
+		std::vector<Node> nodes;
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Snapshot, schema, scenes, files, errors, clips, sourceClips, nodes)
 	};
 }

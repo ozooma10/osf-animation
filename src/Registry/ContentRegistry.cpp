@@ -1426,6 +1426,14 @@ namespace OSF::Registry
 				throw std::runtime_error("scene '" + a_sceneId + "': a node is missing 'id'");
 			}
 			RejectReservedId(n.id, "node");
+            n.name = a_node.value("name", std::string{});
+            if (a_node.contains("tags")) n.tags = a_node.at("tags").get<std::vector<std::string>>();
+            if (a_node.contains("priority")) n.priority = a_node.at("priority").get<std::int32_t>();
+            if (a_node.contains("weight")) {
+                n.weight = a_node.at("weight").get<std::int32_t>();
+                if (*n.weight < 1) throw std::runtime_error("node '" + n.id + "': weight must be positive");
+            }
+            if (a_node.contains("unlisted")) n.unlisted = a_node.at("unlisted").get<bool>();
 
 			const auto useIt = a_node.find("use");
 			const bool hasUse = useIt != a_node.end() && useIt->is_string() && !useIt->get<std::string>().empty();

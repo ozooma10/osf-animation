@@ -3,6 +3,7 @@
 #include "Serialization/ClipDurations.h"
 #include "Util/ClipPath.h"
 #include "Util/Species.h"
+#include "Util/StringUtil.h"
 #include <unordered_set>
 
 namespace OSF::API::CatalogBuilder
@@ -121,6 +122,28 @@ namespace OSF::API::CatalogBuilder
 		return node && !node->stages.empty() ? static_cast<std::uint32_t>(node->stages.front().clips.size()) : 0;
 	}
 
+    Catalog::Node BuildNode(const Registry::ContentRegistrySnapshot& registry, const Registry::SceneDef& def, const Registry::SceneNode& node)
+    {
+        Catalog::Node out;
+        out.scene = def.id; out.id = node.id; out.name = node.name.empty() ? node.id : node.name;
+        out.stage = def.LinearStageOf(node.id); out.entry = Util::ToLower(node.id) == Util::ToLower(def.entry);
+        out.priority = node.priority.value_or(def.priority); out.weight = node.weight.value_or(def.weight);
+        out.unlisted = node.unlisted.value_or(def.unlisted);
+        out.segments = static_cast<std::uint32_t>(node.stages.size());
+        std::unordered_set<std::string> seen;
+        for (const auto* tags : {&def.tags, &node.tags}) for (const auto& tag : *tags)
+            if (seen.insert(Util::ToLower(tag)).second) out.tags.push_back(tag);
+        out.clipsAvailable = !node.stages.empty();
+        for (const auto& stage : node.stages) {
+            if (stage.clips.empty() || stage.clips.size() != ActorCount(def)) out.clipsAvailable = false;
+            for (const auto& clip : stage.clips) {
+                const auto found = registry.clipAvailability.find(clip.file);
+                if (found == registry.clipAvailability.end() || !found->second) out.clipsAvailable = false;
+            }
+        }
+        return out;
+    }
+
 	Catalog::Snapshot Build(const Registry::ContentRegistrySnapshot& a_registry,
 		const std::filesystem::path& a_contentRoot)
 	{
@@ -129,6 +152,7 @@ namespace OSF::API::CatalogBuilder
 		std::unordered_set<std::string> seen;
 		for (const auto& [id, def] : a_registry.scenes) {
 			out.scenes.push_back(BuildScene(def, a_contentRoot));
+            for (const auto& node : def.nodes) out.nodes.push_back(BuildNode(a_registry, def, node));
 			for (std::uint32_t n = 0; n < def.nodes.size(); ++n)
 				for (std::uint32_t s = 0; s < def.nodes[n].stages.size(); ++s)
 					for (std::uint32_t c = 0; c < def.nodes[n].stages[s].clips.size(); ++c) {
