@@ -177,9 +177,59 @@ namespace OSF::Animation::PoseMath
 		});
 	}
 
-	inline void WriteOverrideBlended(float* a_slot, const float* a_from, const float* a_target, float a_weight)
+	// Keep continuous quaternion representatives for both endpoints. Re-selecting
+	// the shortest arc on every frame jumps when their separation crosses 180 degrees.
+	// This preserves the selected arc without filtering motion or changing weights.
+	struct RotationBlendState
 	{
-		const Quat q = Nlerp(MatrixToQuat(a_from), MatrixToQuat(a_target), a_weight);
+		Quat from, target;
+		bool valid = false;
+	};
+
+	struct OverrideBlendState
+	{
+		RotationBlendState incoming;
+		RotationBlendState transition;
+	};
+
+	inline Quat NlerpContinuous(Quat a_from, Quat a_to, float a_t, RotationBlendState& a_state)
+	{
+		const auto dot = [](const Quat& lhs, const Quat& rhs) {
+			return lhs.w * rhs.w + lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
+		};
+		const auto negate = [](const Quat& q) { return Quat{ -q.w, -q.x, -q.y, -q.z }; };
+		if (a_state.valid) {
+			if (dot(a_from, a_state.from) < 0.0f) a_from = negate(a_from);
+			if (dot(a_to, a_state.target) < 0.0f) a_to = negate(a_to);
+		} else if (dot(a_from, a_to) < 0.0f) {
+			a_to = negate(a_to);
+		}
+		const auto interpolate = [&]() {
+			return Quat{
+				a_from.w + (a_to.w - a_from.w) * a_t,
+				a_from.x + (a_to.x - a_from.x) * a_t,
+				a_from.y + (a_to.y - a_from.y) * a_t,
+				a_from.z + (a_to.z - a_from.z) * a_t
+			};
+		};
+		Quat result = interpolate();
+		// A full relative revolution can make the retained arc singular at half weight.
+		// Re-seed that undefined interpolation instead of normalizing a zero quaternion.
+		if (dot(result, result) <= 1e-8f) {
+			if (dot(a_from, a_to) < 0.0f) a_to = negate(a_to);
+			result = interpolate();
+		}
+		a_state.from = a_from;
+		a_state.target = a_to;
+		a_state.valid = true;
+		return Normalize(result);
+	}
+
+	inline void WriteOverrideBlended(float* a_slot, const float* a_from, const float* a_target, float a_weight,
+		RotationBlendState* a_continuity = nullptr)
+	{
+		const Quat from = MatrixToQuat(a_from), target = MatrixToQuat(a_target);
+		const Quat q = a_continuity ? NlerpContinuous(from, target, a_weight, *a_continuity) : Nlerp(from, target, a_weight);
 		const float tx = a_from[12] + (a_target[12] - a_from[12]) * a_weight;
 		const float ty = a_from[13] + (a_target[13] - a_from[13]) * a_weight;
 		const float tz = a_from[14] + (a_target[14] - a_from[14]) * a_weight;
@@ -197,7 +247,7 @@ namespace OSF::Animation::PoseMath
 	// releases an outgoing bone smoothly; without an outgoing snapshot it remains untouched.
 	// A null live base means the new binding has not been engine-evaluated: hold the snapshot until it is.
 	inline bool WriteOverrideTransition(float* a_slot, const float* a_live, const float* a_sampled,
-		const float* a_displayed, float a_transition, float a_strength)
+		const float* a_displayed, float a_transition, float a_strength, OverrideBlendState* a_continuity = nullptr)
 	{
 		const float transition = std::clamp(a_transition, 0.0f, 1.0f);
 		const float strength = std::clamp(a_strength, 0.0f, 1.0f);
@@ -213,12 +263,12 @@ namespace OSF::Animation::PoseMath
 			} else if (strength <= 0.0f) {
 				std::memcpy(incoming, a_live, sizeof(incoming));
 			} else {
-				WriteOverrideBlended(incoming, a_live, a_sampled, strength);
+				WriteOverrideBlended(incoming, a_live, a_sampled, strength, a_continuity ? &a_continuity->incoming : nullptr);
 			}
 			if (transition >= 1.0f) {
 				std::memcpy(a_slot, incoming, sizeof(incoming));
 			} else {
-				WriteOverrideBlended(a_slot, a_displayed, incoming, transition);
+				WriteOverrideBlended(a_slot, a_displayed, incoming, transition, a_continuity ? &a_continuity->transition : nullptr);
 			}
 			return true;
 		}
@@ -235,7 +285,7 @@ namespace OSF::Animation::PoseMath
 		if (!a_live) {
 			return false;
 		}
-		WriteOverrideBlended(a_slot, a_live, a_sampled, weight);
+		WriteOverrideBlended(a_slot, a_live, a_sampled, weight, a_continuity ? &a_continuity->incoming : nullptr);
 		return true;
 	}
 

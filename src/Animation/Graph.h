@@ -8,6 +8,7 @@
 #include "Animation/FrameClock.h"
 #include "Animation/LiveBasePose.h"
 #include "Animation/OzzTypes.h"
+#include "Animation/PoseMath.h"
 #include "Animation/Scene.h"
 
 #include <array>
@@ -115,6 +116,8 @@ namespace OSF::Animation
 		// Actual rig writes, including transition/pose/mask weights; never the raw clip sample.
 		std::vector<ozz::math::Float4x4> displayedPose;
 		std::vector<std::uint8_t> displayedDriven;
+		// Per skeleton joint, surviving rig-slot rebinds; reset at each clip replacement.
+		std::vector<PoseMath::OverrideBlendState> overrideBlendStates;
 		std::vector<ozz::math::Float4x4> referencePose;  // local rest pose
 		std::unordered_map<std::string, uint16_t> jointMap;
 		std::unordered_set<std::string> preserveBones;

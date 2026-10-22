@@ -94,6 +94,7 @@ namespace OSF::Animation
 		samplingContext.Resize(numJoints);
 		localPose.resize(skeleton->data->num_soa_joints());
 		outputPose.assign(numJoints, ozz::math::Float4x4::identity());
+		overrideBlendStates.assign(numJoints, {});
 		if (blendFromValid) {
 			// Two commands can replace playback before any compose. The last displayed pose is still
 			// the handoff source in that case, not this new clip's as-yet-unsampled first frame.
@@ -653,7 +654,7 @@ namespace OSF::Animation
 					haveBase ? liveBasePose.data() + i * 16 : nullptr,
 					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
 					fromSnapshot ? reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) : nullptr,
-					weight, strength)) {
+					weight, strength, &overrideBlendStates[bound.jointIndex])) {
 					continue;
 				}
 				if (strength > 0.0f || (fromSnapshot && (weight < 1.0f || !haveBase))) {

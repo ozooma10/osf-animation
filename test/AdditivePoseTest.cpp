@@ -1,4 +1,5 @@
 #include "Check.h"
+#include "RotationSnapFixture.h"
 
 #include "Animation/BlendSource.h"
 #include "Animation/BoneMask.h"
@@ -57,6 +58,57 @@ int main()
 {
 	using namespace OSF::Animation::PoseMath;
 	constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
+
+	// Captured player input changes smoothly while the shortest-arc override jumps
+	// 76 degrees for one sample. Replaying those exact matrices must stay continuous.
+	{
+		OverrideBlendState continuity;
+		Matrix previous{}, previousLegacy{};
+		bool first = true;
+		float legacyJump = 0.0f;
+		const auto separation = [](const Matrix& a, const Matrix& b) {
+			const auto qa = MatrixToUnitQuat(a.data()), qb = MatrixToUnitQuat(b.data());
+			return 2.0f * std::acos(std::clamp(std::abs(qa.w*qb.w + qa.x*qb.x + qa.y*qb.y + qa.z*qb.z), 0.0f, 1.0f));
+		};
+		for (const auto& frame : RotationSnapFixture::frames) {
+			Matrix out{}, legacy{};
+			WriteOverrideTransition(legacy.data(), frame.live.data(), frame.sampled.data(), nullptr, 1.0f, 0.25f);
+			Check(WriteOverrideTransition(out.data(), frame.live.data(), frame.sampled.data(), nullptr, 1.0f, 0.25f, &continuity),
+				"captured spine override is written");
+			if (!first) {
+				legacyJump = std::max(legacyJump, separation(previousLegacy, legacy));
+				Check(separation(previous, out) < 0.06f, "captured spine moves less than 3.5 degrees through the branch crossing");
+			}
+			Check(out[12] == legacy[12] && out[13] == legacy[13] && out[14] == legacy[14],
+				"continuity changes no translation");
+			previous = out; previousLegacy = legacy; first = false;
+		}
+		Check(legacyJump > 1.3f, "captured fixture reproduces the original greater-than-74-degree jump");
+	}
+	{
+		for (const float strength : { 0.25f, 0.5f, 0.75f }) {
+			OverrideBlendState continuity;
+			Matrix previous{};
+			bool first = true;
+			for (const float degrees : { 178.0f, 179.0f, 180.0f, 181.0f, 182.0f, 181.0f, 180.0f, 179.0f, 178.0f }) {
+				const Matrix live = Transform();
+				const Matrix sampled = Transform(AxisAngle(0, 0, 1, degrees * std::numbers::pi_v<float> / 180.0f));
+				Matrix out{};
+				WriteOverrideTransition(out.data(), live.data(), sampled.data(), nullptr, 1.0f, strength, &continuity);
+				if (!first) {
+					Check(std::abs(out[0]-previous[0]) < 0.04f && std::abs(out[1]-previous[1]) < 0.04f,
+						"feathered override remains continuous across 180 degrees in both directions");
+				}
+				previous = out; first = false;
+			}
+		}
+		RotationBlendState state;
+		state.valid = true;
+		state.from = {};
+		state.target = { -1.0f, 0.0f, 0.0f, 0.0f };
+		const Quat same = NlerpContinuous({}, {}, 0.5f, state);
+		Check(Near(same.w, 1.0f) && Near(same.x, 0.0f), "degenerate alternate arc cannot replace an identical endpoint");
+	}
 
 	{
 		OSF::Animation::BlendSource::Prepared<Matrix> prepared;
