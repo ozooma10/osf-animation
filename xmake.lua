@@ -224,6 +224,13 @@ target("osf-additive-pose-test")
     add_files("test/AdditivePoseTest.cpp")
     add_includedirs("src")
 
+target("osf-layer-pose-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    add_files("test/LayerPoseTest.cpp")
+    add_includedirs("src")
+
 target("osf-sound-registry-test")
     set_kind("binary")
     set_default(false)
