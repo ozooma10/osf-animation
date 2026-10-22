@@ -1,13 +1,16 @@
 #include "Check.h"
 
 #include "Registry/ContentRegistry.h"
+#include "Registry/ContentRegistryClips.h"
 
 #include "Animation/Scene.h"
 #include "Animation/PlaybackAdmission.h"
 #include "Util/Math.h"
+#include "Util/ClipPath.h"
 
 #include <iostream>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <string>
 #include <vector>
@@ -19,17 +22,128 @@ void CheckCatalogBuilder();
 void CheckContentProviders();
 void CheckLoopGlobals();
 
-// No mounted archives here: report every clip installed so the sweep hides no fixture scene.
+namespace
+{
+	std::function<bool(std::string_view)> resourceProbe;
+}
+
+// Default to installed for the authored fixtures; availability tests supply a mounted-resource model.
 namespace OSF::Animation
 {
-	bool ResourceExists(std::string_view)
+	bool ResourceExists(std::string_view a_path)
 	{
-		return true;
+		return resourceProbe ? resourceProbe(a_path) : true;
 	}
 }
 
 namespace
 {
+	void CheckClipAvailability()
+	{
+		using namespace OSF::Registry;
+		using namespace OSF::Registry::ContentRegistryClips;
+		namespace fs = std::filesystem;
+		struct RestoreProbe { ~RestoreProbe() { resourceProbe = {}; } } restore;
+		const auto cwd = fs::current_path();
+		const std::vector<fs::path> specs{
+			"clips/pose.af", "Data/clips/pose.af", "NAF:folder/pose.glb", "naf:pose.af",
+			"/clips/pose.af", "Data/Data/pose.af", "C:relative.af", "",
+			cwd / "Data/OSF/../clips/pose.af", cwd / "Data/..extras/pose.af"
+		};
+		for (const auto& path : specs) {
+			const auto resolved = OSF::Util::ResolveClipSpec(path);
+			std::vector<std::string> expected;
+			for (const auto& candidate : resolved.candidates) {
+				Check(candidate.resource, "relative and Data-contained specs use mounted resources");
+				expected.push_back(candidate.resourcePath);
+			}
+			for (std::size_t hit = 0; hit <= expected.size(); ++hit) {
+				std::vector<std::string> visited;
+				resourceProbe = [&](std::string_view value) {
+					visited.emplace_back(value);
+					return visited.size() == hit + 1;
+				};
+				Check(ClipSpecInstalled(path.string()) == (hit < expected.size()),
+					"availability stops at the first installed candidate, or reports all candidates missing");
+				Check(visited == std::vector<std::string>(expected.begin(),
+					expected.begin() + std::min(hit + 1, expected.size())),
+					"availability uses playback candidate order without probing later fallbacks");
+			}
+		}
+		const auto relative = OSF::Util::ResolveClipSpec("Data/clips/pose.af");
+		Check(relative.candidates.size() == 3 &&
+			relative.candidates[0].resourcePath == "clips\\pose.af" &&
+			relative.candidates[1].resourcePath == "NAF\\clips\\pose.af" &&
+			relative.candidates[2].resourcePath == "OSF\\Animations\\pose.af",
+			"relative lookup order remains direct, NAF, then OSF filename fallback");
+		const auto naf = OSF::Util::ResolveClipSpec("nAf:folder/pose.af");
+		Check(naf.candidates.size() == 1 && naf.candidates[0].resourcePath == "NAF\\folder\\pose.af",
+			"explicit NAF specs never use ordinary relative fallbacks");
+		std::size_t externalResourceCalls = 0;
+		resourceProbe = [&](std::string_view) { ++externalResourceCalls; return true; };
+		Check(ClipSpecInstalled((cwd.parent_path() / "ContentRegistryTest.cpp").string()),
+			"existing absolute files outside Data retain filesystem probing");
+		Check(!ClipSpecInstalled((cwd.parent_path() / "missing-clip-availability-test.af").string()),
+			"missing absolute files outside Data do not fall back into mounted resources");
+		Check(externalResourceCalls == 0, "absolute external lookup never calls the resource backend");
+
+		const auto source = cwd / "Data/OSF/availability-test.osf.json";
+		SceneDef partial;
+		partial.id = "partial"; partial.sourceFile = source;
+		SceneNode missing; missing.id = "missing"; missing.stages.resize(1);
+		missing.stages[0].clips = {StageClip{"clips/missing.af"}, StageClip{"clips/missing.af"}};
+		SceneNode installed; installed.id = "installed"; installed.stages.resize(1);
+		installed.stages[0].clips = {StageClip{"clips/installed.af"}, StageClip{"clips/installed.af"}};
+		partial.nodes = {missing, installed};
+		SceneDef complete;
+		complete.id = "complete"; complete.sourceFile = source;
+		complete.nodes = {installed};
+		std::unordered_map<std::string, SceneDef> scenes{{partial.id, partial}, {complete.id, complete}};
+		std::vector<std::string> lines;
+		std::vector<PendingImportProblem> records;
+		ProblemSink problems{lines, records};
+		ClipInstalledCache cache;
+		std::vector<std::string> visited;
+		resourceProbe = [&](std::string_view value) {
+			visited.emplace_back(value);
+			return value == "clips\\installed.af";
+		};
+		SweepClipAvailability(scenes, problems, cache);
+		Check(!scenes.at("partial").clipsAvailable && scenes.at("complete").clipsAvailable,
+			"a missing clip hides only the affected scene");
+		Check(cache.size() == 2 && cache.at("clips/installed.af") && !cache.at("clips/missing.af"),
+			"the sweep retains installed siblings and negative results under their exact authored specs");
+		Check(visited.size() == 4, "each distinct spec probes once per load despite repeated scene references");
+		Check(records.size() == 1 && records.front().owner == source &&
+			records.front().code == "missing-clips" && records.front().clip == "clips/missing.af" &&
+			lines.front().find("1 scene(s) hidden") != std::string::npos,
+			"missing-clip diagnostics retain source ownership, counts and an authored example");
+		std::vector<ContentFileStats> files(1);
+		AccumulateFileStats(scenes, cache, files, {{source.string(), 0}});
+		Check(files[0].scenes == 2 && files[0].hidden == 1 && files[0].clips == 6 &&
+			files[0].distinctClips == 2 && files[0].missingClips == 1 &&
+			files[0].missingClipExamples == std::vector<std::string>{"clips/missing.af"} && visited.size() == 4,
+			"Imports file statistics reuse availability without reopening resources");
+		ClipLibraryRegistration entry;
+		entry.clip.file = "clips/installed.af"; entry.sourceFile = source;
+		std::map<std::string, std::uint32_t> added;
+		Check(AddRegisteredClipEntries(scenes, {entry}, problems, added, cache) == 1 && visited.size() == 4,
+			"registered clip entries reuse the same load-local availability");
+
+		resourceProbe = [](std::string_view) { return false; };
+		ClipInstalledCache nextCache;
+		std::unordered_map<std::string, SceneDef> nextScenes{{complete.id, complete}};
+		SweepClipAvailability(nextScenes, problems, nextCache);
+		Check(!nextScenes.at("complete").clipsAvailable && !nextCache.at("clips/installed.af") &&
+			cache.at("clips/installed.af"), "a new load rechecks removed resources without altering the old snapshot");
+		resourceProbe = [](std::string_view) { return true; };
+		ClipInstalledCache restoredCache;
+		std::unordered_map<std::string, SceneDef> restoredScenes{{partial.id, partial}};
+		SweepClipAvailability(restoredScenes, problems, restoredCache);
+		Check(restoredScenes.at("partial").clipsAvailable && restoredCache.at("clips/missing.af"),
+			"a later load observes newly installed resources after a previous miss");
+	}
+
 	void CheckPlaybackAdmission()
 	{
 		using namespace OSF::Animation;
@@ -73,6 +187,7 @@ namespace
 
 int main()
 {
+	CheckClipAvailability();
 	CheckCatalogBuilder();
 	CheckPlaybackAdmission();
 	using OSF::Registry::ContentRegistry;
