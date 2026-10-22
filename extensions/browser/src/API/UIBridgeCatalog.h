@@ -2,7 +2,6 @@
 
 #include <nlohmann/json_fwd.hpp>
 
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -15,7 +14,6 @@ namespace OSF::Catalog
 
 namespace OSF::API::UIBridgeCatalog
 {
-	std::size_t ActorCountOf(const Catalog::Scene& a_def);
 	bool IsWheelEntryEligible(const Catalog::Scene& a_def, std::int32_t a_stage);
 	nlohmann::json BuildWheelData(std::string_view a_tagPrefix);
 	nlohmann::json BuildCatalog(bool a_library);

@@ -110,7 +110,8 @@ for installation, saved preferences, and hotkey changes.
 
 ### Changed
 
-- Removed unreachable Browser modes/filter aliases and unused wheel/stage presentation data.
+- Removed unreachable Browser modes/filter aliases, unused wheel/stage presentation data,
+  and unused or redundant native Browser helpers.
 
 - Browser uses canonical catalog/launch fields and structured import problems throughout its
   native bridge, UI, generators, and fixtures. Removed unused close-command and internal aliases.

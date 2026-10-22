@@ -44,7 +44,6 @@ namespace OSF::API
 		using json = nlohmann::json;
 		using UIBridgeCatalog::BuildImportTextReport;
 		using UIBridgeCatalog::BuildCatalog;
-		using UIBridgeCatalog::ActorCountOf;
 		using UIBridgeCatalog::BuildFileReport;
 		using UIBridgeCatalog::BuildWheelData;
 		using UIBridgeCatalog::IsWheelEntryEligible;
@@ -261,14 +260,6 @@ namespace OSF::API
 			}
 			const auto it = a_obj.find(a_key);
 			return it != a_obj.end() && it->is_boolean() ? it->get<bool>() : a_def;
-		}
-		std::string StrOr(const json& a_obj, const char* a_key)
-		{
-			if (!a_obj.is_object()) {
-				return {};
-			}
-			const auto it = a_obj.find(a_key);
-			return it != a_obj.end() && it->is_string() ? it->get<std::string>() : std::string{};
 		}
 
 		std::string LaunchError(const std::string& a_sceneId, std::size_t a_castCount, bool a_haveFurniture)

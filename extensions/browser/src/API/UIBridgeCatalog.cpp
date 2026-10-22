@@ -8,7 +8,6 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <filesystem>
 #include <cstdint>
 #include <format>
 #include <numeric>
@@ -155,12 +154,6 @@ namespace OSF::API::UIBridgeCatalog
 
 	}
 
-	// Declared roles win; anonymous positional scenes take the first playable stage's clip count.
-	std::size_t ActorCountOf(const Catalog::Scene& a_def)
-	{
-		return a_def.actorCount;
-	}
-
 	bool IsWheelEntryEligible(const Catalog::Scene& a_def, std::int32_t a_stage)
 	{
 		return a_stage < 0 ? IsWheelScene(a_def) : WheelStage(a_def, a_stage) != nullptr;
@@ -271,7 +264,7 @@ namespace OSF::API::UIBridgeCatalog
 			c.sourcePath = d.sourcePath;
 			c.sourceKind = d.sourceKind;
 			c.tags = d.tags;
-			c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
+			c.actorCount = d.actorCount;
 			c.roles.reserve(d.roles.size());
 			for (const auto& r : d.roles) {
 				c.roles.push_back({ r.name, r.gender });
