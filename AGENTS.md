@@ -8,9 +8,9 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the fifteen engine-free C++ suites (profiler core, shared preparation/rollback, actor-state ownership/reconciliation, persistence broker,
+- **Tests:** `xmake test` builds and runs the sixteen engine-free C++ suites (profiler core, shared preparation/rollback, actor-state ownership/reconciliation, persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
-  synthetic AF/rig/BA2 fixtures, playback session transitions/marks, frame clock/clip specs, clip-duration cache, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
+  synthetic AF/rig/BA2 fixtures, playback session transitions/marks, frame clock/clip specs, clip-duration cache, additive pose math, depth-one layer composition, shared scene launcher, sound registry, scene registry — the registry pair run from
   `test/fixtures`; the scene registry suite also exercises the production catalog builder). Run it after
   native changes; exit code is the failure count. The view has its own suite:
   `npm --prefix extensions/browser/ui run verify` (typecheck + build + vitest).

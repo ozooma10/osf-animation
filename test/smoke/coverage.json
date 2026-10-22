@@ -67,7 +67,8 @@
   {
     "feature": "Pose composition, masks and additive math",
     "native": [
-      "osf-additive-pose-test"
+      "osf-additive-pose-test",
+      "osf-layer-pose-test"
     ],
     "runtime": [
       "pose.additive-mask"

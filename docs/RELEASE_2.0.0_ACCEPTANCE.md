@@ -4,7 +4,7 @@ The 2026-10-22 candidate implements V2_SCOPE A-C and updates the Browser, Intima
 SDK examples and workspace harness callers. It is unpublished. The original scope and layer
 specifications remain local, untracked and unchanged.
 
-## Completed offline checks
+## Migration checkpoint checks
 
 | Check | Result |
 | --- | --- |
@@ -51,6 +51,9 @@ capture, apparel/input/camera restoration, audio timing and audible continuity, 
 save/load, hot reload, browser interaction and creature rigs. Existing 1.x runtime evidence does
 not qualify the 2.0 candidate.
 
-Release packaging, installation/upgrade, binary distribution and third-party consumer acceptance
-were not run. Old alignment files are preserved but refused by the v2 reader; users must review
+Release packaging and the disposable install matrix require a fresh
+`tools/test-release.ps1 -Offline -Jobs 1` report with outcome `offline-passed`. The report under
+`build/smoke` binds both archives to the exact source fingerprint and binary hashes and records
+each installer combination. The migration checkpoint above did not run that gate. Actual MO2
+installation/upgrade, binary distribution and third-party consumer acceptance remain separate. Old alignment files are preserved but refused by the v2 reader; users must review
 and reauthor global-node alignment entries. Multi-layer runtime playback remains deferred.
