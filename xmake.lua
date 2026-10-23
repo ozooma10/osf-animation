@@ -78,9 +78,12 @@ target("OSF Animation")
             add_installfiles("dist/Scripts/Source/" .. script .. ".psc", { prefixdir = "Scripts/Source" })
         end
         add_installfiles("dist/OSF/internal.osf.json", { prefixdir = "OSF" })
-        add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json", {
-            prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
-        })
+        -- Alignment keys get their own Settings page so the main one stays short.
+        for _, schema in ipairs({"osf.animation.engine", "osf.animation.align"}) do
+            add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/" .. schema .. ".json", {
+                prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
+            })
+        end
     end
 
     -- The profiling override deploys only its DLL/PDB. The normal mod drops the old locations of

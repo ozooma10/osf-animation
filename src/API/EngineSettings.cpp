@@ -12,9 +12,10 @@ namespace OSF::API
 	namespace
 	{
 		using OSFSettings::API::Status;
-		constexpr const char* kModId = "osf.animation.engine";
+		constexpr const char* kModId = Input::kEngineModId;
 		OSFSettings::API::Client g_settings;
 		OSFSettings::API::Subscription g_subscription{};
+		OSFSettings::API::Subscription g_alignSubscription{};
 		std::mutex g_refreshMutex;
 
 		void SetLogLevel(std::string_view a_level)
@@ -41,32 +42,39 @@ namespace OSF::API
 			REX::DEBUG("[Config] log level set to '{}'", a_level);
 		}
 
-		void RefreshSettings(std::string_view a_key)
+		// Alignment keys ship in their own schema, so a_mod selects which page's values to reread.
+		// Both are empty for the initial full refresh.
+		void RefreshSettings(std::string_view a_mod, std::string_view a_key)
 		{
 			// Initial reads and SFSE worker callbacks may overlap. Read after subscribing.
 			std::lock_guard lock(g_refreshMutex);
-			const bool refreshAll = a_key.empty();
-			if (refreshAll || a_key == "logLevel") {
-				std::string level;
-				if (g_settings.GetEnum(kModId, "logLevel", level) == Status::Ok) SetLogLevel(level);
+			const bool everyMod = a_mod.empty();
+			const bool everyKey = a_key.empty();
+			if (everyMod || a_mod == kModId) {
+				if (everyKey || a_key == "logLevel") {
+					std::string level;
+					if (g_settings.GetEnum(kModId, "logLevel", level) == Status::Ok) SetLogLevel(level);
+				}
+				bool enabled{};
+				if ((everyKey || a_key == "gear.autoEquip") &&
+					g_settings.GetBool(kModId, "gear.autoEquip", &enabled) == Status::Ok) {
+					Equipment::Gear::SetAutoEquip(enabled);
+				}
 			}
-			bool enabled{};
 			for (std::size_t i = 0; i < Input::kSceneKeys.size(); ++i) {
 				const auto& key = Input::kSceneKeys[i];
+				if (!Input::Configurable(key)) continue;  // fixed alias; no schema row to read
+				if (!everyMod && !Input::OwnedBy(key, a_mod)) continue;
+				if (!everyKey && a_key != key.setting) continue;
 				std::uint32_t value = key.key;
-				if ((refreshAll || a_key == key.setting) && g_settings.GetKey(kModId, key.setting, &value) == Status::Ok)
+				if (g_settings.GetKey(key.mod, key.setting, &value) == Status::Ok)
 					Input::g_sceneKeymap.Set(i, value);
 			}
-			if ((refreshAll || a_key == "gear.autoEquip") &&
-				g_settings.GetBool(kModId, "gear.autoEquip", &enabled) == Status::Ok) {
-				Equipment::Gear::SetAutoEquip(enabled);
-			}
-
 		}
 
-		void OnSetting(const char*, const char* a_key, void*) noexcept
+		void OnSetting(const char* a_mod, const char* a_key, void*) noexcept
 		{
-			try { RefreshSettings(a_key ? a_key : ""); }
+			try { RefreshSettings(a_mod ? a_mod : "", a_key ? a_key : ""); }
 			catch (...) { REX::ERROR("[Config] Could not refresh OSF Settings values"); }
 		}
 
@@ -82,6 +90,12 @@ namespace OSF::API
 		if (status != Status::Ok) {
 			REX::ERROR("[Config] OSF Settings subscription failed (status {}); check osf.animation.engine.json", static_cast<unsigned>(status));
 			return;
+		}
+		// Alignment is a separate page. A hand-pruned install without it keeps the schema defaults.
+		const auto alignStatus = g_settings.Subscribe(Input::kAlignModId, &OnSetting, nullptr, &g_alignSubscription);
+		if (alignStatus != Status::Ok) {
+			REX::WARN("[Config] alignment keys use defaults (status {}); check osf.animation.align.json",
+				static_cast<unsigned>(alignStatus));
 		}
 		OnSetting(nullptr, nullptr, nullptr);
 		REX::INFO("[Feature] OSF Settings connected");

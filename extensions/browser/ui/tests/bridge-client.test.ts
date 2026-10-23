@@ -49,7 +49,7 @@ describe("OsfUiBridge subscription race", () => {
   });
 
   it("replays Animation-owned settings before the controller subscribes", () => {
-    const snapshot = { "browser.openTo": "active" };
+    const snapshot = { "browser.afterLaunch": "close" };
     let stateKey = "";
     (window.osfui as any).state.on = (key: string, listener: (value: unknown) => void) => {
       stateKey = key;
@@ -83,7 +83,7 @@ describe("OsfUiBridge subscription race", () => {
     const received: NativeMessage[] = [];
     bridge.subscribe((message) => received.push(message));
 
-    bridge.send("settings.set", { key: "browser.openTo", value: "active" });
+    bridge.send("settings.set", { key: "browser.afterLaunch", value: "close" });
     await Promise.resolve();
     await Promise.resolve();
 
@@ -191,14 +191,14 @@ describe("standalone settings state", () => {
     bridge.subscribe((message) => received.push(message));
     expect(received[0]).toMatchObject({
       type: "settings.data",
-      payload: { "browser.openTo": "last", "launch.camera": "scene" },
+      payload: { "browser.afterLaunch": "stay", "launch.camera": "scene" },
     });
-    bridge.send("settings.set", { key: "browser.openTo", value: "active" });
+    bridge.send("settings.set", { key: "browser.afterLaunch", value: "close" });
     bridge.send("settings.set", { key: "browser.authorDetails", value: true });
     vi.runAllTimers();
     expect(received[received.length - 1]).toMatchObject({
       type: "settings.data",
-      payload: { "browser.openTo": "active", "browser.authorDetails": true, "launch.camera": "scene" },
+      payload: { "browser.afterLaunch": "close", "browser.authorDetails": true, "launch.camera": "scene" },
     });
     bridge.dispose();
   });
@@ -211,11 +211,12 @@ describe("standalone settings state", () => {
     bridge.subscribe((message) => received.push(message));
     received.length = 0;
     for (const [key, value] of [["launch.speed", "2"], ["browser.rememberBrowsing", false],
-      ["browser.actorLabels", "false"], ["launch.camera", "invalid"]]) {
+      ["browser.actorLabels", "false"], ["launch.camera", "invalid"],
+      ["browser.openTo", "last"], ["browser.unavailableScenes", "ask"]]) {
       bridge.send("settings.set", { key, value });
     }
     vi.runAllTimers();
-    expect(received).toHaveLength(4);
+    expect(received).toHaveLength(6);
     expect(received.every((message) => message.type === "bridge.requestFailed")).toBe(true);
     bridge.dispose();
   });

@@ -15,19 +15,18 @@ namespace OSF::Serialization
 	namespace
 	{
 		using json = nlohmann::json;
+		// Retired keys (browser.openTo, browser.unavailableScenes) are absent here, so Valid
+		// rejects them and an older preference file loses them on the next save.
 		const json kDefaults = {
-			{ "browser.afterLaunch", "stay" }, { "browser.openTo", "last" },
+			{ "browser.afterLaunch", "stay" },
 			{ "browser.actorLabels", true }, { "browser.authorDetails", false },
 			{ "browser.libraryDetail", "curated" }, { "browser.librarySource", "all" },
-			{ "browser.unavailableScenes", "ask" },
 			{ "launch.strip", "-1" }, { "launch.lock", "-1" }, { "launch.camera", "scene" }
 		};
 		const json kChoices = {
 			{ "browser.afterLaunch", { "minimize", "stay", "close" } },
-			{ "browser.openTo", { "last", "scenes", "active" } },
 			{ "browser.libraryDetail", { "curated", "full" } },
 			{ "browser.librarySource", { "all", "custom" } },
-			{ "browser.unavailableScenes", { "ask", "show", "hide" } },
 			{ "launch.strip", { "-1", "1", "0" } }, { "launch.lock", { "-1", "1", "0" } },
 			{ "launch.camera", { "scene", "thirdperson_hold", "scene_orbit", "freefly", "vanity_orbit" } }
 		};

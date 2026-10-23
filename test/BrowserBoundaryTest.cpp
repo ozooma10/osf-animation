@@ -385,17 +385,20 @@ int main(int argc, char** argv)
 		const auto file=root / "browser-preferences.json";
 		Preferences preferences(file);
 		std::string error;
-		Check(preferences.Load(error) && preferences.Values().size() == 10 &&
+		Check(preferences.Load(error) && preferences.Values().size() == 8 &&
 			preferences.Values()["browser.afterLaunch"] == "stay" && preferences.Values()["browser.authorDetails"] == false &&
-			preferences.Values()["browser.openTo"] == "last" && preferences.Values()["browser.actorLabels"] == true &&
+			preferences.Values()["browser.libraryDetail"] == "curated" && preferences.Values()["browser.actorLabels"] == true &&
 			!std::filesystem::exists(file), "missing preference file uses defaults without writing a file");
 		Check(preferences.Set("browser.authorDetails",true,error) && preferences.Set("launch.camera","freefly",error),
 			"browser preferences create and replace the saved file");
 		Preferences reloaded(file);
 		Check(reloaded.Load(error) && reloaded.Values()["browser.authorDetails"] == true && reloaded.Values()["launch.camera"] == "freefly",
 			"saved browser choices survive restart");
+		// browser.openTo and browser.unavailableScenes are retired: the browser always reopens
+		// where it was left, and unavailable scenes always expand on request.
 		const json rejected={{"launch.speed","2"},{"browser.rememberBrowsing",false},
-			{"logLevel","trace"},{"launch.camera","invalid"},{"browser.actorLabels","false"},{"browser.openTo",3}};
+			{"logLevel","trace"},{"launch.camera","invalid"},{"browser.actorLabels","false"},
+			{"browser.openTo","last"},{"browser.unavailableScenes","ask"}};
 		for (const auto& [key,value] : rejected.items())
 			Check(!preferences.Set(key,value,error), "unknown, retired and mistyped preferences are rejected");
 		const auto before=preferences.Values();

@@ -257,9 +257,10 @@ describe("browser settings", () => {
     expect(decodePreferences({}).actorLabels).toBeUndefined();
   });
 
-  it("falls back from Active when no scene is running", () => {
-    expect(preferredOpenMode("active", "scenes", false)).toBe("scenes");
-    expect(preferredOpenMode("last", "active", false)).toBe("scenes");
+  it("reopens where it was left and falls back from Active when no scene is running", () => {
+    expect(preferredOpenMode("scenes", false)).toBe("scenes");
+    expect(preferredOpenMode("active", true)).toBe("active");
+    expect(preferredOpenMode("active", false)).toBe("scenes");
   });
 });
 
@@ -364,16 +365,10 @@ describe("browser selectors", () => {
     expect(playableGroupOpen(switchedSearch, "browse:pack:vanilla", false)).toBe(true);
   });
 
-  it("applies the unavailable-scene visibility preference", () => {
+  it("reveals unavailable scenes only on request", () => {
     const state = { ...createInitialState(), catalog: [pair], catalogReceived: true };
     expect(showUnavailable(state)).toBe(false);
     expect(showUnavailable({ ...state, browseAll: true })).toBe(true);
-    expect(showUnavailable({ ...state, preferences: { ...state.preferences, unavailableScenes: "show" } })).toBe(true);
-    expect(showUnavailable({
-      ...state,
-      browseAll: true,
-      preferences: { ...state.preferences, unavailableScenes: "hide" },
-    })).toBe(false);
   });
 
   it("derives default wheel order and caps its geometry", () => {

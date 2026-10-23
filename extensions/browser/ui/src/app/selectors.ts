@@ -394,8 +394,7 @@ export function browseVisible(state: BrowserState, scene: SceneModel): boolean {
 }
 
 export function showUnavailable(state: BrowserState): boolean {
-  return state.preferences.unavailableScenes === "show"
-    || state.preferences.unavailableScenes === "ask" && state.browseAll;
+  return state.browseAll;
 }
 
 export function selectionCandidates(state: BrowserState): SceneModel[] {

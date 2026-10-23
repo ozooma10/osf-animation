@@ -213,9 +213,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         preferencesReceived.current = true;
         // settings.data can race the host's first visibility message, so apply the opening tab here too.
         const current = stateRef.current;
-        const merged = { ...current.preferences, ...preferences };
         if (!current.wheel) {
-          const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
+          const mode = preferredOpenMode(current.lastBrowseMode, activeLaunches(current).length > 0);
           dispatch({ type: "browser/opened", mode });
           if (!current.libraryReceived) requestLibrary(true);
         }
@@ -354,7 +353,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         } else {
           dispatch({ type: "visibility/shown" });
           const current = stateRef.current;
-          const mode = preferredOpenMode(current.preferences.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
+          const mode = preferredOpenMode(current.lastBrowseMode, activeLaunches(current).length > 0);
           dispatch({ type: "browser/opened", mode });
           if (!current.libraryReceived) requestLibrary(true);
         }

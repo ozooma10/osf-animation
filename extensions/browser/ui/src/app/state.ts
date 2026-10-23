@@ -77,8 +77,6 @@ export type BrowserMode = "scenes" | "active" | "wheel";
 export type BrowseMode = Exclude<BrowserMode, "wheel">;
 export type BrowseKind = "all" | "animation" | "emote" | "scene";
 export type AfterLaunch = "minimize" | "stay" | "close";
-export type OpenTo = "last" | BrowseMode;
-export type UnavailableScenes = "ask" | "show" | "hide";
 export type ImportFilter = "attention" | "rejected" | "partial" | "missing" | "empty" | "all";
 
 export interface ImportReloadState {
@@ -101,11 +99,9 @@ function emptyImportReload(): ImportReloadState {
 
 export interface BrowserPreferences {
   afterLaunch: AfterLaunch;
-  openTo: OpenTo;
   actorLabels: boolean;
   libraryDetail: "curated" | "full";
   librarySource: "all" | "custom";
-  unavailableScenes: UnavailableScenes;
   hideApparel: "-1" | "0" | "1";
   playerInputLock: "-1" | "0" | "1";
   camera: "" | "thirdperson_hold" | "scene_orbit" | "freefly" | "vanity_orbit";
@@ -114,11 +110,9 @@ export interface BrowserPreferences {
 
 export const DEFAULT_PREFERENCES: BrowserPreferences = {
   afterLaunch: "stay",
-  openTo: "last",
   actorLabels: true,
   libraryDetail: "curated",
   librarySource: "all",
-  unavailableScenes: "ask",
   hideApparel: "-1",
   playerInputLock: "-1",
   camera: "",

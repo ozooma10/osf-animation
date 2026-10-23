@@ -77,10 +77,13 @@ foreach ($doc in 'LICENSE', 'EXCEPTIONS', 'THIRD_PARTY.md') {
     if (Test-Path $src) { Copy-Item $src $docDst } else { Warn "doc '$doc' not found — omitted." }
 }
 
-# OSF Settings loads this schema at startup; never package player values.
+# OSF Settings loads these schemas at startup; never package player values. Alignment keys sit on
+# their own page, so both files ship together.
 $schemasDst = "$core\SFSE\Plugins\OSF\Settings\schemas"
 New-Item -ItemType Directory -Force -Path $schemasDst | Out-Null
-Copy-Item "$dist\SFSE\Plugins\OSF\Settings\schemas\osf.animation.engine.json" $schemasDst
+foreach ($schema in 'osf.animation.engine.json', 'osf.animation.align.json') {
+    Copy-Item "$dist\SFSE\Plugins\OSF\Settings\schemas\$schema" $schemasDst
+}
 New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
 
 # System scenes: "solo" backs OSF.Health, "pair" is the smoke test. Always shipped.
@@ -98,6 +101,7 @@ $required = @(
     'Core\Scripts\OSF.pex', 'Core\Scripts\OSFTypes.pex', 'Core\Scripts\OSFAdvanced.pex',
     'Core\Scripts\Source\OSF.psc', 'Core\Scripts\Source\OSFTypes.psc', 'Core\Scripts\Source\OSFAdvanced.psc',
     'Core\SFSE\Plugins\OSF\Settings\schemas\osf.animation.engine.json',
+    'Core\SFSE\Plugins\OSF\Settings\schemas\osf.animation.align.json',
     'Core\SFSE\Plugins\OSF Animation\LICENSE',      # GPL-3.0 text (required to distribute)
     'Core\SFSE\Plugins\OSF Animation\EXCEPTIONS',   # GPL 7 modding/linking exception
     'Core\OSF\internal.osf.json',

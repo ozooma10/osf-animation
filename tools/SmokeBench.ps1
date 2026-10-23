@@ -339,7 +339,7 @@ function Test-SmokeArchives([string]$Directory, [string]$ExpectedDllHash) {
             $engine = $file.Name -notlike 'OSF Animation Browser*'
             $required = if ($engine) { @('Core/SFSE/Plugins/OSF Animation.dll','Core/Scripts/OSF.pex',
                 'Core/Scripts/OSFTypes.pex','Core/Scripts/OSFAdvanced.pex','Core/OSF/internal.osf.json',
-                'Core/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json','fomod/ModuleConfig.xml') }
+                'Core/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json','Core/SFSE/Plugins/OSF/Settings/schemas/osf.animation.align.json','fomod/ModuleConfig.xml') }
                 else { @('Browser/SFSE/Plugins/OSF Animation Browser.dll','Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/index.html',
                     'Browser/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json',
                     'Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/manifest.json',

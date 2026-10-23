@@ -55,6 +55,24 @@ $null = Invoke-WorkflowCached -Stamp (Join-Path $repo 'build/workflow-cache/brow
         -not $browserHotkeys.Value.PSObject.Properties['openWheel']) {
         throw 'Browser schema must retain its hotkey IDs without duplicating preferences; engine must omit retired popup settings.'
     }
+    # Scene-author alignment keys live on their own page so the engine page stays short.
+    $alignSchema = Get-Content (Join-Path $repo 'dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.align.json') -Raw | ConvertFrom-Json
+    $alignKeys = @(foreach ($group in $alignSchema.groups.PSObject.Properties) { foreach ($control in $group.Value) { $control.key } })
+    if (@($coreKeys | Where-Object { $_ -like 'keys.align*' }).Count -or
+        @($alignKeys | Where-Object { $_ -notlike 'keys.align*' }).Count -or $alignKeys.Count -ne 12 -or
+        $alignSchema.PSObject.Properties['extends'] -or
+        -not $alignSchema.dependencies.PSObject.Properties['osf.animation.engine']) {
+        throw 'Alignment keys must stay on their own dependent page and the engine page must hold none of them.'
+    }
+    # Every configurable scene key needs a row on exactly one of the two pages.
+    $keymap = [IO.File]::ReadAllText((Join-Path $repo 'src/Input/SceneKeymap.h'))
+    foreach ($key in @($coreKeys + $alignKeys | Where-Object { $_ -like 'keys.*' })) {
+        if ($keymap -notmatch [regex]::Escape('"' + $key + '"')) { throw "Scene key setting without a keymap entry: $key" }
+    }
+    foreach ($entry in [regex]::Matches($keymap, '"(keys\.[A-Za-z]+)"')) {
+        $name = $entry.Groups[1].Value
+        if ($name -notin $coreKeys -and $name -notin $alignKeys) { throw "Keymap entry without a schema row: $name" }
+    }
     # The view retains its picked cast/placement on hide. Keep the native invalidation
     # boundary at world replacement; UI tests exercise reopen, rescan and reset replay.
     $bridge = [IO.File]::ReadAllText((Join-Path $source 'API/UIBridge.cpp'))

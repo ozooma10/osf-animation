@@ -206,7 +206,6 @@ export function sameUnifiedBrowserInputs(previous: BrowserState, next: BrowserSt
     && previous.allSpecies === next.allSpecies
     && previous.showHidden === next.showHidden
     && previous.browseAll === next.browseAll
-    && previous.preferences.unavailableScenes === next.preferences.unavailableScenes
     && previous.libCustomOnly === next.libCustomOnly
     && previous.libFull === next.libFull
     && previous.importView === next.importView
@@ -226,7 +225,6 @@ const UnifiedBrowser = memo(function UnifiedBrowser({ state, commands }: { state
   const ready = entries.filter((entry) => entry.evaluation.gaps === 0).sort(rank);
   const rest = entries.filter((entry) => entry.evaluation.gaps > 0).sort(rank);
   const wheelKeys = new Set(wheelPool(state).map((candidate) => candidate.key));
-  const unavailable = state.preferences.unavailableScenes;
   const showRest = showUnavailable(state);
   const hiddenCount = hiddenSceneCount(state);
 
@@ -234,10 +232,8 @@ const UnifiedBrowser = memo(function UnifiedBrowser({ state, commands }: { state
     <BrowseFilters state={state} commands={commands} count={ready.length} hiddenCount={hiddenCount}/>
     {ready.length ? <PlayableGroups state={state} entries={ready} wheelKeys={wheelKeys} commands={commands}/>
       : <Empty>No installed playable fits the current cast, furniture, and filters.</Empty>}
-    {unavailable === "ask" && !!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`}
+    {!!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`}
       onClick={commands.toggleBrowseAll}>{state.browseAll ? "▾" : "▸"} {rest.length} more need a different cast or furniture</button>}
-    {showRest && unavailable === "show" && !!rest.length &&
-      <div class="browse-note dim"><Dot/><span class="lbl">NEEDS DIFFERENT CAST OR FURNITURE · {rest.length}</span></div>}
     {showRest && <PlayableGroups state={state} entries={rest} wheelKeys={wheelKeys} muted commands={commands}/>}
   </>;
 }, (previous, next) => previous.commands === next.commands && sameUnifiedBrowserInputs(previous.state, next.state));

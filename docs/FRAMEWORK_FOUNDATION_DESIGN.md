@@ -308,9 +308,11 @@ dispatched in `DispatchInputVerb` on the main thread, acting on the selected par
 | `kAlignReset` | Numpad . | Clear this node's delta for the selected participant |
 | `kAlignSave` | Numpad * | Write the file |
 
-Numpad + and - stay speed. All keys become key-typed settings in
-`osf.animation.engine.json`, read in `EngineSettings::RefreshSettings` via `GetKey` into atomics
-that `InputService::VerbForKeyboard` consults. That closes the hardcoded-keymap TODO at
+Numpad + and - stay speed. All keys become key-typed settings — playback in
+`osf.animation.engine.json`, these twelve on their own `osf.animation.align.json` page — read in
+`EngineSettings::RefreshSettings` via `GetKey` into atomics that `InputService::VerbForKeyboard`
+consults. `kSceneKeys` names the owning schema per key, and a null one marks a fixed alias with no
+schema row. That closes the hardcoded-keymap TODO at
 `src/Input/InputService.cpp:116` for the existing verbs as well. Keep the engine's
 `kPostDataLoad` settings init; do not switch to Settings `RegisterHotkey`, which fires outside the
 scene grant.

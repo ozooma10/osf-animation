@@ -198,23 +198,31 @@ Its `openBrowser`/`openWheel` hotkeys must be rebound once: released Settings 1.
 ControlMap event names from the schema filename and has no binding-migration API. Core-only installation
 contains no browser settings or hotkey declarations.
 
-Core owns `osf.animation.engine.json`: `logLevel`, `gear.autoEquip`, and scene key bindings in separate
-Playback and Alignment groups. The unused `debugNotifications` setting has been removed. OSF Settings
-loads and saves engine values under `osf.animation.engine`, using schema defaults when unsaved.
-Browser subscribes to the engine's log level separately.
+Core owns two schemas. `osf.animation.engine.json` holds `logLevel`, `gear.autoEquip`, and the six
+playback bindings; `osf.animation.align.json` holds the twelve scene-author alignment bindings on a
+page of its own, depending on the engine schema without extending it, so the page players read stays
+short. The unused `debugNotifications` setting has been removed, and the former `keys.speedUpAlt` /
+`keys.speedDownAlt` rows are now fixed top-row `=` / `-` aliases with no schema row. `SceneKeymap`
+names the owning schema per key and `EngineSettings` subscribes to both; a hand-pruned install
+missing the alignment schema logs a warning and keeps its defaults. OSF Settings loads and saves
+each schema's values under its own mod ID, using schema defaults when unsaved. Browser subscribes
+to the engine's log level separately.
 
-Browser saves its ten preferences in the SFSE-log-parent `OSF/browser-preferences.json` using a
+Browser saves its eight preferences in the SFSE-log-parent `OSF/browser-preferences.json` using a
 versioned JSON file and atomic replacement. A missing file uses defaults; changing a preference
 creates or updates the file. Failed saves do not publish changes, and malformed/unsupported files
 are not overwritten.
 Private smoke builds use session-only preferences without accessing player files.
 
 Browsing state is always retained between openings during the game session. The former
-`browser.rememberBrowsing` and `launch.speed` values are ignored. Launch speed starts at 1x and can
-be changed in Start Overrides; it resets after success, when selecting another scene, or on reopening.
-Library detail/source controls live beside the Browse filters. Other preferences, launch defaults,
-and author details remain in the Browser settings panel. The web endpoint and retained-state format
-are unchanged except for the two retired keys.
+`browser.rememberBrowsing`, `launch.speed`, `browser.openTo` and `browser.unavailableScenes` values
+are ignored. Launch speed starts at 1x and can be changed in Start Overrides; it resets after
+success, when selecting another scene, or on reopening. The browser always reopens on the tab it was
+left on, falling back to Browse when Active holds nothing, and scenes that need a different cast or
+furniture always collapse behind the in-list reveal button. Library detail/source controls live
+beside the Browse filters. Other preferences, launch defaults, and author details remain in the
+Browser settings panel. The web endpoint and retained-state format are unchanged except for the
+retired keys.
 
 Replace the old engine/browser installations when upgrading: neither component ships the legacy
 `osf.animation.json` schema. Ordinary XMake deployment removes that obsolete schema from both mods.

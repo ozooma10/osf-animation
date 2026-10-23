@@ -1,0 +1,108 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ozooma10/osf-settings/dev/sdk/osf-settings.schema.json",
+  "schemaVersion": 1,
+  "title": "OSF Animation Alignment",
+  "description": "Scene-author placement keys. They nudge and save per-participant offsets while a scene is running, and are active only while that scene grants alignment. The defaults form one numpad cluster; rebind them only if the numpad is taken.",
+  "version": "1.6.0",
+  "nexusModId": 17457,
+  "dependencies": {
+    "osfsettings": "1.2.0",
+    "osf.animation.engine": "1.6.0"
+  },
+  "groups": {
+    "Keys - Selection": [
+      {
+        "key": "keys.alignSelect",
+        "type": "key",
+        "default": 101,
+        "label": "Select participant",
+        "allowUnbound": true,
+        "hint": "Cycle which participant the nudge keys move. The HUD names the current one."
+      },
+      {
+        "key": "keys.alignStep",
+        "type": "key",
+        "default": 111,
+        "label": "Coarse / fine step",
+        "allowUnbound": true,
+        "hint": "Toggle between 1.0 units / 5 degrees and 0.1 units / 1 degree."
+      }
+    ],
+    "Keys - Nudge": [
+      {
+        "key": "keys.alignXPlus",
+        "type": "key",
+        "default": 102,
+        "label": "X +",
+        "allowUnbound": true
+      },
+      {
+        "key": "keys.alignXMinus",
+        "type": "key",
+        "default": 100,
+        "label": "X -",
+        "allowUnbound": true
+      },
+      {
+        "key": "keys.alignYPlus",
+        "type": "key",
+        "default": 104,
+        "label": "Y +",
+        "allowUnbound": true
+      },
+      {
+        "key": "keys.alignYMinus",
+        "type": "key",
+        "default": 98,
+        "label": "Y -",
+        "allowUnbound": true
+      },
+      {
+        "key": "keys.alignZPlus",
+        "type": "key",
+        "default": 99,
+        "label": "Z +",
+        "allowUnbound": true
+      },
+      {
+        "key": "keys.alignZMinus",
+        "type": "key",
+        "default": 97,
+        "label": "Z -",
+        "allowUnbound": true
+      },
+      {
+        "key": "keys.alignHeadingPlus",
+        "type": "key",
+        "default": 105,
+        "label": "Heading +",
+        "allowUnbound": true
+      },
+      {
+        "key": "keys.alignHeadingMinus",
+        "type": "key",
+        "default": 103,
+        "label": "Heading -",
+        "allowUnbound": true
+      }
+    ],
+    "Keys - Working set": [
+      {
+        "key": "keys.alignReset",
+        "type": "key",
+        "default": 110,
+        "label": "Reset offsets",
+        "allowUnbound": true,
+        "hint": "Clear this node's offset for the selected participant."
+      },
+      {
+        "key": "keys.alignSave",
+        "type": "key",
+        "default": 106,
+        "label": "Save offsets",
+        "allowUnbound": true,
+        "hint": "Write the working offsets to the scene file. Unsaved offsets are discarded when the scene ends."
+      }
+    ]
+  }
+}

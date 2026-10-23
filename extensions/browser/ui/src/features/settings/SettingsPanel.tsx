@@ -57,26 +57,8 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
             { value: "stay", label: "Stay open" },
             { value: "close", label: "Close" },
           ]}/>
-        <ChoiceRow label="Open browser to" hint="Active falls back to Browse when nothing is running."
-          value={preferences.openTo} onChange={(value) => set("openTo", value)}
-          choices={[
-            { value: "last", label: "Last used" },
-            { value: "scenes", label: "Browse" },
-            { value: "active", label: "Active" },
-          ]}/>
         <ToggleRow label="Actor name labels" hint="Tag selected cast members over their heads in the world, and list them in the corner while they are off screen."
           enabled={preferences.actorLabels} onChange={(value) => set("actorLabels", value)}/>
-      </section>
-
-      <section class="settings-group">
-        <h3>Browse</h3>
-        <ChoiceRow label="Unavailable scenes" hint="Scenes that need a different cast or furniture can remain optional, always visible, or hidden."
-          value={preferences.unavailableScenes} onChange={(value) => set("unavailableScenes", value)}
-          choices={[
-            { value: "ask", label: "On request" },
-            { value: "show", label: "Always below" },
-            { value: "hide", label: "Hide" },
-          ]}/>
       </section>
 
       <section class="settings-group">
@@ -103,7 +85,7 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
         <h3>Advanced</h3>
         <ToggleRow label="Show author details" hint="Reveal scene IDs, source files, and diagnostics."
           enabled={preferences.authorDetails} onChange={(value) => set("authorDetails", value)}/>
-        <p class="settings-footnote">Key bindings and log verbosity are in OSF Settings. Animation detail and content source are beside the Browse filters.</p>
+        <p class="settings-footnote">Key bindings and log verbosity are in OSF Settings, alignment keys on its separate Alignment page. Animation detail and content source are beside the Browse filters.</p>
       </section>
     </div>
   </section>;
