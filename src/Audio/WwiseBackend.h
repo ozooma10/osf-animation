@@ -4,6 +4,20 @@
 
 namespace OSF::Audio::Wwise
 {
+	// Actor reads/updates run on the verified frame drain; SoundService serializes
+	// these functions with submissions and world teardown. Zero selects listener.
+	void InitializeRoleEmitters(const REL::Version& a_runtime);
+	std::uint64_t PrepareRoleEmitter(RE::Actor* a_actor);
+	bool RoleEmitterCurrent(std::uint64_t a_gameObject);
+	std::vector<std::uint64_t> TickRoleEmitters();
+	void ResetRoleEmitters();
+#ifdef OSF_ANIMATION_SMOKE
+	struct EmitterObservation {
+		std::uint64_t id; std::uint32_t actor; RE::BGSAudio::AkSoundPosition position; std::uint64_t updates;
+	};
+	std::vector<EmitterObservation> ObserveRoleEmitters();
+#endif
+
 	// Borrowed from the process-lifetime media cache; preparation does no Wwise submission.
 	struct PreparedMedia
 	{

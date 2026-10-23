@@ -619,10 +619,13 @@ positioned Wwise game object associated with the actor selected by `role`:
   "role": "other", "emitter": "role" }
 ```
 
-If the role has no live actor, or no verified engine-owned Wwise object is available, OSF falls back
-to the listener. The current Starfield 1.16.244 backend takes this fallback: the former guessed
-registration entry point was removed rather than invoking an unverified ABI. The emitter controls
-where the audio is heard; `role` still owns
+On Starfield 1.16.244, OSF registers its own Wwise object and updates its position from the
+role actor on the verified frame hook. The position uses the game's XZY audio coordinate order.
+Actor unload retires the emitter and its voices; world replacement revokes pending work and
+unregisters all owned emitters. Normal scene completion preserves moving sound tails.
+Missing/unloaded actors, unsupported runtimes, or registration failure skip the positioned cue.
+They never fall back to a loud listener-relative sound. The emitter controls where audio is heard;
+`role` still owns
 voice-channel replacement and subtitle attribution. The Wwise event controls the actual attenuation
 and spatialization curve.
 

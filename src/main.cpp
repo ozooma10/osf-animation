@@ -1,4 +1,5 @@
 #include "Scene/AlignmentStore.h"
+#include "Audio/WwiseBackend.h"
 #include "Testing/D3OutputBuffers.h"
 #include "API/Health.h"
 #include "API/MinimumVersion.h"
@@ -108,6 +109,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	SFSE::Init(a_sfse, { .trampoline = true, .trampolineSize = kTrampolineBytes });
 
 	const auto runtime = a_sfse->RuntimeVersion();
+	OSF::Audio::Wwise::InitializeRoleEmitters(runtime);
 	OSF::Camera::CameraService::GetSingleton().SetRawLayoutSupport(runtime == kVerifiedGameVersion);
 	REX::INFO("[Boot] {} v{} loading — supported game version {}, running on {}",
 		SFSE::GetPluginName(), SFSE::GetPluginVersion().string(),

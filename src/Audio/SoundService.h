@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Audio/WwiseBackend.h"
+
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -18,8 +20,9 @@ namespace OSF::Audio
 	public:
 		static SoundService& GetSingleton();
 
-		// Returns 0 until a verified engine-managed actor game object exists; playback stays listener-relative.
+		// Frame drain only: returns an owned actor-following emitter, or 0 on failure.
 		std::uint64_t PrepareRoleEmitter(RE::Actor* a_actor);
+		void TickRoleEmitters(); // verified frame hook only
 
 		// a_slot is a per-actor voice channel (0 = unslotted, layers): a new Play cuts that slot's previous voice.
 		// a_gameObject 0 = listener.
@@ -39,6 +42,11 @@ namespace OSF::Audio
 		void StopAll();
 
 #ifdef OSF_ANIMATION_SMOKE
+		std::vector<Wwise::EmitterObservation> EmittersForSmoke()
+		{
+			std::lock_guard guard(lock);
+			return Wwise::ObserveRoleEmitters();
+		}
 		std::uint32_t VoiceForSmoke(std::uint64_t a_slot)
 		{
 			std::lock_guard guard(lock);
@@ -65,6 +73,7 @@ namespace OSF::Audio
 		{
 			std::uint64_t sequence = 0;
 			std::uint32_t playingID = 0;
+			std::uint64_t gameObject = 0;
 		};
 
 		struct SlotOrderEntry
@@ -83,9 +92,9 @@ namespace OSF::Audio
 		// Caller holds lock for these helpers. Commit holds it through post AND publication.
 		[[nodiscard]] bool TicketCurrent(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket) const;
 		bool Ready(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket, const char* a_cancelPoint) const;
-		void PublishVoice(std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket);
+		void PublishVoice(std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket, std::uint64_t a_gameObject = 0);
 		bool Commit(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket,
-			std::string_view a_spec, const std::function<std::uint32_t()>& a_post);
+			std::string_view a_spec, std::uint64_t a_gameObject, const std::function<std::uint32_t()>& a_post);
 		bool PlayImpl(std::uint64_t a_slot, std::uint64_t a_channel, const std::string& a_spec, std::uint64_t a_gameObject, std::uint64_t a_detectedNs = 0);
 
 		std::mutex lock;
@@ -93,7 +102,7 @@ namespace OSF::Audio
 		std::unordered_map<std::uint64_t, Channel> channels;
 		std::unordered_map<std::uint64_t, std::uint64_t> bindings;
 		std::deque<SlotOrderEntry> slotOrder;
-		std::deque<std::uint32_t> unslottedVoices;           // stopped on world teardown
+		std::deque<SlotVoice> unslottedVoices;           // stopped on world teardown
 		std::uint64_t teardownEpoch = 1;
 		std::uint64_t nextSequence = 1;
 		std::uint64_t nextChannel = 1;

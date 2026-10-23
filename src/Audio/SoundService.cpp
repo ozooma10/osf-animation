@@ -152,8 +152,34 @@ namespace OSF::Audio
 
 	std::uint64_t SoundService::PrepareRoleEmitter(RE::Actor* a_actor)
 	{
-		(void)a_actor;
-		return 0;
+		std::lock_guard l{ lock };
+		return Wwise::PrepareRoleEmitter(a_actor);
+	}
+
+	void SoundService::TickRoleEmitters()
+	{
+		std::lock_guard l{ lock };
+		for (const auto id : Wwise::TickRoleEmitters()) {
+			// No pending decoder may post to an unregistered object. Commit checks the
+			// same registry under this lock; already-published voices stop by playing ID.
+			for (auto& [slot, voice] : slots) {
+				(void)slot;
+				if (voice.gameObject == id && voice.playingID) {
+					Wwise::StopVoice(voice.playingID); voice.playingID = 0;
+				}
+			}
+			for (auto& voice : unslottedVoices) {
+				if (voice.gameObject == id && voice.playingID) {
+					Wwise::StopVoice(voice.playingID); voice.playingID = 0;
+				}
+			}
+			for (auto& [channel, voice] : channels) {
+				(void)channel;
+				if (voice.gameObject == id && voice.playingID) {
+					Wwise::StopVoice(voice.playingID); voice.playingID = 0;
+				}
+			}
+		}
 	}
 
 	std::uint64_t SoundService::CreateChannel(bool a_latestPending, std::uint32_t a_maxAgeMs)
@@ -240,12 +266,12 @@ namespace OSF::Audio
 	}
 
 	bool SoundService::Commit(std::uint64_t a_slot, std::uint64_t a_channel, const PlayTicket& a_ticket,
-		std::string_view a_spec, const std::function<std::uint32_t()>& a_post)
+		std::string_view a_spec, std::uint64_t a_gameObject, const std::function<std::uint32_t()>& a_post)
 	{
 		// Preparation must finish before this lock. Close/StopAll cannot interleave the
 		// final validity check, Wwise submission and publication; no user callbacks run here.
 		std::unique_lock l{ lock };
-		if (!Ready(a_slot, a_channel, a_ticket, "cancelledBeforePostNs")) return false;
+		if (!Ready(a_slot, a_channel, a_ticket, "cancelledBeforePostNs") || !Wwise::RoleEmitterCurrent(a_gameObject)) return false;
 		const auto playing = a_post();
 		if (!playing) {
 			l.unlock();
@@ -256,9 +282,10 @@ namespace OSF::Audio
 			auto& voice = channels.at(a_channel);
 			if (voice.playingID) Wwise::StopVoice(voice.playingID);
 			voice.playingID = playing;
+			voice.gameObject = a_gameObject;
 			voice.sequence = a_ticket.sequence;
 			voice.latestAdmitted = std::max(voice.latestAdmitted, a_ticket.sequence);
-		} else PublishVoice(a_slot, playing, a_ticket);
+		} else PublishVoice(a_slot, playing, a_ticket, a_gameObject);
 #ifdef OSF_ANIMATION_SMOKE
 		Testing::D3AudioProbe::Point(Testing::D3AudioProbe::Current(), "publishedNs");
 #endif
@@ -266,12 +293,12 @@ namespace OSF::Audio
 	}
 
 	void SoundService::PublishVoice(
-		std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket)
+		std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket, std::uint64_t a_gameObject)
 	{
 		if (a_slot == 0) {
-			unslottedVoices.push_back(a_playingID);
+			unslottedVoices.push_back({a_ticket.sequence, a_playingID, a_gameObject});
 			if (unslottedVoices.size() > kMaxTrackedUnslottedVoices) {
-				Wwise::StopVoice(unslottedVoices.front());
+				Wwise::StopVoice(unslottedVoices.front().playingID);
 				unslottedVoices.pop_front();
 			}
 			return;
@@ -282,7 +309,7 @@ namespace OSF::Audio
 				Wwise::StopVoice(it->second.playingID);
 			}
 		}
-		slots[a_slot] = SlotVoice{ a_ticket.sequence, a_playingID };
+		slots[a_slot] = SlotVoice{ a_ticket.sequence, a_playingID, a_gameObject };
 		slotOrder.push_back({ a_slot, a_ticket.sequence });
 		if (slotOrder.size() > kMaxSlotOrderRecords) {
 			std::erase_if(slotOrder, [&](const SlotOrderEntry& a_entry) {
@@ -325,7 +352,7 @@ namespace OSF::Audio
 
 		if (eventID) {
 			admission.unlock();
-			return Commit(a_slot, a_channel, ticket, a_dataRelPath, [&] { return Wwise::PostEvent(*eventID, a_gameObject); });
+			return Commit(a_slot, a_channel, ticket, a_dataRelPath, a_gameObject, [&] { return Wwise::PostEvent(*eventID, a_gameObject); });
 		}
 
 		const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
@@ -366,7 +393,7 @@ namespace OSF::Audio
 					return;
 				}
 				OSF_PROFILE_SCOPE("Audio.Job.Commit");
-				(void)Commit(a_slot, a_channel, ticket, path, [&] { return Wwise::PostPreparedFile(media, a_gameObject); });
+				(void)Commit(a_slot, a_channel, ticket, path, a_gameObject, [&] { return Wwise::PostPreparedFile(media, a_gameObject); });
 			},
 			[
 #ifdef OSF_ANIMATION_SMOKE
@@ -421,11 +448,12 @@ namespace OSF::Audio
 		}
 		slots.clear();
 		slotOrder.clear();
-		for (const auto playingID : unslottedVoices) {
-			if (playingID != 0) {
-				Wwise::StopVoice(playingID);
+		for (const auto& voice : unslottedVoices) {
+			if (voice.playingID != 0) {
+				Wwise::StopVoice(voice.playingID);
 			}
 		}
 		unslottedVoices.clear();
+		Wwise::ResetRoleEmitters();
 	}
 }

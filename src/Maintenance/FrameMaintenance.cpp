@@ -1,6 +1,7 @@
 #include "Maintenance/FrameMaintenance.h"
 
 #include "Animation/GraphManager.h"
+#include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Profiling/Profile.h"
 #include "Profiling/ProfilerHost.h"
@@ -35,6 +36,7 @@ namespace OSF::Maintenance
 				{
 					OSF_PROFILE_SCOPE("Frame.Drain");
 					Util::NativeMainThreadQueue::Drain();
+					Audio::SoundService::GetSingleton().TickRoleEmitters();
 				}
 				// Playback time and pose stamping live in the AnimationManager/BGSModelNode::Update hooks.
 				{

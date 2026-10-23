@@ -18,6 +18,8 @@ namespace
     std::size_t prepareCount{};
     std::vector<std::wstring> preparedPaths;
     std::uint32_t nextVoice{1};
+    std::unordered_set<std::uint64_t> emitterIds;
+    std::vector<std::uint64_t> retiredEmitters;
     std::vector<std::uint32_t> posted, stopped;
     std::uint32_t Post()
     {
@@ -66,6 +68,14 @@ namespace
 // Link the production service/worker to a deterministic backend; never call the game.
 namespace OSF::Audio::Wwise
 {
+    std::uint64_t PrepareRoleEmitter(RE::Actor*) { emitterIds.insert(77); return 77; }
+    bool RoleEmitterCurrent(std::uint64_t id) { return !id || emitterIds.contains(id); }
+    std::vector<std::uint64_t> TickRoleEmitters() {
+        auto ids = std::exchange(retiredEmitters,{});
+        for (auto id : ids) emitterIds.erase(id);
+        return ids;
+    }
+    void ResetRoleEmitters() { emitterIds.clear(); }
     std::optional<std::uint32_t> ParseEventSpec(std::string_view value)
     { return value == "event:test" ? std::optional<std::uint32_t>(1) : std::nullopt; }
     bool IsWwiseExternalSource(std::string_view value) { return value.ends_with(".wav"); }
@@ -332,6 +342,19 @@ void TestSoundService()
     Check(Stopped(beforeFailedVoice) && qualificationChannels[0] == 0 && qualificationChannels[1] == 0 &&
         partialChannel && !service.PlayChannel(partialChannel, "event:test"),
         "D3 allocation failure closes partial replacements and leaves no owned handles behind");
+
+    const auto emitter = service.PrepareRoleEmitter(nullptr); // deterministic fake actor
+    service.Play(42,"event:test",emitter); const auto positionedVoice = Last();
+    Arm(); service.Play(43,"held.wav",emitter); Await(); before = Posts();
+    retiredEmitters.push_back(emitter);
+    service.TickRoleEmitters(); Release();
+    Check(service.WaitIdleForTest() && Posts() == before && Stopped(positionedVoice),
+        "actor unload stops published spatial voices and rejects pending spatial submissions");
+    service.PrepareRoleEmitter(nullptr);
+    service.Play(42,"event:test",emitter); const auto resetSpatialVoice = Last();
+    service.StopAll(); before = Posts(); service.Play(42,"event:test",emitter);
+    Check(Stopped(resetSpatialVoice) && Posts() == before && emitterIds.empty(),
+        "world reset stops spatial voices and unregisters emitters before stale submissions");
 
     std::vector<std::uint64_t> handles;
     for (std::size_t i = 0; i < 4096; ++i) handles.push_back(service.CreateChannel());

@@ -40,12 +40,13 @@ namespace OSF::Audio::SoundPlayback
 		const bool roleRequested = a_emitter == Registry::SoundEmitter::kRole;
 		if (roleRequested) {
 			gameObject = service.PrepareRoleEmitter(a_actor);
-			// Documented fallback (SCENE_SCHEMA "Sound emitters"): no verified engine Wwise object on this build.
+			// An unavailable actor emitter must not turn a distant cue into loud centered audio.
 			static std::atomic<bool> warnedFallback{ false };
 			if (!gameObject && !warnedFallback.exchange(true, std::memory_order_relaxed)) {
-				REX::WARN("[Sound] emitter 'role' requested by {} — no verified Wwise game-object entry point on this game version; positioned audio falls back to the listener",
+				REX::WARN("[Sound] emitter 'role' requested by {} is unavailable — positioned cue skipped",
 					a_diagnosticOwner);
 			}
+			if (!gameObject) return;
 		}
 		if (spdlog::should_log(spdlog::level::debug)) {
 			REX::DEBUG("[Sound] {} playing '{}' (emitter {}, slot {:#x})", a_diagnosticOwner, spec,

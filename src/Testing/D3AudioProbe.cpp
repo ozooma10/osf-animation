@@ -234,6 +234,30 @@ namespace OSF::Testing::D3AudioProbe
     }
     Json Command(const std::string& command, const Json& args)
     {
+        if (command == "d3-spatial") {
+            auto& audio = Audio::SoundService::GetSingleton();
+            const auto actorId = args.value("actor",0x14u);
+            const auto slot = (1ull << 62) | actorId;
+            const auto action = args.value("action",std::string("snapshot"));
+            if (action == "play") {
+                auto* form = RE::TESForm::LookupByID(actorId);
+                auto* actor = form ? form->As<RE::Actor>() : nullptr;
+                if (!actor || !actor->parentCell) throw std::runtime_error("Spatial probe requires a loaded actor");
+                const auto spec = args.at("spec").get<std::string>();
+                if (spec.size() > 256 || spec.find("..") != std::string::npos ||
+                    (!spec.starts_with("event:") && !spec.starts_with("Sound/OSF/")))
+                    throw std::runtime_error("Spatial probe spec must be an event or fixture sound");
+                const auto role = args.value("emitter",std::string("role")) == "role";
+                const auto object = role ? audio.PrepareRoleEmitter(actor) : 0;
+                if (role && !object) throw std::runtime_error("Spatial emitter unavailable");
+                audio.Play(slot,spec,object);
+            } else if (action != "snapshot") throw std::runtime_error("Unknown spatial probe action");
+            Json emitters = Json::array();
+            for (const auto& e : audio.EmittersForSmoke())
+                emitters.push_back({{"id",e.id},{"actor",e.actor},{"updates",e.updates},
+                    {"position",{e.position.position.X,e.position.position.Y,e.position.position.Z}}});
+            return {{"atNs",NowNs()},{"emitters",emitters},{"playingId",audio.VoiceForSmoke(slot)}};
+        }
         if (command == "d3-qualification") return D3Qualification::Command(args);
         if (command == "d3-status") return Snapshot();
         if (command == "d3-stall") {
