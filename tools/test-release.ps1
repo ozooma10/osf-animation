@@ -13,6 +13,7 @@ param(
     [switch]$PrepareOnly,
     [switch]$Interactive,
     [switch]$Plan,
+    [switch]$ForceVerification,
     [ValidateSet('Released','Deployed')][string]$Hosts = 'Released',
     [string]$Harness = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'OSF Test Harness'),
     [string]$OutputDirectory = '',
@@ -23,6 +24,7 @@ if ($Offline -and $PrepareOnly) { throw '-Offline and -PrepareOnly are mutually 
 $arguments = @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-smoke.ps1'),'-Hosts',$Hosts,'-Harness',$Harness,'-Jobs',"$Jobs")
 if ($PrepareOnly) { $arguments += '-PrepareOnly' } elseif (-not $Offline) { $arguments += '-RunGame' }
 if ($Interactive) { $arguments += '-Interactive' }
+if ($ForceVerification) { $arguments += '-ForceVerification' }
 if ($Plan) { $arguments += '-Plan' }
 if ($OutputDirectory) { $arguments += @('-OutputDirectory',$OutputDirectory) }
 & pwsh @arguments

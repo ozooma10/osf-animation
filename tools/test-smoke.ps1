@@ -14,6 +14,7 @@ param(
     [switch]$PrepareOnly,
     [switch]$Interactive,
     [ValidateSet('Released','Deployed')][string]$Hosts = 'Released',
+    [switch]$ForceVerification,
     [switch]$Plan,
     [string]$Harness = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'OSF Test Harness'),
     [string]$OutputDirectory = '',
@@ -27,6 +28,7 @@ if ($RunGame -and -not $Interactive -and -not $Plan) {
 }
 $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'SmokeBench.ps1')
+. (Join-Path $PSScriptRoot 'WorkflowChecks.ps1')
 . (Join-Path $repo 'packaging/ReleaseValidation.ps1')
 $coverage = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/coverage.json') -Raw | ConvertFrom-Json)
 $runtimeCases = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/runtime-cases.json') -Raw | ConvertFrom-Json)
@@ -126,13 +128,8 @@ try {
         $script:stage.message = "$($targets.Count) native suites; $($runtimeCases.Count) game assertions; $($coverage.Count) feature areas"
     }
     Invoke-SmokeStage 'bench-contracts' {
-        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'test/SmokeBenchTest.ps1'))
-        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'test/ReleaseValidationTest.ps1'))
-        if ($RunGame -or $PrepareOnly) {
-            $harnessTests = Join-Path $Harness 'tests/AnimationSmoke.Tests.ps1'
-            if (-not (Test-Path -LiteralPath $harnessTests)) { throw '[blocked] Animation harness contract tests are missing; pass -Harness.' }
-            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$harnessTests)
-        }
+        $script:stage.log = Join-Path $directory 'bench-contracts.log'
+        Invoke-AnimationContractChecks $repo $Harness ([bool]($RunGame -or $PrepareOnly)) $script:stage.log -Force:$ForceVerification
     }
     Invoke-SmokeStage 'sdk' {
         Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'Test-SdkLock.ps1'))
@@ -143,7 +140,7 @@ try {
         $env:XSE_SF_MODS_PATH = $productionMods
         $env:XSE_SF_GAME_PATH = $null
         Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n','--profiling=n')
-        Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
+        Invoke-SmokeCommand 'xmake' @('build','-y',"-j$Jobs",'OSF Animation')
         Invoke-SmokeCommand 'xmake' @('install','-y','-o',$productionMod,'OSF Animation')
         $report.productionDllSha256 = (Get-FileHash -LiteralPath (Join-Path $productionMod 'SFSE/Plugins/OSF Animation.dll')).Hash
         Write-ReleaseBuildReceipt $repo 'engine' $identity
@@ -182,7 +179,7 @@ try {
         $files = @(Get-ChildItem -LiteralPath (Join-Path $ui 'tests') -Recurse -File |
             Where-Object Name -Match '\.test\.tsx?$' | ForEach-Object { [IO.Path]::GetRelativePath($ui,$_.FullName).Replace('\','/') })
         Test-SmokeBrowserReceipt $browserReceipt $ui $files $browserStarted
-        $script:stage.message = "$($report.browserCases.Count) browser assertions, clean install, typecheck, and production build"
+        $script:stage.message = "$($report.browserCases.Count) browser assertions, verified dependency install, typecheck, and production build"
     }
     Invoke-SmokeStage 'distribution' {
         $archives = Join-Path $directory 'archives'
