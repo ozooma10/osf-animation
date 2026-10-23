@@ -1,9 +1,9 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "fixture props bad type",
   // `props` is a registry object, never an array — rejects the WHOLE file.
   "props": [],
-  "scenes": [
+  "nodes": [
     { "id": "test.props.badtype.never", "clip": "Fixture/x.glb" }
   ]
 }

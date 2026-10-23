@@ -261,12 +261,12 @@ int main()
 		Near(second.heading, 0.25f, "new heading does not accumulate old heading");
 	});
 	Run("furniture offsets follow Starfield's native yaw basis", [] {
-		// Native yaw maps model +Y to world -X at +90 degrees. In particular,
+		// Live rig composition maps model +Y to world +X at +90 degrees. In particular,
 		// the GE ShipLadder root correction is +1 local Y, not +1 world Y.
 		struct Case { float degrees, x, y; };
 		constexpr std::array cases{
-			Case{ 0, 100, 201 }, Case{ 90, 99, 200 }, Case{ 180, 100, 199 },
-			Case{ 270, 101, 200 }, Case{ -90, 101, 200 }
+			Case{ 0, 100, 201 }, Case{ 90, 101, 200 }, Case{ 180, 100, 199 },
+			Case{ 270, 99, 200 }, Case{ -90, 99, 200 }
 		};
 		for (const auto& expected : cases) {
 			const OSF::Scene::WorldAnchor base{ true, { 100, 200, 300 }, expected.degrees * OSF::Util::kDegToRadF };
@@ -278,38 +278,51 @@ int main()
 		}
 		const OSF::Scene::WorldAnchor quarterTurn{ true, { 100, 200, 300 }, 90 * OSF::Util::kDegToRadF };
 		const auto anchor = OSF::Scene::ComposeSceneAnchor(quarterTurn, { 2, 3, 4, 90 * OSF::Util::kDegToRadF });
-		Near(anchor.pos.x, 97, "offset uses original furniture heading before heading correction");
-		Near(anchor.pos.y, 202, "local X uses the same native basis as local Y");
+		Near(anchor.pos.x, 103, "offset uses original furniture heading before heading correction");
+		Near(anchor.pos.y, 198, "local X uses the same native basis as local Y");
 		Near(anchor.pos.z, 304, "local Z remains world up");
 		Near(anchor.heading, 180 * OSF::Util::kDegToRadF, "relative facing is applied once");
 		const auto participant = PlacementToWorld(anchor.pos, anchor.heading, { 0, 0.5f, 0, 0 });
-		Near(participant.x, 97, "participant offset composes from corrected anchor X");
-		Near(participant.y, 201.5f, "participant offset follows corrected heading");
+		Near(participant.x, 103, "participant offset composes from corrected anchor X");
+		Near(participant.y, 197.5f, "participant offset follows corrected heading");
+	});
+	Run("placement agrees with captured in-game rig composition", [] {
+		// Starfield 1.16.244, Key frame 614, yaw 2.400000095. Values captured through
+		// read-only process access: actor pin, COM local slot, and composed COM world slot.
+		// An independent engine result catches a sign error that cardinal tests alone
+		// can accidentally encode as the expected convention.
+		const RE::NiPoint3 anchor{ -474.822814941f, 2142.642578125f, 7.446841717f };
+		const auto actual = PlacementToWorld(anchor, 2.400000095f,
+			{ -0.113525391f, 0.077636719f, 1.063476563f, 0 });
+		Check(std::abs(actual.x - -474.686584473f) < 0.0005f &&
+			std::abs(actual.y - 2142.662109375f) < 0.0005f &&
+			std::abs(actual.z - 8.510310173f) < 0.0005f,
+			"local placement follows the rendered COM within one millimeter");
 	});
 	Run("alignment persistence and working-copy ownership", [] {
 		using namespace OSF::Scene::Alignment;
-		auto table = Parse(nlohmann::json::parse(R"({"formatVersion":1,"scenes":{"demo":{"#s2":{"partner":{"y":5,"heading":90},"lead":{}}}}})"));
+		auto table = Parse(nlohmann::json::parse(R"({"formatVersion":2,"nodes":{"demo/two":{"partner":{"y":5,"heading":90},"lead":{}}}})"));
 		Check(table.has_value(), "valid delta table parses");
 		if (!table) return;
-		Check(!table->at("demo").at("#s2").contains("lead"), "zero rows are pruned");
-		Near(Find(*table, "demo", "#s2", "partner").heading, 90 * OSF::Util::kDegToRadF, "file degrees convert to runtime radians");
-		Near(Find(*table, "demo", "#s1", "partner").y, 0, "no cross-node fallback");
+		Check(!table->at("demo/two").contains("lead"), "zero rows are pruned");
+		Near(Find(*table, "demo/two", "partner").heading, 90 * OSF::Util::kDegToRadF, "file degrees convert to runtime radians");
+		Near(Find(*table, "demo/one", "partner").y, 0, "no cross-node fallback");
 		WorkingCopy work;
-		work.Enter("#s2", { Find(*table, "demo", "#s2", "partner") })[0].y += 1;
-		work.Enter("#s1", { {} });
-		Near(work.Enter("#s2", { {} })[0].y, 6, "revisit retains unsaved delta instead of reseeding");
-		Put(*table, "demo", "#s2", "partner", work.nodes.at("#s2")[0]);
+		work.Enter("demo/two", { Find(*table, "demo/two", "partner") })[0].y += 1;
+		work.Enter("demo/one", { {} });
+		Near(work.Enter("demo/two", { {} })[0].y, 6, "revisit retains unsaved delta instead of reseeding");
+		Put(*table, "demo/two", "partner", work.nodes.at("demo/two")[0]);
 		const auto roundtrip = Parse(Serialize(*table));
 		Check(roundtrip.has_value(), "saved table parses");
-		Near(Find(*roundtrip, "demo", "#s2", "partner").y, 6, "save replaces delta instead of adding twice");
+		Near(Find(*roundtrip, "demo/two", "partner").y, 6, "save replaces delta instead of adding twice");
 		const ParticipantPlacement authored{ 10, 20, 30, 0 };
-		Near(AddPlacement(authored, work.nodes.at("#s2")[0]).y, 26, "one delta layer over authored offset");
-		Near(AddPlacement({ 10, 40, 30, 0 }, work.nodes.at("#s2")[0]).y, 46, "segment switch uses new authored offset plus the same delta");
-		work.nodes.at("#s2")[0] = {};
-		Near(Find(*table, "demo", "#s2", "partner").y, 6, "reset changes only the working copy until save");
-		Put(*table, "demo", "#s2", "partner", {});
-		Check(table->empty(), "saving reset prunes empty node and scene");
-		Check(!Parse(nlohmann::json{ { "formatVersion", 2 }, { "scenes", nlohmann::json::object() } }), "unknown version refused");
+		Near(AddPlacement(authored, work.nodes.at("demo/two")[0]).y, 26, "one delta layer over authored offset");
+		Near(AddPlacement({ 10, 40, 30, 0 }, work.nodes.at("demo/two")[0]).y, 46, "segment switch uses new authored offset plus the same delta");
+		work.nodes.at("demo/two")[0] = {};
+		Near(Find(*table, "demo/two", "partner").y, 6, "reset changes only the working copy until save");
+		Put(*table, "demo/two", "partner", {});
+		Check(table->empty(), "saving reset prunes empty node");
+		Check(!Parse(nlohmann::json{ { "formatVersion", 1 }, { "scenes", nlohmann::json::object() } }), "unknown version refused");
 	});
 	Run("alignment role identity survives selection and storage", [] {
 		using namespace OSF::Scene::Alignment;
@@ -320,49 +333,49 @@ int main()
 		Check(FindRole(keys, "lEaD") == keys.begin() + 2, "role API lookup ignores case");
 		Check(FindRole(keys, "missing") == keys.end(), "unknown roles stay invalid");
 		Table table;
-		Put(table, "scene", "node", keys[0], { 1, 0, 0, 0 });
-		Put(table, "scene", "node", keys[1], { 2, 0, 0, 0 });
-		Put(table, "scene", "node", "Lead", { 3, 0, 0, 0 });
-		Put(table, "scene", "node", "LEAD", { 4, 0, 0, 0 });
+		Put(table, "scene/node", keys[0], { 1, 0, 0, 0 });
+		Put(table, "scene/node", keys[1], { 2, 0, 0, 0 });
+		Put(table, "scene/node", "Lead", { 3, 0, 0, 0 });
+		Put(table, "scene/node", "LEAD", { 4, 0, 0, 0 });
 		std::size_t skipped = 0;
 		const auto loaded = Parse(Serialize(table), &skipped);
 		Check(loaded && skipped == 0, "anonymous roles save and reload without invalid empty keys");
 		if (!loaded) return;
-		Near(Find(*loaded, "scene", "node", keys[0]).x, 1, "first anonymous role keeps its own delta");
-		Near(Find(*loaded, "scene", "node", keys[1]).x, 2, "second anonymous role keeps its own delta");
-		Near(Find(*loaded, "scene", "node", "lEaD").x, 4, "case changes replace the same saved row");
-		Near(Find(*loaded, "Scene", "node", "lead").x, 0, "scene identity stays exact");
-		Check(loaded->at("scene").at("node").size() == 3, "case variants do not create duplicate rows");
-		Put(table, "scene", "node", "LEAD", {});
-		Near(Find(table, "scene", "node", "lead").x, 0, "reset removes a row regardless of role casing");
+		Near(Find(*loaded, "scene/node", keys[0]).x, 1, "first anonymous role keeps its own delta");
+		Near(Find(*loaded, "scene/node", keys[1]).x, 2, "second anonymous role keeps its own delta");
+		Near(Find(*loaded, "scene/node", "lEaD").x, 4, "case changes replace the same saved row");
+		Near(Find(*loaded, "SCENE/Node", "lead").x, 4, "global node lookup ignores case like the registry");
+		Check(loaded->at("scene/node").size() == 3, "case variants do not create duplicate rows");
+		Put(table, "scene/node", "LEAD", {});
+		Near(Find(table, "scene/node", "lead").x, 0, "reset removes a row regardless of role casing");
 	});
 	Run("alignment recovery preserves valid siblings through the next save", [] {
 		using namespace OSF::Scene::Alignment;
-		auto document = nlohmann::json::parse(R"({"formatVersion":1,"scenes":{
-			"badScene":[],"demo":{"badNode":[],"n":{
+		auto document = nlohmann::json::parse(R"({"formatVersion":2,"nodes":{
+			"badNode":[],"":{},"demo/n":{
 				"":{"x":99},"badNumber":{"x":"bad"},"badShape":[],
-				"Lead":{"x":1},"partner":{"y":2}}},"other":{"n":{"role":{"z":3}}}}})");
-		document["scenes"]["demo"]["n"]["overflow"] = { { "x", 1e100 } };
-		document["scenes"]["demo"]["n"]["nonfinite"] = { { "heading", std::numeric_limits<double>::infinity() } };
-		document["scenes"]["demo"]["n"][std::string(4097, 'x')] = { { "x", 1 } };
+				"Lead":{"x":1},"partner":{"y":2}},"other/n":{"role":{"z":3}}}})");
+		document["nodes"]["demo/n"]["overflow"] = { { "x", 1e100 } };
+		document["nodes"]["demo/n"]["nonfinite"] = { { "heading", std::numeric_limits<double>::infinity() } };
+		document["nodes"]["demo/n"][std::string(4097, 'x')] = { { "x", 1 } };
 		std::size_t skipped = 0;
 		auto loaded = Parse(document, &skipped);
 		Check(loaded && skipped == 8, "bad branches, empty keys, types and nonfinite rows are skipped and reported");
 		if (!loaded) return;
-		Near(Find(*loaded, "demo", "n", "LEAD").x, 1, "existing mixed-case names remain readable");
-		Put(*loaded, "demo", "n", "lead", { 4, 0, 0, 0 });
+		Near(Find(*loaded, "demo/n", "LEAD").x, 1, "existing mixed-case names remain readable");
+		Put(*loaded, "demo/n", "lead", { 4, 0, 0, 0 });
 		const auto saved = Parse(Serialize(*loaded), &skipped);
 		Check(saved && skipped == 0, "recovered table saves without invalid rows");
 		if (!saved) return;
-		Near(Find(*saved, "demo", "n", "lead").x, 4, "edited row persists");
-		Near(Find(*saved, "demo", "n", "partner").y, 2, "valid sibling survives the next save");
-		Near(Find(*saved, "other", "n", "role").z, 3, "unrelated scene survives the next save");
+		Near(Find(*saved, "demo/n", "lead").x, 4, "edited row persists");
+		Near(Find(*saved, "demo/n", "partner").y, 2, "valid sibling survives the next save");
+		Near(Find(*saved, "other/n", "role").z, 3, "unrelated node survives the next save");
 		Check(!Parse(nlohmann::json::parse("{", nullptr, false)), "syntactically malformed files remain rejected");
-		Check(!Parse(nlohmann::json{ { "formatVersion", 1 }, { "scenes", nullptr } }), "invalid document envelopes remain rejected");
+		Check(!Parse(nlohmann::json{ { "formatVersion", 2 }, { "nodes", nullptr } }), "invalid document envelopes remain rejected");
 		Table bounded;
-		for (int i = 0; i < 8192; ++i) Put(bounded, "s", "n", std::to_string(i), { 1, 0, 0, 0 });
+		for (int i = 0; i < 8192; ++i) Put(bounded, "s/n", std::to_string(i), { 1, 0, 0, 0 });
 		Check(Parse(Serialize(bounded)).has_value(), "row limit accepts its boundary");
-		Put(bounded, "s", "n", "overflow", { 1, 0, 0, 0 });
+		Put(bounded, "s/n", "overflow", { 1, 0, 0, 0 });
 		Check(!Parse(Serialize(bounded)), "row limit remains a document-level failure");
 	});
 	Run("scene speed survives rebuilds and pause is per scene", [] {

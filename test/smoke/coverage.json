@@ -67,7 +67,8 @@
   {
     "feature": "Pose composition, masks and additive math",
     "native": [
-      "osf-additive-pose-test"
+      "osf-additive-pose-test",
+      "osf-layer-pose-test"
     ],
     "runtime": [
       "pose.additive-mask"
@@ -225,6 +226,14 @@
       "integration.settings"
     ],
     "gap": "Distribution validates the schema payload; Live launcher/hotkey input and visual issue presentation need game acceptance; values and report/clear APIs have a runtime probe."
+  },
+  {
+    "feature": "Developer profiling build",
+    "native": [
+      "osf-profiler-test"
+    ],
+    "runtime": [],
+    "gap": "Offline cases cover the no-op production expansion, ring, aggregate, frame, thread, allocation and dump contracts. In-game capture, Perfetto rendering and overhead need a manual profiling-override session."
   },
   {
     "feature": "Production deployment and release payloads",

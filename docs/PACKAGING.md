@@ -4,8 +4,8 @@ The engine and the optional browser/wheel now have separate release archives. Bo
 Browser sources and installer definitions live in `extensions/browser/`; the root `tools/` and
 `packaging/` scripts remain the build, deployment, and release entry points.
 
-The 1.5.0 release consists of **OSF Animation v1.5.0.zip** and the optional
-**OSF Animation Browser v1.5.0.zip**, each with its checksum and manifest.
+The unpublished 2.0.0 candidate consists of **OSF Animation v2.0.0.zip** and the optional
+**OSF Animation Browser v2.0.0.zip**, each with its checksum and manifest.
 Player-facing replacement and settings instructions are in [UPGRADING.md](UPGRADING.md).
 The [changelog](../CHANGELOG.md) remains marked unreleased until publication.
 
@@ -14,7 +14,7 @@ packaging\build-archive.ps1
 packaging\build-browser-addon.ps1
 ```
 
-`build-archive.ps1` configures production `releasedbg` with `animation_smoke=n`, builds the native DLL, stages the Papyrus API and internal scene, verifies the payload, and writes `packaging/out/OSF Animation v<version>.zip`. Build/install output stays in private staging under `build/packages`; packaging does not deploy to MO2. `-SkipBuild`, `-CompilePapyrus`, `-IncludePdb`, `-Version`, `-Tag`, and `-ResultPath` are available. The version must match `xmake.lua`.
+`build-archive.ps1` configures production `releasedbg` with `animation_smoke=n` and `profiling=n`, builds the native DLL, stages the Papyrus API and internal scene, verifies the payload, and writes `packaging/out/OSF Animation v<version>.zip`. Build/install output stays in private staging under `build/packages`; packaging does not deploy to MO2. `-SkipBuild`, `-CompilePapyrus`, `-IncludePdb`, `-Version`, `-Tag`, and `-ResultPath` are available. The version must match `xmake.lua`.
 
 `build-browser-addon.ps1` runs `tools/BuildBrowserAddon.ps1 -NoDeploy`, which builds the separate production `OSF Animation Browser.dll`, installs npm dependencies, and runs the browser tests/typecheck/build. It stages the addon DLL and web view and the optional vanilla library and emote content as a FOMOD, then writes `packaging/out/OSF Animation Browser v<version>.zip`. `-SkipBuild`, `-Version`, `-Tag`, and `-ResultPath` are available. To deploy development builds, use ordinary `xmake` for the engine and `tools/BuildBrowserAddon.ps1` for the browser.
 
@@ -28,6 +28,6 @@ The browser receipt binds the DLL, browser schema, and all generated view files 
 
 The engine archive installs `OSF Animation.dll`, `OSF`/`OSFTypes`/`OSFAdvanced` `.pex` and `.psc` files, `OSF/internal.osf.json`, the Settings schema, and license documents. It contains no browser view or vanilla/emote pack. The addon installs `OSF Animation Browser.dll`, the browser view and can optionally install the library and emote pack; it depends on OSF Animation, OSF UI, and OSF Settings.
 
-The native bridge, world picking, browser sessions, wheel persistence, preferences, and hotkey registration live in the addon DLL. It consumes scene API 1.3 and engine services API 3.0, with no private engine sources or import library. `OSF.OpenBrowser()` is an optional forwarder. Core ships only `osf.animation.engine.json`; Browser ships `osf.animation.browser.json`. OSF Settings loads and saves engine values with schema defaults when unsaved; Browser saves its preferences separately and its hotkeys need rebinding after the ID change. Replace the old engine/browser mods on upgrade so the obsolete `osf.animation.json` schema is removed. See [BROWSER_ADDON.md](BROWSER_ADDON.md) for the boundary and lifetimes.
+The native bridge, world picking, browser sessions, wheel persistence, preferences, and hotkey registration live in the addon DLL. It consumes scene API 2.0 and engine services API 4.0, with no private engine sources or import library. `OSF.OpenBrowser()` is an optional forwarder. Core ships only `osf.animation.engine.json`; Browser ships `osf.animation.browser.json`. OSF Settings loads and saves engine values with schema defaults when unsaved; Browser saves its preferences separately and its hotkeys need rebinding after the ID change. Replace the old engine/browser mods on upgrade so the obsolete `osf.animation.json` schema is removed. See [BROWSER_ADDON.md](BROWSER_ADDON.md) for the boundary and lifetimes.
 
 Neither archive includes player settings, source maps, the developer-only `OSFTest` Papyrus script, nor the browser's source and `node_modules`.

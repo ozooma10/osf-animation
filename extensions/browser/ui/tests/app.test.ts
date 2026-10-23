@@ -49,9 +49,9 @@ const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2, pinned: 
 
 describe("browser reducer", () => {
   it("normalizes authoritative playback clock fields for the active timeline", () => {
-    expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, cast: [] }])[0])
+    expect(normalizeActive([{ handle: 7, nodeId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, cast: [] }])[0])
       .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0 });
-    expect(normalizeActive([{ handle: 8, sceneId: "legacy", cast: [] }])[0])
+    expect(normalizeActive([{ handle: 8, nodeId: "legacy", cast: [] }])[0])
       .toMatchObject({ time: 0, duration: 0, speed: 0 });
   });
 
@@ -128,13 +128,13 @@ describe("browser reducer", () => {
   it("honors the after-launch preference when a scene starts", () => {
     const initial = createInitialState();
     const minimized = browserReducer(initial, {
-      type: "launch/succeeded", handle: 11, sceneId: "solo", afterLaunch: "minimize",
+      type: "launch/succeeded", handle: 11, nodeId: "solo", afterLaunch: "minimize",
     });
     const keptOpen = browserReducer(initial, {
-      type: "launch/succeeded", handle: 12, sceneId: "pair", afterLaunch: "stay",
+      type: "launch/succeeded", handle: 12, nodeId: "pair", afterLaunch: "stay",
     });
     const closed = browserReducer(initial, {
-      type: "launch/succeeded", handle: 13, sceneId: "solo", afterLaunch: "close",
+      type: "launch/succeeded", handle: 13, nodeId: "solo", afterLaunch: "close",
     });
 
     expect(minimized).toMatchObject({ lastHandle: 11, minimized: true });
@@ -180,9 +180,9 @@ describe("browser reducer", () => {
     const initial = createInitialState();
     const pending = { ...initial, selectedId: "solo", opts: { ...initial.opts, speed: "1.5" } };
     expect(browserReducer(pending, { type: "launch/failed", error: "not ready" }).opts.speed).toBe("1.5");
-    expect(browserReducer(pending, { type: "selection/changed", sceneId: "solo", stage: 2 }).opts.speed).toBe("1.5");
-    expect(browserReducer(pending, { type: "selection/changed", sceneId: "pair" }).opts.speed).toBe("1");
-    expect(browserReducer(pending, { type: "launch/succeeded", handle: 7, sceneId: "solo", afterLaunch: "stay" }).opts.speed).toBe("1");
+    expect(browserReducer(pending, { type: "selection/changed", nodeId: "solo", stage: 2 }).opts.speed).toBe("1.5");
+    expect(browserReducer(pending, { type: "selection/changed", nodeId: "pair" }).opts.speed).toBe("1");
+    expect(browserReducer(pending, { type: "launch/succeeded", handle: 7, nodeId: "solo", afterLaunch: "stay" }).opts.speed).toBe("1");
   });
 
   it("distinguishes an explicit wheel from reset defaults", () => {
@@ -228,7 +228,7 @@ describe("browser reducer", () => {
     });
     const sceneSelected = browserReducer(locationPicked, {
       type: "selection/changed",
-      sceneId: solo.id,
+      nodeId: solo.id,
     });
 
     expect(castPicked.stepOpen).toEqual({ cast: true, anchor: true });
@@ -521,19 +521,19 @@ describe("import report panel", () => {
   });
 
   it("ranks a file by its worst outcome", () => {
-    expect(importSeverity(file({ scenes: 3 }))).toBe("ok");
+    expect(importSeverity(file({ nodes: 3 }))).toBe("ok");
     expect(importSeverity(file({}))).toBe("note");
-    expect(importSeverity(file({ scenes: 3, warnings: 1 }))).toBe("warn");
-    expect(importSeverity(file({ scenes: 3, hidden: 2 }))).toBe("warn");
-    expect(importSeverity(file({ scenes: 3, missingClips: 4 }))).toBe("warn");
-    expect(importSeverity(file({ scenes: 3, warnings: 1, errors: 1 }))).toBe("error");
+    expect(importSeverity(file({ nodes: 3, warnings: 1 }))).toBe("warn");
+    expect(importSeverity(file({ nodes: 3, hidden: 2 }))).toBe("warn");
+    expect(importSeverity(file({ nodes: 3, missingClips: 4 }))).toBe("warn");
+    expect(importSeverity(file({ nodes: 3, warnings: 1, errors: 1 }))).toBe("error");
   });
 
   it("sorts worst-first and filters by outcome and search", () => {
     const report = normalizeImportReport({ files: [
-      { path: "a/clean.osf.json", file: "clean.osf.json", scenes: 2 },
+      { path: "a/clean.osf.json", file: "clean.osf.json", nodes: 2 },
       { path: "b/broken.osf.json", file: "broken.osf.json", errors: 1, problems: [{ severity: "error", code: "file-invalid", message: "'broken.osf.json': schema 0 unsupported" }] },
-      { path: "c/warned.osf.json", file: "warned.osf.json", scenes: 1, warnings: 1, problems: [{ severity: "warn", code: "missing-clips", message: "'warned.osf.json': 1 scene(s) hidden" }] },
+      { path: "c/warned.osf.json", file: "warned.osf.json", nodes: 1, warnings: 1, problems: [{ severity: "warn", code: "missing-clips", message: "'warned.osf.json': 1 scene(s) hidden" }] },
     ] });
     const state = { ...createInitialState(), imports: report.files, importsReceived: true, importsFilter: "all" as const };
 
@@ -549,16 +549,16 @@ describe("import report panel", () => {
 
   it("explains outcomes and groups files for author triage", () => {
     const partial = file({ path: "Pack/scenes.osf.json", file: "scenes.osf.json", pack: "Pack A",
-      declaredScenes: 2, scenes: 1, rejectedScenes: 1, errors: 1 });
-    const rejected = file({ path: "Pack/bad.osf.json", file: "bad.osf.json", declaredScenes: 1,
-      rejectedScenes: 1, rejected: true, errors: 1 });
-    const missing = file({ path: "Pack/assets.osf.json", file: "assets.osf.json", scenes: 2, hidden: 2, missingClips: 3 });
+      declaredNodes: 2, nodes: 1, rejectedNodes: 1, errors: 1 });
+    const rejected = file({ path: "Pack/bad.osf.json", file: "bad.osf.json", declaredNodes: 1,
+      rejectedNodes: 1, rejected: true, errors: 1 });
+    const missing = file({ path: "Pack/assets.osf.json", file: "assets.osf.json", nodes: 2, hidden: 2, missingClips: 3 });
     const empty = file({ path: "Pack/empty.osf.json", file: "empty.osf.json" });
-    const clean = file({ path: "Other/clean.osf.json", file: "clean.osf.json", scenes: 2 });
+    const clean = file({ path: "Other/clean.osf.json", file: "clean.osf.json", nodes: 2 });
 
     expect([partial, rejected, missing, empty, clean].map(importOutcome))
       .toEqual(["partial", "rejected", "missing", "empty", "clean"]);
-    expect(importResult(partial)).toBe("1 of 2 scenes loaded; 1 rejected.");
+    expect(importResult(partial)).toBe("1 of 2 nodes loaded; 1 rejected.");
     expect(importOutcomeCounts([partial, rejected, missing, empty, clean]))
       .toMatchObject({ all: 5, attention: 4, clean: 1, partial: 1, rejected: 1, missing: 1, empty: 1 });
     const grouped = importGroups({ ...createInitialState(), imports: [partial, rejected, missing, empty, clean], importsFilter: "all" });
@@ -572,7 +572,7 @@ describe("import report panel", () => {
     state = browserReducer(state, { type: "imports/reloadStarted" });
     expect(state.importReload.status).toBe("running");
 
-    const after = normalizeImportReport({ files: [{ path: "Pack/scenes.osf.json", file: "scenes.osf.json", scenes: 1 }] });
+    const after = normalizeImportReport({ files: [{ path: "Pack/scenes.osf.json", file: "scenes.osf.json", nodes: 1 }] });
     state = browserReducer(state, { type: "imports/reloadSucceeded", files: after.files, totals: after.totals,
       durationMs: 42, scenes: 1, completedAt: 100 });
     expect(state.importReload).toMatchObject({ status: "success", durationMs: 42, scenes: 1 });

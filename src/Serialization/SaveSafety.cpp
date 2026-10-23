@@ -1,4 +1,5 @@
 #include "Serialization/SaveSafety.h"
+#include "Profiling/Profile.h"
 
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
@@ -21,6 +22,7 @@ namespace OSF::Serialization::SaveSafety
 
 		void BeginSave()
 		{
+			OSF_PROFILE_SCOPE("Save.Begin");
 			Animation::GraphManager::GetSingleton().OnSaveBegin();
 			Scene::SceneRuntime::GetSingleton().OnSaveBegin();
 			Player::PlayerInputLockService::GetSingleton().OnSaveBegin();
@@ -28,6 +30,7 @@ namespace OSF::Serialization::SaveSafety
 
 		void EndSave()
 		{
+			OSF_PROFILE_SCOPE("Save.End");
 			Scene::SceneRuntime::GetSingleton().OnSaveEnd();
 			Player::PlayerInputLockService::GetSingleton().OnSaveEnd();
 			Animation::GraphManager::GetSingleton().OnSaveEnd();

@@ -73,7 +73,7 @@ export function normalizeActive(payload: unknown): ActiveLaunch[] {
   if (!Array.isArray(payload)) return [];
   return payload.filter(isRecord).map((scene): ActiveLaunch => ({
     handle: Number(scene.handle) || 0,
-    sceneId: String(scene.sceneId || ""),
+    nodeId: String(scene.nodeId || ""),
     stage: Number.isInteger(scene.stage) ? scene.stage : 0,
     player: !!scene.player,
     time: Math.max(0, Number(scene.time) || 0),
@@ -240,7 +240,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         if (record.ok && isRecord(record.report)) {
           const report = normalizeImportReport(record.report);
           dispatch({ type: "imports/reloadSucceeded", files: report.files, totals: report.totals,
-            durationMs, scenes: Number(record.scenes) || report.totals.scenes, completedAt: Date.now() });
+            durationMs, scenes: Number(record.scenes) || report.totals.nodes, completedAt: Date.now() });
           requestCatalog(true);
           requestLibrary(true);
           showNotice("ok", `Packs reloaded in ${Math.max(1, Math.round(durationMs))} ms. Review the import changes.`);
@@ -314,15 +314,15 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         tokens: Array.isArray(record.tokens) ? record.tokens.map(Number).filter(Number.isInteger) : [],
         ids: new Set(Array.isArray(record.sceneIds) ? record.sceneIds.map(String) : []),
       }); break;
-      case "osf.animation.activeScenes": dispatch({ type: "active/received", scenes: normalizeActive(record.scenes) }); break;
+      case "osf.animation.activeLaunches": dispatch({ type: "active/received", scenes: normalizeActive(record.scenes) }); break;
       case "osf.animation.launchResult":
         if (record.ok && record.handle) {
-          const sceneId = String(record.sceneId || stateRef.current.selectedId || "");
+          const nodeId = String(record.nodeId || stateRef.current.selectedId || "");
           const wheelLaunch = !!stateRef.current.wheel;
           const afterLaunch = stateRef.current.preferences.afterLaunch;
-          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch });
+          dispatch({ type: "launch/succeeded", handle: Number(record.handle), nodeId, afterLaunch });
           if (wheelLaunch || afterLaunch === "close") send("osf.animation.requestClose");
-          else showNotice("ok", `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
+          else showNotice("ok", `Playing "${sceneTitle(stateRef.current, nodeId)}" on handle ${record.handle}.`);
         } else {
           const error = String(record.error || "Launch failed.");
           dispatch({ type: "launch/failed", error });
@@ -395,7 +395,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   useEffect(() => {
     if (state.mode === "active") {
       const selectedId = validSelection(state);
-      if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", sceneId: selectedId });
+      if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", nodeId: selectedId });
       return;
     }
     // Don't let whichever lane arrives first become a sticky default.
@@ -407,7 +407,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       && (item.stage?.index ?? null) === state.selectedStage);
     if (!currentValid) {
       const first = visible[0];
-      dispatch({ type: "selection/changed", sceneId: first?.scene.id ?? null, stage: first?.stage?.index ?? null });
+      dispatch({ type: "selection/changed", nodeId: first?.scene.id ?? null, stage: first?.stage?.index ?? null });
     }
   }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.showHidden, state.browseKind, state.libCustomOnly, state.libFull, state.importView, state.cast, state.castMatch, state.furniture, state.anchorMatch]);
 
@@ -447,11 +447,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     return () => clearInterval(timer);
   }, [state.mode, state.viewVisible, state.active?.length, send]);
 
-  const startPlayable = useCallback((stageIndex?: number, singleAnimation = false, sceneId?: string) => {
+  const startPlayable = useCallback((stageIndex?: number, singleAnimation = false, nodeId?: string) => {
     const current = stateRef.current;
-    const scene = sceneById(current, sceneId ?? current.selectedId);
+    const scene = sceneById(current, nodeId ?? current.selectedId);
     if (!scene) return;
-    const effectiveStage = Number.isInteger(stageIndex) ? Number(stageIndex) : sceneId ? null : current.selectedStage;
+    const effectiveStage = Number.isInteger(stageIndex) ? Number(stageIndex) : nodeId ? null : current.selectedStage;
     const stageOnly = singleAnimation || (!!scene.library && effectiveStage != null);
     const options: Record<string, unknown> = {
       hideApparel: Number(current.opts.hideApparel),
@@ -462,7 +462,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     if (effectiveStage != null && effectiveStage > 0) options.stage = effectiveStage;
     const castTokens = current.cast.map((member) => member.token);
     const fields: Record<string, unknown> = {
-      sceneId: scene.id,
+      nodeId: scene.id,
       castTokens,
       opts: options,
       singleAnimation: stageOnly,
@@ -483,7 +483,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   const commands = useMemo<BrowserCommands>(() => ({
     refresh: () => { requestCatalog(true); requestLibrary(true); },
     setMode: (mode) => { dispatch({ type: "mode/changed", mode }); if (!stateRef.current.libraryReceived) requestLibrary(true); },
-    selectScene: (sceneId, stage = null) => dispatch({ type: "selection/changed", sceneId, stage }),
+    selectScene: (nodeId, stage = null) => dispatch({ type: "selection/changed", nodeId, stage }),
     setSearch: (search) => dispatch({ type: "filter/search", search: search.trim().toLowerCase() }),
     toggleSettings: (open) => dispatch({ type: "settings/open", open: open ?? !stateRef.current.settingsOpen }),
     toggleImports: (open) => {
@@ -512,7 +512,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleSpecies: () => dispatch({ type: "filter/species" }),
     toggleStep: (step) => dispatch({ type: "step/toggled", step }),
     toggleMarkers: () => dispatch({ type: "markers/toggled" }),
-    scan: (kind) => { showNotice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`); send("osf.animation.scanNearby", { kind, sceneId: stateRef.current.selectedId || "" }); },
+    scan: (kind) => { showNotice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`); send("osf.animation.scanNearby", { kind, nodeId: stateRef.current.selectedId || "" }); },
     pick: (kind) => {
       const armed = stateRef.current.pickMode === kind;
       dispatch(armed ? { type: "pick/cancelled" } : { type: "pick/armed", kind });
@@ -594,7 +594,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     },
     resetWheel: () => { const pinned = cloneWithPins(stateRef.current, []); dispatch({ type: "wheel/reset", ...pinned }); send("osf.animation.wheel.set", { reset: true }); showNotice("info", "Animation wheel reset to installed defaults."); },
     focusWheel: (index) => dispatch({ type: "wheel/focused", focus: index }),
-    pickWheel: (index) => { const current = stateRef.current; const wheel = current.wheel; if (!wheel || wheel.launching) return; const entry = wheel.entries[index]; if (!entry) return; dispatch({ type: "wheel/launching", key: entry.key }); send("osf.animation.launch", { sceneId: entry.scene, castTokens: [wheel.target?.token ?? PLAYER_TOKEN], opts: entry.stage == null ? {} : { stage: entry.stage } }); },
+    pickWheel: (index) => { const current = stateRef.current; const wheel = current.wheel; if (!wheel || wheel.launching) return; const entry = wheel.entries[index]; if (!entry) return; dispatch({ type: "wheel/launching", key: entry.key }); send("osf.animation.launch", { nodeId: entry.scene, castTokens: [wheel.target?.token ?? PLAYER_TOKEN], opts: entry.stage == null ? {} : { stage: entry.stage } }); },
     cancelWheel: () => send("osf.animation.requestClose"),
     requestClose: () => send("osf.animation.requestClose"),
     beginOrbitCapture: () => send("osfui.relativePointer", { active: true }),

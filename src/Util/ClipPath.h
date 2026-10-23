@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,6 +32,12 @@ namespace OSF::Util
 	// Candidates in precedence order: "naf:X" -> Data\NAF\X only; absolute as-is; relative tries
 	// the path, then Data\NAF\<path>, then Data\OSF\Animations\<filename>.
 	ClipSpec ResolveClipSpec(const std::filesystem::path& a_spec);
+
+	// Same precedence as ResolveClipSpec, stopping at the first successful probe. Resource probes
+	// receive only the mounted path; unused fallbacks and their full filesystem paths are not built.
+	bool ProbeClipSpec(const std::filesystem::path& a_spec,
+		const std::function<bool(std::string_view)>& a_resource,
+		const std::function<bool(const std::filesystem::path&)>& a_file);
 
 	// ResolveClipSpec().display without touching the filesystem; the clip-duration cache key.
 	std::string ClipSpecDisplay(const std::filesystem::path& a_spec);

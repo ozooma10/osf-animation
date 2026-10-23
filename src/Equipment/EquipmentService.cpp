@@ -1,4 +1,5 @@
 #include "Equipment/EquipmentService.h"
+#include "Profiling/Profile.h"
 #include "RE/T/TESObjectARMO.h"
 #include "Util/FormRef.h"
 
@@ -40,6 +41,7 @@ namespace OSF::Equipment
 	}
 	std::optional<std::vector<ActorState::Item>> EquipmentService::Read(ActorState::Actor id)
 	{
+		OSF_PROFILE_SCOPE("Equip.Read");
 		auto* actor = RE::TESForm::LookupByID<RE::Actor>(id);
 		if (!actor) return {};
 		const auto base = actor->GetBaseObject();
@@ -63,6 +65,7 @@ namespace OSF::Equipment
 	}
 	bool EquipmentService::SetWorn(ActorState::Actor actorId, ActorState::Object objectId, bool worn)
 	{
+		OSF_PROFILE_SCOPE("Equip.SetWorn");
 		auto* actor = RE::TESForm::LookupByID<RE::Actor>(actorId);
 		auto* object = Object(objectId);
 		auto* manager = RE::ActorEquipManager::GetSingleton();

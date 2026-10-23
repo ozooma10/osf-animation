@@ -1,6 +1,6 @@
 #pragma once
 
-// Loads scenes from Data/OSF/**/*.osf.json; `clip`/`stages[]` shorthand desugars to a node chain.
+// Loads globally addressed nodes from Data/OSF/**/*.osf.json. Each node owns one timeline.
 
 #include "Animation/Scene.h"
 #include "Input/InputTypes.h"
@@ -26,7 +26,7 @@
 
 namespace OSF::Registry
 {
-	inline constexpr std::int64_t kSchemaVersion = 1;
+	inline constexpr std::int64_t kSchemaVersion = 2;
 
 	enum class RoleGender : std::uint8_t
 	{
@@ -40,7 +40,7 @@ namespace OSF::Registry
 
 	enum class LoopMode : std::uint8_t
 	{
-		kOnce,   // play through, then the "end" edge
+		kTimeline, // retain stage timing; completion takes the "end" edge
 		kHold,   // loop until "advance"
 		kCount   // loopCount loops, then the "loops" edge
 	};
@@ -63,6 +63,7 @@ namespace OSF::Registry
 		EdgeWhen     when = EdgeWhen::kAdvance;
 		std::string  trigger;   // cue id (when == kTrigger)
 		bool         isDefault = false;
+		bool         covered = false;  // boundary needs bounded visual cover before preparation
 		std::int32_t priority = 0;
 	};
 
@@ -215,36 +216,7 @@ namespace OSF::Registry
 		std::string              loopGlobal;    // optional form ref; loops is the authored fallback
 		// JSON `hold`: freeze at a normalized clip position (`true` = 1.0); < 0 = not frozen. Never loops.
 		float                    hold = -1.0f;
-		bool                     allowManualHold = false; // linear stage -> synthetic node
 		std::vector<StageClip>   clips;         // one per role, role order
-		// DesugarLinear forwards these onto the stage's synthetic node.
-		std::vector<CueEntry>    cues;
-		std::vector<ActionEntry> actions;
-		std::vector<SoundEntry>  sounds;
-		std::vector<CameraEntry> cameras;
-	};
-
-	struct SceneNode
-	{
-		std::string              id;
-        // Independent discovery metadata; omitted ranking/visibility inherits the route.
-        std::string name;
-        std::vector<std::string> tags;
-        std::optional<std::int32_t> priority, weight;
-        std::optional<bool> unlisted;
-		// Exactly one of `use` (scene id) or `stages` (inline timeline).
-		std::string              use;
-		std::vector<StageDef>    stages;
-		LoopMode                 loopMode = LoopMode::kOnce;  // JSON `loops`: omit=once, 0=hold, N=count
-		std::int32_t             loopCount = 0;              // when loopMode == kCount
-		std::string              loopGlobal;                 // optional form ref; loopCount is the fallback
-		float                    timerSec = 0.0f;            // JSON `timer` (seconds)
-		bool                    allowManualHold = false; // explicit activity opt-in; entry/ending nodes keep completing
-		std::vector<SceneEdge>   edges;
-		std::vector<CueEntry>    cues;
-		std::vector<ActionEntry> actions;
-		std::vector<SoundEntry>  sounds;
-		std::vector<CameraEntry> cameras;
 	};
 
 	// Equipped at scene start, removed on every end path (kEquipItem ledger). "<Plugin>|0xLOCAL" refs
@@ -286,7 +258,7 @@ namespace OSF::Registry
 		RoleEquip                    equip;
 	};
 
-	// OSF input-channel grant (JSON `playerControl`); distinct from `lockPlayer`, which blocks vanilla input.
+	// OSF input-channel grant (JSON `sceneControls`); distinct from `playerInputLock`, which blocks vanilla input.
 	struct SceneControls
 	{
 		bool          enabled = true;                  // false = no input channel
@@ -313,7 +285,7 @@ namespace OSF::Registry
 		return "authoredScene";
 	}
 
-	struct SceneDef
+	struct NodeDef
 	{
 		std::string              provider;  // optional native content-provider owner
 		std::string              id;
@@ -329,19 +301,26 @@ namespace OSF::Registry
 		bool                     library = false;   // file-level `section:"library"`; kept out of the main catalog
 		CatalogSourceKind        sourceKind = CatalogSourceKind::kAuthoredScene;
 		bool                     clipsAvailable = true;  // false: a clip isn't installed; hidden from catalog/matchmaking, direct id still attempts
-		bool                     playerInputLock = true;  // JSON `lockPlayer`
-		bool                     hideApparel = true;      // JSON `stripActors`; base skin kept
+		bool                     playerInputLock = true;  // JSON `playerInputLock`
+		bool                     hideApparel = true;      // JSON `hideApparel`; base skin kept
 		bool                     clearHeldItems = true;  // non-apparel; restored on end
 		bool                     fade = false;  // fade-to-black on start when the player participates
-		Animation::WorldPlacementMode worldPlacement = Animation::WorldPlacementMode::kAnchorAndPin;  // JSON `inPlace`
-		SceneControls            sceneControls;  // JSON `playerControl`
+		Animation::WorldPlacementMode worldPlacement = Animation::WorldPlacementMode::kAnchorAndPin;  // JSON `placement`
+		SceneControls            sceneControls;  // JSON `sceneControls`
 		std::vector<std::string> tags;
 		// Lowercased `tags`, prebuilt: matchmaking scans every def per query.
 		std::unordered_set<std::string> tagSet;
 		std::vector<SceneRole>   roles;
-		std::string              entry;
-		std::vector<SceneNode>   nodes;
-		std::vector<std::string> linearStages;  // optional: stage i -> node id (GetSceneStage/SetSceneStage)
+		std::vector<StageDef>    stages; // one timeline, never hidden registry nodes
+		LoopMode                 loopMode = LoopMode::kTimeline;
+		std::int32_t             loopCount = 0;
+		std::string              loopGlobal; // optional terminal loop-count binding
+		float                    timerSec = -1.0f; // < 0 inherits terminal stage timing
+		std::vector<SceneEdge>   edges;
+		std::vector<CueEntry>    cues;
+		std::vector<ActionEntry> actions;
+		std::vector<SoundEntry>  sounds;
+		std::vector<CameraEntry> cameras;
 
 		std::filesystem::path    sourceFile;
 		std::string              pack;  // browser group name; "" = derive from sourceFile
@@ -355,10 +334,6 @@ namespace OSF::Registry
 
 		[[nodiscard]] bool RequiresAnchor() const noexcept { return !anchorKeywords.empty() || !anchorBaseForms.empty(); }
 
-		const SceneNode* FindNode(std::string_view a_id) const;
-
-		// Case-insensitive; -1 if absent or the scene has no linearStages.
-		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
 	// `message` is the exact OSFAdvanced.GetSceneLoadErrors() line; other fields may be empty.
@@ -368,7 +343,6 @@ namespace OSF::Registry
 		std::string code;
 		std::string message;
 		std::string hint;
-		std::string scene;
 		std::string node;
 		std::string role;
 		std::string clip;
@@ -387,10 +361,9 @@ namespace OSF::Registry
 		std::uint64_t bytes = 0;
 		float         parseMs = 0.0f;    // read + parse + validate wall time
 
-		std::uint32_t scenes = 0;        // accepted
-		std::uint32_t declaredScenes = 0; // authored, before validation
-		std::uint32_t hidden = 0;        //   ...of scenes, !clipsAvailable
-		std::uint32_t rejectedScenes = 0; // declaredScenes - scenes
+		std::uint32_t declaredNodes = 0; // authored, before validation
+		std::uint32_t hidden = 0;        //   ...of nodes, !clipsAvailable
+		std::uint32_t rejectedNodes = 0; // declaredNodes - nodes
 		std::uint32_t unlisted = 0;
 		std::uint32_t anchored = 0;
 		std::uint32_t nodes = 0;
@@ -411,16 +384,16 @@ namespace OSF::Registry
 		std::uint32_t warnings = 0;
 		std::vector<ContentImportProblem> problems;  // in load-error order
 
-		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && clipEntries == 0 && errors > 0; }
+		[[nodiscard]] bool Rejected() const noexcept { return nodes == 0 && clipEntries == 0 && errors > 0; }
 	};
 
 	// Immutable; reload builds a new one and atomically swaps the pointer. Readers hold shared ownership.
 	struct ContentRegistrySnapshot
 	{
 		std::unordered_map<std::string, bool> clipAvailability;
-		std::unordered_map<std::string, SceneDef> scenes;
+		std::unordered_map<std::string, NodeDef> nodes;
 		std::vector<std::string> loadErrors;
-		size_t authoredSceneCount = 0;  // excludes generated one-clip entries
+		size_t authoredNodeCount = 0;  // excludes generated one-clip entries
 		// Sorted by `path`; a trailing empty-`path` record holds cross-file problems.
 		std::vector<ContentFileStats> files;
 	};
@@ -430,15 +403,17 @@ namespace OSF::Registry
 	{
 	public:
 		RegistryRef() = default;
+		[[nodiscard]] bool SamePublication(const RegistryRef& other) const noexcept { return owner == other.owner; }
 		RegistryRef(const RegistryRef&) = default;
 		RegistryRef& operator=(const RegistryRef&) = default;
 		RegistryRef(RegistryRef&& a_other) noexcept :
-			owner(std::move(a_other.owner)), value(std::exchange(a_other.value, nullptr))
+			owner(std::move(a_other.owner)), resolved(std::move(a_other.resolved)), value(std::exchange(a_other.value, nullptr))
 		{}
 		RegistryRef& operator=(RegistryRef&& a_other) noexcept
 		{
 			if (this != &a_other) {
 				owner = std::move(a_other.owner);
+				resolved = std::move(a_other.resolved);
 				value = std::exchange(a_other.value, nullptr);
 			}
 			return *this;
@@ -451,10 +426,11 @@ namespace OSF::Registry
 	private:
 		friend class ContentRegistry;
 		std::shared_ptr<const ContentRegistrySnapshot> owner;
+		std::shared_ptr<const T> resolved; // private timing values, same pinned publication
 		const T* value = nullptr;
 	};
 
-	using SceneRef = RegistryRef<SceneDef>;
+	using NodeRef = RegistryRef<NodeDef>;
 
 	class ContentRegistry
 	{
@@ -472,18 +448,18 @@ namespace OSF::Registry
 		bool UnregisterClipProvider(std::string_view a_owner);
 
 		// Case-insensitive. The ref pins the snapshot, so it stays valid across ReloadPacks.
-		SceneRef Find(std::string_view a_id) const;
+		NodeRef Find(std::string_view a_id, const NodeRef& a_publication = {}) const;
 
 		using GlobalReader = std::function<std::optional<float>(const std::string&)>;
-		// Game-thread start/handoff: pins a private resolved definition and its direct `use` targets.
+		// Game-thread admission: pins private timing values while retaining the route publication.
 		// Reads each global once; no globals means the original ref is returned. Empty reader uses TESGlobal.
-		SceneRef ResolveLoopGlobals(const SceneRef& a_def, const GlobalReader& a_readGlobal = {}) const;
+		NodeRef ResolveLoopGlobals(const NodeRef& a_def, const GlobalReader& a_readGlobal = {}) const;
 
-		// Resolves inline `stages` or a `use` target; a_actorCount must equal the resolved role count.
-		std::optional<Animation::PlaybackPlan> BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
+		// Builds this node's timeline; a_actorCount must equal its resolved role count.
+		std::optional<Animation::PlaybackPlan> BuildNodePlan(const NodeRef& a_def, size_t a_actorCount) const;
 
 		// Iterates one pinned snapshot; safe across a concurrent reload.
-		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
+		void ForEachDef(const std::function<void(const NodeDef&)>& a_fn) const;
 
 		size_t Size() const;
 
@@ -495,6 +471,8 @@ namespace OSF::Registry
 
 	private:
 		void PublishProviders();  // providerMutex held; readers keep the old publication until complete
+		void FinalizePublication(ContentRegistrySnapshot& a_next);
+		std::unordered_map<std::string, std::size_t> baseFileIndex;
 		std::mutex providerMutex;
 		std::map<std::string, ClipProvider> providers;
 		std::shared_ptr<const ContentRegistrySnapshot> baseSnapshot{std::make_shared<const ContentRegistrySnapshot>()};

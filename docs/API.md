@@ -1,117 +1,64 @@
 # OSF APIs
 
-Native SFSE plugins that need per-save records should use the [shared persistence C ABI](PERSISTENCE_API.md).
+Animation **2.0.0** uses scene ABI **2.0** and engine-services ABI **4.0**. Rebuild consumers and
+update their scripts/content together. Earlier majors and short pre-v2 option structs are rejected.
+New fields/methods may append within these majors; callers check version and table/struct size.
+The [persistence C ABI](PERSISTENCE_API.md) is unchanged.
 
-Scene starts and transitions now use [shared preparation](PREPARATION.md). A nonzero start handle
-reserves actors and queues admission; successful begin/enter follows preparation and playback.
-A true transition return means accepted, not completed. Subscribe before starting; rejected
-queued starts emit interrupted/cancelled SCENE_END without begin/enter.
+A node's global ID is its only registry address. `StartScene` starts that node; its stage option
+selects a zero-based playback segment inside the node. `GetNode(handle)` returns the current global
+ID. A live scene handle owns the cast, preparation, playback and cleanup across node transitions.
+See [node catalog](NODE_CATALOG.md), [schema](SCENE_SCHEMA.md), and [migration](V2_MIGRATION.md).
 
-Domain terms in this guide follow [OSF domain vocabulary](VOCABULARY.md). The canonical JSON aliases
-documented in [SCENE_SCHEMA.md](SCENE_SCHEMA.md) do not rename existing Papyrus or native API fields;
-names shown in code remain compatibility spellings.
+Starts and transitions use [shared preparation](PREPARATION.md). A nonzero start handle reserves
+actors and queues admission; true from a transition means accepted, not committed. Subscribe first.
+A queued start may end without begin/enter. Manual refusal before mutation can preserve the source;
+a consumed automatic boundary or a failure after application interrupts conservatively.
 
-Scene node transitions keep the world anchor resolved on first playback. An explicit anchor
-also enables transform restoration on termination; a frozen implicit anchor does not. Restore
-baselines are captured once per actor at scene start and survive node changes and role swaps.
+Authored edges and native `ReplaceNode(handle, nodeId, roles, count, options)` use one executor.
+`OSFTransitionOptions` selects a stage, optional anchor/heading, and `covered` (default false).
+Covered boundaries acquire exclusive fade ownership, have a bounded deadline, and reveal after
+fully stamped destination poses. `ReadScenePreparation` reports refusal and reveal status.
+Papyrus `ReplaceScene`, `ReplaceSceneRoles` and query helpers adapt into this same path.
+Papyrus replacement reads only `Anchor`, `HeadingDeg` and `Stage` from `SceneOptions`.
 
-`SetSceneSpeed(handle, speed)` / `GetSceneSpeed(handle)` use scene-owned speed, retained across
-all node changes. Actor-based `SetSpeed` also updates this state for participants. Values clamp
-to 0..100 (0 pauses); engine-services calls reject negative values, and hotkey adjustments use
-0.1..5. Invalid/ended scene queries return -1. Timers and loop counts use scaled playback time,
-so changing speed stretches authored timing. Pause/resume remembers speed independently per scene.
+Role names map current participants to destination roles; empty names preserve positional order.
+Cast size, filters, placement and furniture anchor requirements must pass admission. Follow-actor
+and anchor-and-pin placement cannot mix within a session. Exact requests use current registry data;
+authored edges keep the source's immutable publication. No route search or node splice is added.
 
-Scene events now append `sceneId` (the definition id at dispatch, empty for ad-hoc scenes) and
-`cause`: SCENE_END reports `CAUSE_COMPLETED()` = 0, `CAUSE_CANCELLED()` = 1, or
-`CAUSE_INTERRUPTED()` = 2; other events report -1. Native scene ABI 1.4 appends these fields
-after the old 88-byte event prefix; check `size` before reading them from older hosts. Older
-Papyrus consumers remain compatible. World-replacing load teardown still emits no scene events
-into the discarded world.
+Transitions retain speed/pause, loop scale, caller policy/camera overrides, actor restore baselines
+and owned mechanisms. Destination defaults govern inherited policy. Authored exit effects precede
+application; destination entry effects follow commit. Ownership conflicts refuse preparation.
+Successful order is old `NODE_EXIT`, `NODE_TRANSITION` (bit 64; `node` new ID, `edge` previous ID),
+then new `NODE_ENTER`; the handle emits no second `SCENE_BEGIN`.
 
-Engine services 3.1 negotiates minor versions: requests need the same major and a minor no
-newer than the host. Clients check the major, minimum minor, and the table size compiled into
-their header. The released 3.0 Browser checks exact equality, so requests for 3.0 receive a
-stable 3.0 version/prefix view of the current implementation. Requests for 3.1 or later receive
-the full current table. Never read appended functions without checking the table size.
+Events carry the global `node`, with no separate `sceneId`. `SCENE_END.cause` is completed (0),
+cancelled (1), or interrupted (2); other events use -1. World replacement deliberately emits no
+old-world callbacks. Native events are borrowed synchronously; Papyrus events are copied and async.
 
 Scene keyboard controls use key settings under OSF Animation > Controls - Playback / Alignment.
 They are dispatched only while the active scene grants their capability. Rebinding replaces
 the default key, and unbinding disables it. The input hook continues to pass keys to the game.
 
-Alignment overrides are deltas keyed by exact scene id and node id, and case-insensitive role name in
-`Documents/My Games/Starfield/SFSE/OSF/alignment-overrides.json` (formatVersion 1).
-Anonymous roles use their zero-based cast index (`#0`, `#1`, ...); if an authored role already
-uses that key, additional `#` prefixes avoid the collision. These keys also identify anonymous
-roles in Set/Get/Reset calls and the alignment HUD. Named roles keep their authored names.
-The JSON heading is degrees; missing components mean zero. Zero rows are removed, with no
-wildcard fallback. Reload replaces persisted rows while live scenes retain their working copies.
-Invalid rows or scene/node branches are skipped with a Mod Issue; valid rows remain available
-and survive later saves. Unreadable documents, unsupported versions and document size/row limits
-leave the previous table intact and block saving until a successful reload; scenes still play.
+Speed is session-owned and retained across transitions. Values clamp to 0..100; zero pauses,
+negative engine-service requests are refused, and invalid queries return -1. Timers/loops use
+scaled playback time. Paused pose blending may still progress during a covered transition.
 
-Engine services 3.2 and Papyrus expose `SetSceneAlignment`, `GetSceneAlignment`,
-`SaveSceneAlignment`, and `ResetSceneAlignment`. Set/Get use four floats: X, Y, Z, heading in
-degrees. Set replaces the current delta; Reset zeroes it. Save persists all roles of the current
-node. Unsaved deltas survive node revisits and are discarded at scene end. Invalid Papyrus Get
-returns an empty array; native Get returns false. Mutations require a registered anchored scene
-outside a transition. One node's delta applies to all inline segments and uses the host identity
-for `use` nodes. The capsule is not moved by live nudges.
+Alignment deltas use global node ID plus case-insensitive role in
+`Documents/My Games/Starfield/SFSE/OSF/alignment-overrides.json`, **formatVersion 2**. Old-format
+files are preserved and rejected; migrate their `(scene,node)` keys before saving. Anonymous roles
+use `#0`, `#1`, etc., with extra prefixes to avoid named-role collisions. Set/Get use X/Y/Z and
+heading degrees; Save stores the current node's roles, Reset clears a delta. Live edits require
+anchored playback outside a transition, do not move the capsule, and persist through revisits in
+the same publication. Unsupported/unreadable files leave the previous table intact and block saves.
 
-Default alignment keys: numpad 5 selects a participant; 6/4, 8/2, and 3/1 change X, Y, and Z;
-9/7 rotate; divide toggles 1.0/0.1 position and 5/1 degree steps; decimal resets; multiply saves.
-The HUD shows the role, current delta, step mode, and unsaved status. Numpad +/- remain speed.
+Default alignment controls: numpad 5 selects a participant; 6/4, 8/2, 3/1 change X/Y/Z; 9/7 rotate;
+divide changes step size, decimal resets and multiply saves. Commands require a current scene-control
+grant; queued commands from a retired grant are dropped. The input hook still passes keys to the game.
 
-`ReplaceScene(handle, id, options)`, `ReplaceSceneRoles(handle, id, roleNames)` and
-`ReplaceSceneByTagsQuery(handle, allOf, anyOf, noneOf)` and
-`ReplaceSceneByQuery(handle, allOf, anyOf, noneOf, roles, anchor, requireAnchor)` replace the definition for the same cast
-without changing the handle. `GetSceneId(handle)` returns the live definition id, or empty when
-invalid/ad-hoc. Native engine services **3.3** append `ReplaceScene` and `ReplaceSceneRoles`; **3.4**
-appends `ReplaceSceneByQuery`, which takes an `OSFSceneQuery` (see *Matchmaking by query*).
-Names correspond to the current participant roster: `roleNames[i]` assigns participant `i` to
-a role in the new definition. Empty names preserve positional order; duplicates, missing roles,
-different cast sizes and failed role filters are refused before the old node exits.
-
-Handoff retains speed/pause, loop scale, placement, the camera override, the original actor-owned
-restore baselines and mechanism ownership. Unsaved alignment is discarded and the new scene's
-alignment rows load on entry. The existing replacement path blends poses; changed positions snap.
-These existing calls add no fade or blanket control/equipment restore. Authored exit equipment and target
-defaults/entry equipment are preflighted and applied through the shared ownership transaction.
-Other exit effects precede target application; non-equipment entry effects follow playback commit.
-Conflicts with another owner refuse preparation; cleanup releases only owned demands.
-
-Services **3.14** appends `ReplaceSceneRolesCovered(handle, id, roleNames, roleCount)` for an
-opt-in covered handoff with the same role and placement rules. It takes exclusive OSF fade
-ownership, covers preparation and the destination's fully stamped pose blend, and reveals
-independently of clip time/speed. It refuses while another OSF fade is held. A true result is
-admission, not completion; `SCENE_HANDOFF` reports playback commit while
-`ReadScenePreparation.pending` remains true until reveal finishes. See
-[covered handoffs](PREPARATION.md#covered-handoffs-services-314) for timing and failure behavior.
-
-Papyrus replacement options read only `Anchor`, `HeadingDeg` and `Stage`; all other fields,
-including `FadeMode`, `InPlaceMode`, `LockPlayerMode`, `Speed`, `Camera`, `LoopScale`, `StripMode`,
-`PlayerControlMode` and `BlendIn`, are ignored. The native table reads only `anchorRef` and
-`startStage`. Stage 0 uses the authored entry; an out-of-range positive linear stage is refused.
-Changing an anchor visibly teleports. Anchor-bound replacements require an accepted retained or
-supplied reference and compose their own offset from the saved base transform. Raw-coordinate
-starts cannot satisfy an anchor requirement without a new reference. Follow-actor and anchored
-scenes cannot be mixed. Matchmade replacement excludes the current id before priority selection.
-
-Successful order is old `NODE_EXIT`, `SCENE_HANDOFF` (bit 64, `sceneId` = new id, `node` = entry,
-`edge` = old id), then new `NODE_ENTER`; no new `SCENE_BEGIN` or `SCENE_END` is emitted. A playback
-failure after exit restores the old identity and ends it with `CAUSE_INTERRUPTED`. Validation
-failures leave the old scene playing. Each input grant has a revision: queued commands from the
-old grant are dropped, and a replacement disabling scene controls releases the grant outright.
-
-OSF exposes its surface as the global Papyrus script `OSF` (declared in
-[dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
-`OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the
-per-native reference is the doc-commented `OSF.psc` itself.
-
-OSF is **content-neutral**: it provides playback and scene *mechanisms* only. A domain **scene** owns
-roles, flow, policy, events, participants, and cleanup; a lower-level **playback session** owns
-synchronized animation sampling. Gameplay policy — *when*,
-*why*, and *with what odds* to start an interaction — belongs in your mod (the SIF framework is the
-worked example; see [GETTING_STARTED.md](GETTING_STARTED.md)).
+Animation remains content-neutral. Consumers own semantic meaning, ranking and gameplay policy;
+Animation owns timing, placement, blending, events, mechanisms and cleanup.
 
 ## Readiness
 
@@ -135,7 +82,7 @@ ends in `.requirements.json`:
     "name": "Suit Protocol"
   },
   "requires": {
-    "osf.animation": "1.5.0"
+    "osf.animation": "2.0.0"
   }
 }
 ```
@@ -167,7 +114,7 @@ during `kPostDataLoad`, before requesting the scene API:
 ```cpp
 using OSF::API::MinimumVersionResult;
 
-switch (OSF::API::ReportMinimumVersion("Suit Protocol", 1, 5, 0)) {
+switch (OSF::API::ReportMinimumVersion("Suit Protocol", 2, 0, 0)) {
 case MinimumVersionResult::kSupported:
     // Safe to request and use the OSF features this consumer needs.
     break;
@@ -198,7 +145,7 @@ an unexplained failure.
 Papyrus consumers have the matching call:
 
 ```papyrus
-If !OSF.ReportMinimumVersion("My Mod", 1, 5, 0)
+If !OSF.ReportMinimumVersion("My Mod", 2, 0, 0)
     Return ; warning already raised when an upgrade is required
 EndIf
 ```
@@ -211,7 +158,7 @@ The native header fallback is the path that can warn against pre-reporter builds
 
 Every `Start*` returns an opaque **scene handle** (`Int`): `0` = failed (bad id, no match, or an
 actor already in a live scene — one live scene per actor is enforced). A nonzero handle drives
-navigation, callbacks, cancellation, participant lookup, and linear-stage getters. It addresses the
+navigation, callbacks, cancellation, participant lookup, and stage getters. It addresses the
 domain scene, not its internal playback session. When the scene terminates, the handle goes invalid
 except for the short roster-survival window described under callbacks.
 
@@ -219,11 +166,8 @@ except for the short roster-survival window described under callbacks.
 
 SFSE plugins can copy [src/API/OSFSceneAPI.h](../src/API/OSFSceneAPI.h) into their own source tree and
 link nothing. `OSF::API::RequestSceneAPI()` resolves `OSF Animation.dll` at runtime and requests the
-current ABI. ABI 1.3 appends synchronous native scene-event registration to the existing start,
-stop, navigation, playback, and query surface. A consumer that requires callbacks should request
-1.3 or later. ABI 1.4 adds event identity/cause, and ABI 1.5 adds matchmaking by query; the current
-header defaults to 1.5. An older OSF build returns `nullptr` for a newer request instead of exposing
-unsupported fields or a short vtable.
+current ABI, **2.0**. Callback, query and node-addressing operations are all part of this baseline.
+An incompatible host returns `nullptr`; do not call through an old vtable.
 
 ```cpp
 void OnSceneEvent(const OSF::API::OSFSceneEvent* event, void* context)
@@ -259,7 +203,7 @@ Native registration tokens are process-lifetime and survive world replacement; O
 teardown events for the discarded world. Scene filters and event masks use the same handle and bit
 values documented in the Papyrus callback section below. Passing event mask `0` means all events.
 
-### Matchmaking by query (ABI 1.5)
+### Matchmaking by query
 
 `FindSceneByQuery` and `StartSceneByQuery` match like the Papyrus tag starts, with two additions:
 **per-actor role constraints** and an explicit anchor mode. Both run on the game thread.
@@ -274,7 +218,7 @@ query.anchor = bed;   query.requireAnchor = 1;  // only scenes whose anchor acce
 
 OSF::API::OSFSceneMatch match;
 if (osf->FindSceneByQuery(actors, 2, query, match)) {
-    // match.sceneId, and for each caller actor i: match.roleIndex[i] and match.roles[i]
+    // match.nodeId, and for each caller actor i: match.roleIndex[i] and match.roles[i]
 }
 OSF::API::OSFStartOptions opts;
 std::int32_t handle = osf->StartSceneByQuery(actors, 2, query, opts);
@@ -382,14 +326,14 @@ JSON keys:
 |---|---|---|---|
 | `Anchor` | `ObjectReference` | option-bearing registered and advanced starts | use a world anchor at a ref (furniture/bed/marker) instead of co-locating at `actors[0]` |
 | `HeadingDeg` | `Float` | (with `Anchor`) | world-anchor facing in degrees; `< 0` = the ref's own heading |
-| `StripMode` | `Int` | all option-bearing starts | compatibility field for JSON `hideApparel`: override with `OSF.INHERIT()`/`OFF()`/`ON()` |
-| `LockPlayerMode` | `Int` | all option-bearing starts | compatibility field for JSON `playerInputLock`: override with `OSF.INHERIT()`/`OFF()`/`ON()` |
-| `PlayerControlMode` | `Int` | all option-bearing starts | compatibility field for JSON `sceneControls`: inherit, revoke, or grant the scene-control channel wholesale |
+| `HideApparelMode` | `Int` | all option-bearing starts | override for JSON `hideApparel`: override with `OSF.INHERIT()`/`OFF()`/`ON()` |
+| `PlayerInputLockMode` | `Int` | all option-bearing starts | override for JSON `playerInputLock`: override with `OSF.INHERIT()`/`OFF()`/`ON()` |
+| `SceneControlsMode` | `Int` | all option-bearing starts | override for JSON `sceneControls`: inherit, revoke, or grant the scene-control channel wholesale |
 | `FadeMode` | `Int` | all option-bearing starts | override the optional start fade-to-black curtain: `OSF.INHERIT()`/`OFF()`/`ON()` |
-| `InPlaceMode` | `Int` | all option-bearing starts | compatibility field for JSON `placement`: `ON()` = `followActor`, `OFF()` = `anchorAndPin`, `INHERIT()` = authored default |
+| `FollowActorMode` | `Int` | all option-bearing starts | override for JSON `placement`: `ON()` = `followActor`, `OFF()` = `anchorAndPin`, `INHERIT()` = authored default |
 | `Camera` | `String` | all option-bearing starts | override the authored camera posture; empty string inherits it |
 | `LoopScale` | `Float` | all option-bearing starts | multiply every loop-driven stage's loop count (`1.0` = unchanged); see below |
-| `Stage` | `Int` | StartScene, StartSceneRolesEx, StartSceneStages(Placed) | registered scenes enter `linearStages[index]` before any playback begins; ad-hoc staged starts select the initial playback segment. `0` uses the normal entry/first segment |
+| `Stage` | `Int` | StartScene, StartSceneRolesEx, StartSceneStages(Placed) | zero-based initial segment in the selected node or ad-hoc plan; `0` selects the first segment |
 | `Speed` | `Float` | all option-bearing starts | seed the scene-owned playback speed before the first node; persists across transitions |
 | `BlendIn` | `Float` | StartSceneFiles(Placed), StartSceneStages(Placed) | default blend-in for ad-hoc plans; registered definitions keep their authored blend |
 
@@ -399,21 +343,20 @@ options; `StartSceneRolesEx` accepts the same binding plus `SceneOptions`.
 
 Registered-scene launch compatibility differs between the two APIs:
 
-| Start path | Out-of-range linear stage | Speed |
+| Start path | Out-of-range stage | Speed |
 |---|---|---|
 | Papyrus by ID or `StartSceneRolesEx` | Refuses the start | Seeds `SceneOptions.Speed` before playback |
-| Native `StartScene` / `StartSceneRoles` | Falls back to the scene entry | Seeds `OSFStartOptions.speed` before playback |
-| Papyrus matchmaking (`StartSceneByTags`, query, or anchor) | Always uses the authored entry | Seeds `SceneOptions.Speed` before playback |
+| Native `StartScene` / `StartSceneRoles` | Falls back to segment zero | Seeds `OSFStartOptions.speed` before playback |
+| Papyrus matchmaking (`StartSceneByTags`, query, or anchor) | Uses segment zero | Seeds `SceneOptions.Speed` before playback |
 
-For registered starts, stage `0` uses the authored entry; scenes without `linearStages` ignore the
-stage option. Furniture-bound scenes require an accepted reference anchor even when the native
+For registered starts, stage `0` selects the first segment of the named node. Furniture-bound scenes require an accepted reference anchor even when the native
 caller supplies explicit world coordinates.
 
-**Per-start tri-state overrides (`StripMode` / `LockPlayerMode` / `PlayerControlMode` / `FadeMode` /
-`InPlaceMode`).** Write these compatibility fields with
+**Per-start tri-state overrides (`HideApparelMode` / `PlayerInputLockMode` / `SceneControlsMode` / `FadeMode` /
+`FollowActorMode`).** Write these fields with
 the `OSF.INHERIT()` (= -1, leave the scene/file default), `OSF.OFF()` (= 0, force off), and `OSF.ON()`
 (= 1, force on) helpers — **not** bare `0`/`1`, because `0` means *force off*, not "leave default". An unset
-field (default `-1`) inherits the scene's authored value. For `InPlaceMode`, "off" means canonical
+field (default `-1`) inherits the scene's authored value. For `FollowActorMode`, "off" means canonical
 anchor-and-pin placement rather than disabling placement. Disabling apparel hiding is undo-safe
 (nothing recorded → nothing restored).
 
@@ -424,7 +367,7 @@ the felt effect is uneven. Sanitized: `≤ 0` / NaN → `1.0` (no scaling); clam
 value can't mint a stage that never auto-advances. Re-applied on every flow-node entry (never compounded).
 Scene JSON can also [read loop counts directly from a game global](SCENE_SCHEMA.md)
 using `"loops": { "global": "Plugin.esm|0x1234", "default": 3 }` (1.5.0).
-Those counts are captured at scene start/handoff, then multiplied by `LoopScale`; zero remains a hold.
+Those counts are captured at each node admission, then multiplied by `LoopScale`; zero remains a hold.
 The final scaled count saturates at the signed 32-bit maximum.
 
 > **Capability note:** the DLL and a consumer's compiled scripts ship independently. A consumer compiled
@@ -471,9 +414,9 @@ String eid = OSF.GetSceneEdgeId(h, 0)
 String lbl = OSF.GetSceneEdgeLabel(h, 0)
 ```
 
-Linear scenes (and graph scenes that declare `linearStages`) also support
-`GetSceneStage`/`SetSceneStage` (by handle) and `GetSceneStageForActor`/`SetSceneStageForActor` (by
-actor). These expose a **linear-stage index**, never an internal playback-segment index.
+`GetSceneStage`/`SetSceneStage` and their actor variants address the current node's zero-based
+playback segment. They do not navigate between nodes. `AdvanceScene` advances an internal segment
+first, then takes the node's default edge or ends it. `NavigateScene` selects a named edge directly.
 
 ## Papyrus scene-event callbacks
 
@@ -514,7 +457,7 @@ Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
     If akEvent.eventType == OSF.EVENT_SCENE_END()
         Actor a = akEvent.actorRef
         ; akEvent fields: sceneHandle, eventType, node, edge, cue, actionType,
-        ;                 actorRef, role, loopIndex, time, anchor, result, cause, sceneId
+        ;                 actorRef, role, loopIndex, time, anchor, result, cause
         ; `node`/`edge` identify a flow node and scene edge. `anchor` is the legacy
         ; ABI name for a named track position, not a world anchor.
     EndIf
@@ -531,7 +474,7 @@ EndFunction
 | `OSF.EVENT_ACTION()` | 8 | a custom (non-`osf.*`) action fires |
 | `OSF.EVENT_SCENE_END()` | 16 | the scene terminated on a callback-emitting path; `cause` identifies why |
 | `OSF.EVENT_SCENE_BEGIN()` | 32 | the scene started (fires once, before the entry flow node's `NODE_ENTER`) |
-| `OSF.EVENT_SCENE_HANDOFF()` | 64 | the handle changed definition; `sceneId` is new, `edge` is the previous id |
+| `OSF.EVENT_NODE_TRANSITION()` | 64 | the handle changed node; `node` is new, `edge` is the previous global ID |
 | `OSF.EVENT_ALL()` | 65535 | every type |
 
 `SCENE_BEGIN` is the lifecycle-open bookend of `SCENE_END`: it fires exactly once per scene as the
@@ -551,22 +494,18 @@ or after an extreme burst has expired that handle from the recent-history window
 For a complete Papyrus query-launch, alignment, role-swap and cleanup example,
 see [query and handoff](examples/query-handoff/README.md).
 
-Engine services **3.5** append `SetSceneAutoAdvance(handle, enabled)` and
-`ReadSceneControls(handle, callback, context)`. Both require the game thread.
-The automatic preference defaults to true and survives nodes and same-cast handoffs.
-When false, nodes marked `allowManualHold` keep playing and delivering timed cues but do not
-complete from loop or timer budgets. Other nodes still complete normally. Explicit navigation
-and stop remain available. Re-enabling starts a fresh timer/loop budget at the current clip
-phase, without replaying once-only cues. A completed held playback cannot be revived.
+Engine services 4.0 includes `SetSceneAutoAdvance(handle, enabled)` and `ReadSceneControls`.
+Both require the verified frame drain. Automatic progression defaults true and survives transitions.
+False holds all automatic node/stage boundaries while sampling and cues continue. There is no content
+grant. Explicit navigation/stop work. Re-enabling resets timer/loop budgets at the current phase,
+without replaying once-only cues; a completed playback cannot be revived.
 
-`ReadSceneControls` calls back synchronously with a JSON object containing `sceneId`, `node`,
-`automatic`, `allowManualHold`, `speed`, and `edges` (available named advance edges as
-`{ "id": "...", "label": "..." }`). It returns false for an invalid handle. Copy strings in
-the callback. Consumers must recheck live state when applying a choice; snapshots are not commands.
+`ReadSceneControls` returns copied JSON with `node`, `stage`, `automatic`, `speed`, and available
+named `edges` (`id`, `label`). It returns false for an invalid handle. Recheck state when acting.
 
 ## Owned audio channels
 
-Engine services **3.6** append three any-thread operations:
+Engine services 4.0 provides three any-thread operations:
 
 | Operation | Contract |
 |---|---|
@@ -594,7 +533,7 @@ revokes every channel; consumers must forget the old handles. Nothing is persist
 Playback currently uses the listener emitter and existing Wwise dialogue bus. This API does not
 promise actor-positioned emitters, separate mixer buses, pool selection, subtitles or prewarming.
 
-Services **3.7** add `BindActorSoundChannel(actor, channel)` for consumers that must give authored
+Services 4.0 provides `BindActorSoundChannel(actor, channel)` for consumers that must give authored
 sound lanes/actions and generated playback the same lifetime. Call in game context before entry
 sounds (native `NODE_ENTER` runs first). The live owned channel receives subsequent sounds for
 that actor after normal pool resolution. Another live binding cannot be stolen. Closing the
@@ -608,7 +547,7 @@ beat callbacks; posting another frame command would introduce an unnecessary que
 
 ## Optional engine services
 
-Services 3.8 adds `CreateAudioChannelWithOptions`, `AudioClockNs` and `PlayAudioChannelAt`.
+Services 4.0 includes `CreateAudioChannelWithOptions`, `AudioClockNs` and `PlayAudioChannelAt`.
 Options are fixed for a channel's lifetime. `latestPending=1` retains at most one waiting job
 per channel, replacing it in place before checking global queue capacity. Executing older jobs
 recheck supersession before preparation and before submission. An admitted replacement that
@@ -617,7 +556,7 @@ Invalid specs and rejected admissions do not supersede pending work. Closing an 
 removes its waiting job immediately and fences executing work through the existing commit lock.
 
 `maxAgeMs=0` disables expiry. A positive limit checks age before admission, before preparation,
-and immediately before Wwise submission, even when there is no newer request. Use the scene 1.6
+and immediately before Wwise submission, even when there is no newer request. Use the native scene
 event's `detectedNs` for timed cues; it preserves the original monotonic mark-detection time
 across the native frame queue. For other requests obtain a timestamp from `AudioClockNs` before
 selection work. `PlayAudioChannelAt` rejects zero/future timestamps. Plain `PlayAudioChannel`
@@ -625,7 +564,7 @@ starts age at entry. These are submission limits, not audible-onset or sound-dur
 Detection time is not a reconstructed animation due time. The default `CreateAudioChannel`
 continues without coalescing or expiry, including its existing failed-replacement behavior.
 
-The scene ABI is 1.7. The separate `OSF_RequestEngineAPI` export provides services ABI 3.15
+The scene ABI is 2.0. `OSF_RequestEngineAPI` provides services ABI 4.0
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, owned audio channels, shared camera/input mechanisms, and actor-state scopes. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
@@ -633,15 +572,15 @@ consumers need neither OSF Animation Browser nor OSF UI.
 
 ## Shared actor-state ownership
 
-Services 3.9 adds persistent and session scopes with equipment, preservation, and required
+Services 4.0 includes persistent and session scopes with equipment, preservation, and required
 or optional hiding claims. Scene role equipment, automatic gear, equipment actions and
 stripping use the same service. Release is selective, save suspension retains persistent
 demands, and world replacement revokes runtime-only tokens. See [ACTOR_STATE.md](ACTOR_STATE.md)
 for the native API, conflicts, cleanup retry, and base-form inventory provenance limits.
-Services 3.11 adds read-only `ReadActorEquipment` observations from the shared H2 backend.
-Services 3.12 adds per-actor ownership/equipment revisions and a bounded notification journal; see [actor state](ACTOR_STATE.md).
+Services 4.0 includes read-only `ReadActorEquipment` observations from the shared H2 backend.
+Services 4.0 includes per-actor ownership/equipment revisions and a bounded notification journal; see [actor state](ACTOR_STATE.md).
 
-Services 3.10 adds [shared preparation](PREPARATION.md), including versioned preparers,
+Services 4.0 includes [shared preparation](PREPARATION.md), including versioned preparers,
 equipment plans, exact resource reservations, bounded readiness and selective rollback across
 starts and all runtime transitions. Item-mesh/attachment readiness requires a consumer backend;
 pose-layer composition remains separate work.
@@ -671,14 +610,14 @@ int count = OSF.ReloadPacks()  ; rescan Data/OSF/**/*.osf.json and *.sounds.json
 
 `ReloadPacks()` **reloads content**: it rebuilds the content registry (scenes, curated animation
 entries, and per-file import results), reloads sound pools, clears clip import caches, and returns the
-loaded **scene** count for compatibility. `ReloadPacks` is the established Papyrus binding name; a
+loaded authored **node** count. `ReloadPacks` is the established Papyrus binding name; a
 content pack is only an author/product grouping and is not the reload boundary.
 
 ## Primitives (advanced)
 
 `Play` / `Stop` (solo clip), `SetSpeed` / `GetSpeed` (1.0 = authored, 0 = freeze),
-`SetAnchor` / `ClearAnchor` (pin a solo playback session to a world point), `GetCurrentAnimation`, and linear
-scene stage getters/setters by handle or actor.
+`SetAnchor` / `ClearAnchor` (pin a solo playback session to a world point), `GetCurrentAnimation`, and node
+stage getters/setters by handle or actor.
 
 ## API stability policy
 
@@ -688,22 +627,15 @@ are never removed or re-signatured within a major version (minor versions only *
 callbacks keep working. The native C++ API follows the same additive rule: minor versions append
 vmethods or POD fields, while a major version is required for an incompatible layout change.
 
-Services 3.14 adds `GuardPreparationCommit`, a per-attempt final validation lease after all
+Services 4.0 includes `GuardPreparationCommit`, a per-attempt final validation lease after all
 Validate callbacks and final reconciliation. See [shared preparation](PREPARATION.md).
 
-The combined 3.14 table retains the guard slot before the covered-handoff slot. Two private
-3.13 branches assigned incompatible functions to that same slot, so requests for 3.13 are
-rejected. Rebuild those consumers against 3.14 and update the provider and consumer together.
-Requests for the stable 3.0 through 3.12 prefixes remain supported.
+## Global node catalog
 
-## Independent node APIs (1.7 / 3.15)
+Catalog schema **4** contains one `nodes` array, each with its own metadata, roles and `stages`.
+Compact provider input is schema **2**. `MatchCast` and `MatchAnchor` return arrays of global node
+IDs. `ReplaceNode` is the single exact transition service. The previous scene/node pair, startNode,
+MatchNode variants and covered/role-specific replacement slots are removed.
 
-See [Node catalog and execution](NODE_CATALOG.md) for the additive catalog `nodes` array,
-`OSFStartOptions.startNode`, `MatchNodeCast`, `MatchNodeAnchor` and `ReplaceNodeRoles`.
-An exact `(scene, node)` address selects a node while retaining its authored graph. Existing
-scene starts, tag queries, and table prefixes keep their behavior; authored edge navigation
-still uses the seamless scene executor. Intimacy owns semantic tags, poses, policy and ranking.
-
-Local verification on 2026-10-22: staged production DLL built with smoke instrumentation off;
-all fourteen engine-free native suites passed, including catalog and exact-node launch checks.
-This is not fresh in-game visual or lifecycle acceptance.
+See [Node catalog and execution](NODE_CATALOG.md) for source clip offsets and publication ownership.
+Offline release evidence and remaining live gaps are recorded in [v2 acceptance](RELEASE_2.0.0_ACCEPTANCE.md).

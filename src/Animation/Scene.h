@@ -49,14 +49,18 @@ namespace OSF::Animation
 	}
 
 	// Single source for the initial teleport and the compose-root pin; heading applied separately.
+	// Starfield composes NiTransform basis rows with row vectors. The pinned yaw rows
+	// { cos,-sin,0 }, { sin,cos,0 }, { 0,0,1 } therefore map local +Y to world +X
+	// at +90 degrees. Placement must use that same basis or actor spacing rotates
+	// opposite to the rendered poses (confirmed against a live composed rig).
 	inline RE::NiPoint3 PlacementToWorld(const RE::NiPoint3& a_anchorPos, float a_anchorHeading,
 		const ParticipantPlacement& a_placement)
 	{
 		const float cosH = std::cos(a_anchorHeading);
 		const float sinH = std::sin(a_anchorHeading);
 		return {
-			a_anchorPos.x + (a_placement.x * cosH - a_placement.y * sinH),
-			a_anchorPos.y + (a_placement.x * sinH + a_placement.y * cosH),
+			a_anchorPos.x + (a_placement.x * cosH + a_placement.y * sinH),
+			a_anchorPos.y + (-a_placement.x * sinH + a_placement.y * cosH),
 			a_anchorPos.z + a_placement.z
 		};
 	}
@@ -119,11 +123,6 @@ namespace OSF::Animation
 		return a_followActor ? WorldPlacementMode::kFollowActor : WorldPlacementMode::kAnchorAndPin;
 	}
 
-	inline constexpr WorldPlacementMode WorldPlacementFromLegacyInPlace(bool a_inPlace) noexcept
-	{
-		return WorldPlacementFromFollowActor(a_inPlace);
-	}
-
 	struct PlaybackPlan
 	{
 		struct Segment
@@ -140,7 +139,6 @@ namespace OSF::Animation
 			float blendIn = -1.0f;                         // secs; < 0 = use plan blendIn
 			std::vector<TimedMark> marks;
 		};
-		using Stage = Segment;
 		std::vector<Segment> stages;
 		std::vector<std::vector<std::string>> preserveBones;
 		std::vector<PoseMode> poseModes;                       // optional, one mode per actor; empty = all override
@@ -233,7 +231,6 @@ namespace OSF::Animation
 			float blendIn = 0.4f;
 			std::vector<TimedMark> marks;
 		};
-		using StageData = SegmentData;
 
 		struct Tick
 		{
@@ -284,7 +281,7 @@ namespace OSF::Animation
 		std::vector<std::pair<RE::NiPoint3, float>> originalTransforms;  // position + heading
 
 		// Immutable after publish — graphs read it lock-free on a stage change.
-		std::vector<StageData> stages;
+		std::vector<SegmentData> stages;
 
 		// Advance sets `ended` after the last stage; the hook consumes `endQueued` once and defers StopScene to the game thread.
 		std::atomic<bool> ended{ false };

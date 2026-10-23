@@ -1,6 +1,9 @@
 #include "API/EngineServices.h"
+#include "Profiling/Profile.h"
 #include "API/ActorStateAPI.h"
 #include "API/CatalogBuilder.h"
+#include "API/CatalogJson.h"
+#include "API/ClipProviderBridge.h"
 #include "API/EngineServiceState.h"
 #include "API/OSFEngineAPI.h"
 #include "API/PreparationAPI.h"
@@ -29,29 +32,46 @@ namespace OSF::API::EngineServices
 		using json = nlohmann::json;
 		bool Send(const json& value, TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.Send");
 			if (!callback) return false;
 			const auto text = value.dump(-1, ' ', false, json::error_handler_t::replace);
+			OSF_PROFILE_GAUGE("API.Send.Bytes", text.size());
 			callback(text.c_str(), context);
 			return true;
 		}
 		bool ReadCatalog(TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.ReadCatalog");
+			if (!callback) return false;
 			try {
+				// Services 3.16: metadata only. Pin the registry for the whole build;
+				// CatalogBuilder's only shared mutable input is the locked duration store.
 				const auto registry = Registry::ContentRegistry::GetSingleton().ReadSnapshot();
 				std::error_code ec;
 				auto root = std::filesystem::current_path(ec);
 				if (ec) root.clear();
 				else root /= "Data/OSF";
-				return Send(CatalogBuilder::Build(*registry, root), callback, context);
+				const auto catalog = CatalogBuilder::Build(*registry, root);
+				const auto text = CatalogJson::Serialize(catalog);
+				OSF_PROFILE_GAUGE("API.ReadCatalog.Bytes", text.size());
+				{
+					OSF_PROFILE_SCOPE("API.CatalogCallback");
+					callback(text.c_str(), context);
+				}
+				return true;
 			} catch (...) { REX::ERROR("[API] Could not read catalog metadata"); return false; }
 		}
 		bool MatchCast(RE::Actor* const* actors, std::uint32_t count, TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.MatchCast");
 			if (!actors || count == 0 || count > 32) return false;
-			for (std::uint32_t i=0; i<count; ++i) if (!actors[i]) return false;
+			for (std::uint32_t i=0; i<count; ++i) {
+				if (!actors[i]) return false;
+				for (std::uint32_t j=0; j<i; ++j) if (actors[i] == actors[j]) return false;
+			}
 			try {
 				json ids=json::array();
-				Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& d) {
+				Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::NodeDef& d) {
 					if (!d.clipsAvailable || CatalogBuilder::ActorCount(d) != count) return;
 					for (std::size_t i=0; i<d.roles.size(); ++i) if (!Matchmaking::RoleAccepts(d.roles[i], actors[i])) return;
 					ids.push_back(d.id);
@@ -59,46 +79,14 @@ namespace OSF::API::EngineServices
 				return Send(ids, callback, context);
 			} catch (...) { return false; }
 		}
-        bool MatchNodeCast(RE::Actor* const* actors, std::uint32_t count, TextCallback callback, void* context)
-        {
-            if (!Util::NativeMainThreadQueue::IsDraining() || !actors || count == 0 || count > 32) return false;
-            for (std::uint32_t i=0; i<count; ++i) {
-                if (!actors[i]) return false;
-                for (std::uint32_t j=0; j<i; ++j) if (actors[i] == actors[j]) return false;
-            }
-            try {
-                const auto registry = Registry::ContentRegistry::GetSingleton().ReadSnapshot();
-                json out = json::array();
-                for (const auto& [id, def] : registry->scenes) {
-                    if (CatalogBuilder::ActorCount(def) != count) continue;
-                    bool accepts = true;
-                    for (std::size_t i=0; i<def.roles.size(); ++i) if (!Matchmaking::RoleAccepts(def.roles[i], actors[i])) { accepts=false; break; }
-                    if (!accepts) continue;
-                    for (const auto& node : def.nodes) if (CatalogBuilder::BuildNode(*registry,def,node).clipsAvailable)
-                        out.push_back({{"scene",def.id},{"node",node.id}});
-                }
-                return Send(out, callback, context);
-            } catch (...) { return false; }
-        }
-        bool MatchNodeAnchor(RE::TESObjectREFR* ref, TextCallback callback, void* context)
-        {
-            if (!Util::NativeMainThreadQueue::IsDraining() || !ref) return false;
-            try {
-                json ids=json::array();
-                Matchmaking::AnchorMatchCache cache(ref);
-                Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& d) {
-                    if (d.RequiresAnchor() && cache.Accepts(d)) ids.push_back(d.id);
-                });
-                return Send(ids, callback, context);
-            } catch (...) { return false; }
-        }
 		bool MatchAnchor(RE::TESObjectREFR* ref, TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.MatchAnchor");
 			if (!ref) return false;
 			try {
 				json ids=json::array();
 				Matchmaking::AnchorMatchCache cache(ref);
-				Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& d) {
+				Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::NodeDef& d) {
 					if (d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) ids.push_back(d.id);
 				});
 				return Send(ids, callback, context);
@@ -106,16 +94,16 @@ namespace OSF::API::EngineServices
 		}
 		bool ReadActiveScenes(TextCallback callback, void* context)
 		{
+			OSF_PROFILE_SCOPE("API.ReadActiveScenes");
 			try {
 				json scenes=json::array();
 				auto& rt=Scene::SceneRuntime::GetSingleton();
 				for (const auto& s : rt.ListScenes()) {
 					json participants=json::array();
 					for (auto* actor : s.participants) if (actor) participants.push_back(actor->GetFormID());
-					json value={{"handle",s.handle},{"id",s.id},{"stage",rt.GetStage(s.handle)},{"participants",participants}};
+					json value={{"handle",s.handle},{"node",s.node},{"stage",rt.GetStage(s.handle)},{"participants",participants}};
 					if (!s.participants.empty()) {
 						if (const auto p=Animation::GraphManager::GetSingleton().GetScenePlayback(s.participants.front())) {
-							if (s.id.empty()) value["stage"]=p->stage;
 							value["time"]=p->time; value["duration"]=p->duration; value["speed"]=p->speed;
 						}
 					}
@@ -136,23 +124,13 @@ namespace OSF::API::EngineServices
 			try { *result = Serialization::ClipDurationProbe::Probe(file, animId ? animId : "", previous); return true; }
 			catch (...) { return false; }
 		}
-		bool RegisterClipSceneProvider(const char* owner, ClipSceneProvider provider, void* context)
+		bool RegisterClipProvider(const char* owner, ClipSceneProvider provider, void* context, bool clipSources)
 		{
 			if (!owner || !provider) return false;
 			try {
 				const bool registered = Registry::ContentRegistry::GetSingleton().RegisterClipProvider(owner,
-					[provider, context](const Registry::ContentRegistrySnapshot& source) {
-						struct Output { std::uint32_t calls{}; std::optional<std::vector<ClipScene>> scenes; } output;
-						const auto text = json(CatalogBuilder::Build(source, {})).dump(-1, ' ', false, json::error_handler_t::replace);
-						provider(text.c_str(), [](const char* text, void* value) noexcept {
-							auto& out = *static_cast<Output*>(value);
-							++out.calls;
-							try {
-								if (text && std::strlen(text) <= 16 * 1024 * 1024) out.scenes = json::parse(text).get<std::vector<ClipScene>>();
-							} catch (...) { out.scenes.reset(); }
-						}, &output, context);
-						if (output.calls != 1 || !output.scenes) throw std::runtime_error("invalid provider response");
-						return std::move(*output.scenes);
+					[provider, context, clipSources](const Registry::ContentRegistrySnapshot& source) {
+						return ClipProviderBridge::Invoke(source, provider, context, clipSources);
 					});
 				if (registered) CatalogChanged();
 				return registered;
@@ -233,7 +211,7 @@ namespace OSF::API::EngineServices
 				if (std::isfinite(dx) && std::isfinite(dy) && std::isfinite(wheel))
 					Input::InputService::GetSingleton().InjectOrbitDelta(dx, dy, wheel);
 			},
-			&RegisterClipSceneProvider,
+			[](const char* owner, ClipSceneProvider provider, void* context) { return RegisterClipProvider(owner, provider, context, false); },
 			[](const char* owner) {
 				try {
 					if (!owner || !Registry::ContentRegistry::GetSingleton().UnregisterClipProvider(owner))
@@ -258,27 +236,22 @@ namespace OSF::API::EngineServices
 				return true;
 			},
 			[](std::int32_t handle) { return Scene::SceneRuntime::GetSingleton().SaveAlignment(handle); }, [](std::int32_t handle, const char* role) { return role && Scene::SceneRuntime::GetSingleton().SetAlignment(handle, role, {}); },
-			[](std::int32_t handle, const char* id, const OSFStartOptions* opts) {
-				if (!id || (opts && opts->size < offsetof(OSFStartOptions, inPlaceMode)))
-					return false;
-				Scene::SceneRuntime::ReplaceOptions options;
-				if (opts) {
-					options.anchor = opts->anchorRef;
-					options.stage = opts->startStage;
-                    if (opts->size >= offsetof(OSFStartOptions,startNode) + sizeof(opts->startNode) && opts->startNode) options.node = opts->startNode;
-				}
-				return Scene::SceneRuntime::GetSingleton().Replace(handle, id, {}, options);
-			},
-			[](std::int32_t handle, const char* id, const char* const* roles, std::uint32_t count) {
-				if (!id || (!roles && count) || count > 65535)
-					return false;
+			[](std::int32_t handle, const char* id, const char* const* roles, std::uint32_t count, const OSFTransitionOptions* opts) {
+				if (!Util::NativeMainThreadQueue::IsDraining() || !id || !*id || (!roles && count) ||
+					count > kOSFSceneMatchMaxActors || (opts && opts->size < sizeof(OSFTransitionOptions))) return false;
 				std::vector<std::string> names;
-				for (std::uint32_t i = 0; i < count; ++i) {
-					if (!roles[i])
-						return false;
+				for (std::uint32_t i=0; i<count; ++i) {
+					if (!roles[i]) return false;
 					names.emplace_back(roles[i]);
 				}
-				return Scene::SceneRuntime::GetSingleton().Replace(handle, id, names, {});
+				Scene::SceneRuntime::ReplaceOptions options;
+				if (opts) {
+					options.anchor = opts->anchor;
+					options.stage = opts->stage;
+					options.covered = opts->covered;
+					if (opts->hasHeading) options.headingRad = opts->headingRad;
+				}
+				return Scene::SceneRuntime::GetSingleton().Replace(handle, id, names, options);
 			},
 			[](std::int32_t handle, const OSFSceneQuery* query) {
 				if (!query)
@@ -302,8 +275,8 @@ namespace OSF::API::EngineServices
 					json edges = json::array();
 					for (std::int32_t i = 0; i < rt.EdgeCount(handle); ++i)
 						edges.push_back({{"id", rt.EdgeId(handle, i)}, {"label", rt.EdgeLabel(handle, i)}});
-					return Send(json{{"sceneId", rt.GetSceneId(handle)}, {"node", node},
-						{"automatic", rt.GetAutoAdvance(handle)}, {"allowManualHold", rt.AllowsManualHold(handle)},
+					return Send(json{{"node", node}, {"stage", rt.GetStage(handle)},
+						{"automatic", rt.GetAutoAdvance(handle)},
 						{"speed", rt.GetSpeed(handle)}, {"edges", std::move(edges)}}, callback, context);
 				} catch (...) {
 					return false;
@@ -357,18 +330,7 @@ namespace OSF::API::EngineServices
 			&ActorStateAPI::CreateScope, &ActorStateAPI::AcquireEquipment, &ActorStateAPI::ReleaseClaim, &ActorStateAPI::ReleaseGroup, &ActorStateAPI::CloseScope, &ActorStateAPI::Reconcile, &PreparationAPI::Register, &PreparationAPI::Unregister, &PreparationAPI::Equipment,
 			&PreparationAPI::Resource, &PreparationAPI::Failure, &PreparationAPI::Read, &ActorStateAPI::ReadEquipment,
 			&ActorStateAPI::ReadRevision, &ActorStateAPI::ReadChanges, &PreparationAPI::Guard,
-			[](std::int32_t scene, const char* id, const char* const* roles, std::uint32_t count) {
-				if (!Util::NativeMainThreadQueue::IsDraining() || !id || (!roles && count) || count > kOSFSceneMatchMaxActors) return false;
-				std::vector<std::string> names;
-				for (std::uint32_t i=0;i<count;++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
-				return Scene::SceneRuntime::GetSingleton().Replace(scene,id,names,{.covered=true});
-			}, &MatchNodeCast, &MatchNodeAnchor,
-            [](std::int32_t scene, const char* id, const char* node, const char* const* roles, std::uint32_t count, bool covered) {
-                if (!Util::NativeMainThreadQueue::IsDraining() || !id || !node || !*node || (!roles && count) || count > kOSFSceneMatchMaxActors) return false;
-                std::vector<std::string> names;
-                for (std::uint32_t i=0;i<count;++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
-                return Scene::SceneRuntime::GetSingleton().Replace(scene,id,names,{.covered=covered,.node=node});
-            } };
+			[](const char* owner, ClipSceneProvider provider, void* context) { return RegisterClipProvider(owner, provider, context, true); } };
 	}
 	void WorldReset() { ActorState::Get().Reset(); g_state.ResetWorld(); }
 	void ContentReloaded() { g_state.Notify(static_cast<std::uint32_t>(EngineEvent::ContentReloaded)); }
@@ -379,7 +341,5 @@ namespace OSF::API::EngineServices
 extern "C" __declspec(dllexport) const OSF::API::OSFEngineAPI* OSF_RequestEngineAPI(std::uint32_t version)
 {
 	if (!OSF::API::EngineRequestSupported(version, OSF::API::kOSFEngineAPIVersion) || !OSF::API::RequestSceneAPI()) return nullptr;
-	static const auto legacy = OSF::API::LegacyEngineAPI(OSF::API::EngineServices::g_api);
-	if (version == 0x00030000) return &legacy;
 	return &OSF::API::EngineServices::g_api;
 }

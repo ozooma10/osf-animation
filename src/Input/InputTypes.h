@@ -12,7 +12,7 @@ namespace RE
 
 namespace OSF::Input
 {
-	// Bits revocable via `sceneControls.disable` (legacy key `playerControl.disable`).
+	// Bits revocable via `sceneControls.disable`.
 	enum class Capability : std::uint32_t
 	{
 		kAdvance = 1u << 0,

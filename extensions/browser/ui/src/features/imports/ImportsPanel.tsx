@@ -22,9 +22,9 @@ function Summary({ state }: { state: BrowserState }) {
   const totals = state.importTotals;
   return <div class="imp-summary">
     <Readout label="Files" value={String(totals.files)}/>
-    <Readout label="Authored scenes" value={String(totals.declaredScenes)}/>
-    <Readout label="Scenes" value={String(totals.scenes)}/>
-    <Readout label="Rejected scenes" value={String(totals.rejectedScenes)} tone={totals.rejectedScenes ? "error" : ""}/>
+    <Readout label="Authored nodes" value={String(totals.declaredNodes)}/>
+    <Readout label="Nodes" value={String(totals.nodes)}/>
+    <Readout label="Rejected nodes" value={String(totals.rejectedNodes)} tone={totals.rejectedNodes ? "error" : ""}/>
     <Readout label="Clip entries" value={String(totals.clipEntries)}/>
     <Readout label="Errors" value={String(totals.errors)} tone={totals.errors ? "error" : ""}/>
     <Readout label="Warnings" value={String(totals.warnings)} tone={totals.warnings ? "warn" : ""}/>
@@ -37,7 +37,7 @@ function Summary({ state }: { state: BrowserState }) {
 
 function traits(file: ImportFile): string {
   const parts: string[] = [];
-  parts.push(`${file.scenes} scene${file.scenes === 1 ? "" : "s"}`);
+  parts.push(`${file.nodes} node${file.nodes === 1 ? "" : "s"}`);
   if (file.clipEntries) parts.push(`${file.clipEntries} clip entr${file.clipEntries === 1 ? "y" : "ies"}`);
   if (file.stages) parts.push(`${file.stages} stage${file.stages === 1 ? "" : "s"}`);
   if (file.distinctClips) parts.push(`${file.distinctClips} clip${file.distinctClips === 1 ? "" : "s"}`);
@@ -51,7 +51,6 @@ function Detail({ file }: { file: ImportFile }) {
     { label: "Schema", value: file.schema ? String(file.schema) : "—" },
     { label: "Size", value: formatBytes(file.bytes) },
     { label: "Load", value: formatMillis(file.parseMs) },
-    { label: "Scenes", value: String(file.scenes) },
     { label: "Nodes", value: String(file.nodes) },
     { label: "Stages", value: String(file.stages) },
     { label: "Roles", value: String(file.roles) },
@@ -59,10 +58,10 @@ function Detail({ file }: { file: ImportFile }) {
     { label: "Distinct clips", value: String(file.distinctClips) },
   ];
   if (file.missingClips) cells.push({ label: "Missing clips", value: String(file.missingClips) });
-  if (file.hidden) cells.push({ label: "Hidden scenes", value: String(file.hidden) });
+  if (file.hidden) cells.push({ label: "Hidden nodes", value: String(file.hidden) });
   if (file.unlisted) cells.push({ label: "Unlisted", value: String(file.unlisted) });
   if (file.anchored) cells.push({ label: "Anchor-bound", value: String(file.anchored) });
-  if (file.rejectedScenes) cells.push({ label: "Rejected scenes", value: String(file.rejectedScenes) });
+  if (file.rejectedNodes) cells.push({ label: "Rejected nodes", value: String(file.rejectedNodes) });
   if (file.clipEntries) cells.push({ label: "Clip entries", value: String(file.clipEntries) });
   if (file.cues) cells.push({ label: "Cues", value: String(file.cues) });
   if (file.actions) cells.push({ label: "Actions", value: String(file.actions) });
@@ -108,7 +107,6 @@ function Detail({ file }: { file: ImportFile }) {
 
 function problemContext(problem: ImportProblem): string[] {
   const fields = [
-    problem.scene && `scene ${problem.scene}`,
     problem.node && `node ${problem.node}`,
     problem.role && `role ${problem.role}`,
     problem.clip && `clip ${problem.clip}`,
@@ -145,7 +143,7 @@ function Row({ state, file, commands }: { state: BrowserState; file: ImportFile;
       {!!newProblems && <span class="imp-badge fresh">{newProblems} NEW</span>}
     </button>
     <div class="imp-row-actions">
-      {!crossFile && file.scenes + file.clipEntries > file.hidden &&
+      {!crossFile && file.nodes + file.clipEntries > file.hidden &&
         <button type="button" onClick={() => commands.viewImportContent(file.path)}>VIEW CONTENT</button>}
       <button type="button" onClick={() => commands.copyImportReport(file.path)}>COPY REPORT</button>
     </div>

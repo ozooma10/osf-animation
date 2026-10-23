@@ -1,0 +1,156 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla Pairs - Audition - 01 Hunter-Walter",
+  "pack": "OSF Vanilla Pairs - Audition",
+  "folder": "01 Hunter-Walter",
+  "tags": [
+    "osf.audition.vanilla-pairs"
+  ],
+  "unlisted": true,
+  "hideApparel": false,
+  "clearHeldItems": true,
+  "playerInputLock": true,
+  "placement": "anchorAndPin",
+  "camera": "scene_orbit",
+  "fade": false,
+  "scenes": [
+    {
+      "id": "osf.audition.vanilla-pairs.hunter-walter.sequence",
+      "name": "Hunter-Walter | Hold > Next: bash",
+      "roles": [
+        {
+          "name": "Hunter",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Walter",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.72,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Hold - loops until Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_hunter/sync_idle.af",
+              "sec": 6.766666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_walter/sync_idle.af",
+              "sec": 6.766666666666667
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Bash, fall and recovery - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_hunter/sync_bash.af",
+              "sec": 5
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_walter/sync_bash.af",
+              "sec": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "osf.audition.vanilla-pairs.hunter-walter.hold",
+      "name": "Hunter-Walter | Hold loop",
+      "roles": [
+        {
+          "name": "Hunter",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Walter",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.72,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Hold - loops until Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_hunter/sync_idle.af",
+              "sec": 6.766666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_walter/sync_idle.af",
+              "sec": 6.766666666666667
+            }
+          ],
+          "loops": 0
+        }
+      ]
+    },
+    {
+      "id": "osf.audition.vanilla-pairs.hunter-walter.bash",
+      "name": "Hunter-Walter | Bash once (5s)",
+      "roles": [
+        {
+          "name": "Hunter",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Walter",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.72,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Bash, fall and recovery - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_hunter/sync_bash.af",
+              "sec": 5
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/mq204_hunterwalter/mq204_walter/sync_bash.af",
+              "sec": 5
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 #include "Animation/PoseMath.h"
 #include "Animation/Scene.h"
+#include "Profiling/Profile.h"
 #include "Util/StringUtil.h"
 
 #include "ozz/base/span.h"
@@ -93,6 +94,7 @@ namespace OSF::Animation
 		samplingContext.Resize(numJoints);
 		localPose.resize(skeleton->data->num_soa_joints());
 		outputPose.assign(numJoints, ozz::math::Float4x4::identity());
+		overrideBlendStates.assign(numJoints, {});
 		if (blendFromValid) {
 			// Two commands can replace playback before any compose. The last displayed pose is still
 			// the handoff source in that case, not this new clip's as-yet-unsampled first frame.
@@ -406,8 +408,10 @@ namespace OSF::Animation
 
 		// A segment switch clears the binding, so the new clip binds again in this call.
 		if (playbackSession) {
-			const auto tick = playbackSession->Advance(a_token, a_deltaTime, nowMs);
+			const auto tick = OSF_PROFILE_CALL("Anim.Sample.Advance", playbackSession->Advance(a_token, a_deltaTime, nowMs));
 			if (tick.stage != appliedStage && participantIndex >= 0 && tick.stage < playbackSession->stages.size()) {
+				// Clip state rebuild on a job thread, under the manager (shared) and graph locks.
+				OSF_PROFILE_SCOPE("Anim.Sample.StageSwitch");
 				const auto& stage = playbackSession->stages[tick.stage];
 				const auto& slot = stage.participants[participantIndex];
 				SetAnimation(slot.skeleton, slot.anim, slot.file);
@@ -430,7 +434,7 @@ namespace OSF::Animation
 			return;
 		}
 
-		if (!ResolveAndBind()) {
+		if (!OSF_PROFILE_CALL("Anim.Sample.ResolveAndBind", ResolveAndBind())) {
 			return;
 		}
 		// Sample runs only after the engine evaluated this actor, authorizing capture for this binding generation.
@@ -443,7 +447,8 @@ namespace OSF::Animation
 
 		// Only the owner token advances solo time (e.g. 1st/3rd person graphs both report).
 		if (!playbackSession && syncGroup) {
-			std::scoped_lock sgl{ syncGroup->lock };
+			OSF_PROFILE_SCOPE("Anim.Sample.SoloClock");
+			OSF_PROFILE_LOCK(std::scoped_lock, sgl, "Lock.SyncGroup", syncGroup->lock);
 			auto& clk = syncGroup->clock;
 			if (clk.ShouldAdvance(a_token, nowMs)) {
 				clk.time += a_deltaTime * syncGroup->speed.load(std::memory_order_relaxed);
@@ -479,6 +484,7 @@ namespace OSF::Animation
 			                   a_modelNode->nodes.size() != cachedBoneCount ||
 			                   GetRigBoneCount(a_modelNode) != cachedRigBoneCount;
 			if (stale) {
+				OSF_PROFILE_SCOPE("Anim.Stamp.StaleRebind");
 				const auto prevNodes = cachedBoneCount;
 				staleStampRebindCount++;
 				if (!ResolveAndBind(a_modelNode)) {
@@ -510,7 +516,8 @@ namespace OSF::Animation
 		job.context = &samplingContext;
 		job.ratio = localTime / duration;
 		job.output = ozz::make_span(localPose);
-		if (!job.Run()) {
+		OSF_PROFILE_GAUGE("Anim.Stamp.BoundBones", binding.size());
+		if (!OSF_PROFILE_CALL("Anim.Stamp.OzzSample", job.Run())) {
 			if (!loggedSampleFail) {
 				loggedSampleFail = true;
 				REX::ERROR("[Anim] ozz SamplingJob failed validation (anim tracks={}, context max={}, output soa={})",
@@ -518,7 +525,10 @@ namespace OSF::Animation
 			}
 			return;
 		}
-		UnpackSoaTransforms({ localPose.data(), localPose.size() }, { outputPose.data(), outputPose.size() }, skeleton->data.get());
+		{
+			OSF_PROFILE_SCOPE("Anim.Stamp.Unpack");
+			UnpackSoaTransforms({ localPose.data(), localPose.size() }, { outputPose.data(), outputPose.size() }, skeleton->data.get());
+		}
 
 		auto* rig = a_modelNode->rig;
 		if (!rig || !rig->local || !rig->local->data) {
@@ -531,6 +541,7 @@ namespace OSF::Animation
 		// Capture engine-evaluated slots once per enginePoseRevision; repeated composes reuse that base rather
 		// than read our own write (additive and sub-unity override weights would converge on themselves).
 		const auto captureLiveBase = [&]() -> bool {
+			OSF_PROFILE_SCOPE("Anim.Stamp.LiveBase");
 			if (liveBasePose.size() != binding.size() * 16) {
 				return false;  // never allocate from the stamp hook
 			}
@@ -604,6 +615,7 @@ namespace OSF::Animation
 			}
 		};
 
+		OSF_PROFILE_SCOPE("Anim.Stamp.Write");
 		if (poseMode == PoseMode::kAdditive) {
 			if (!captureLiveBase()) {
 				return;
@@ -642,7 +654,7 @@ namespace OSF::Animation
 					haveBase ? liveBasePose.data() + i * 16 : nullptr,
 					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
 					fromSnapshot ? reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) : nullptr,
-					weight, strength)) {
+					weight, strength, &overrideBlendStates[bound.jointIndex])) {
 					continue;
 				}
 				if (strength > 0.0f || (fromSnapshot && (weight < 1.0f || !haveBase))) {

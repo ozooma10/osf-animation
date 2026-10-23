@@ -1,13 +1,16 @@
 #include "Check.h"
 
 #include "Registry/ContentRegistry.h"
+#include "Registry/ContentRegistryClips.h"
 
 #include "Animation/Scene.h"
 #include "Animation/PlaybackAdmission.h"
 #include "Util/Math.h"
+#include "Util/ClipPath.h"
 
 #include <iostream>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <string>
 #include <vector>
@@ -19,17 +22,128 @@ void CheckCatalogBuilder();
 void CheckContentProviders();
 void CheckLoopGlobals();
 
-// No mounted archives here: report every clip installed so the sweep hides no fixture scene.
+namespace
+{
+	std::function<bool(std::string_view)> resourceProbe;
+}
+
+// Default to installed for the authored fixtures; availability tests supply a mounted-resource model.
 namespace OSF::Animation
 {
-	bool ResourceExists(std::string_view)
+	bool ResourceExists(std::string_view a_path)
 	{
-		return true;
+		return resourceProbe ? resourceProbe(a_path) : true;
 	}
 }
 
 namespace
 {
+	void CheckClipAvailability()
+	{
+		using namespace OSF::Registry;
+		using namespace OSF::Registry::ContentRegistryClips;
+		namespace fs = std::filesystem;
+		struct RestoreProbe { ~RestoreProbe() { resourceProbe = {}; } } restore;
+		const auto cwd = fs::current_path();
+		const std::vector<fs::path> specs{
+			"clips/pose.af", "Data/clips/pose.af", "NAF:folder/pose.glb", "naf:pose.af",
+			"/clips/pose.af", "Data/Data/pose.af", "C:relative.af", "",
+			cwd / "Data/OSF/../clips/pose.af", cwd / "Data/..extras/pose.af"
+		};
+		for (const auto& path : specs) {
+			const auto resolved = OSF::Util::ResolveClipSpec(path);
+			std::vector<std::string> expected;
+			for (const auto& candidate : resolved.candidates) {
+				Check(candidate.resource, "relative and Data-contained specs use mounted resources");
+				expected.push_back(candidate.resourcePath);
+			}
+			for (std::size_t hit = 0; hit <= expected.size(); ++hit) {
+				std::vector<std::string> visited;
+				resourceProbe = [&](std::string_view value) {
+					visited.emplace_back(value);
+					return visited.size() == hit + 1;
+				};
+				Check(ClipSpecInstalled(path.string()) == (hit < expected.size()),
+					"availability stops at the first installed candidate, or reports all candidates missing");
+				Check(visited == std::vector<std::string>(expected.begin(),
+					expected.begin() + std::min(hit + 1, expected.size())),
+					"availability uses playback candidate order without probing later fallbacks");
+			}
+		}
+		const auto relative = OSF::Util::ResolveClipSpec("Data/clips/pose.af");
+		Check(relative.candidates.size() == 3 &&
+			relative.candidates[0].resourcePath == "clips\\pose.af" &&
+			relative.candidates[1].resourcePath == "NAF\\clips\\pose.af" &&
+			relative.candidates[2].resourcePath == "OSF\\Animations\\pose.af",
+			"relative lookup order remains direct, NAF, then OSF filename fallback");
+		const auto naf = OSF::Util::ResolveClipSpec("nAf:folder/pose.af");
+		Check(naf.candidates.size() == 1 && naf.candidates[0].resourcePath == "NAF\\folder\\pose.af",
+			"explicit NAF specs never use ordinary relative fallbacks");
+		std::size_t externalResourceCalls = 0;
+		resourceProbe = [&](std::string_view) { ++externalResourceCalls; return true; };
+		Check(ClipSpecInstalled((cwd.parent_path() / "ContentRegistryTest.cpp").string()),
+			"existing absolute files outside Data retain filesystem probing");
+		Check(!ClipSpecInstalled((cwd.parent_path() / "missing-clip-availability-test.af").string()),
+			"missing absolute files outside Data do not fall back into mounted resources");
+		Check(externalResourceCalls == 0, "absolute external lookup never calls the resource backend");
+
+		const auto source = cwd / "Data/OSF/availability-test.osf.json";
+		NodeDef partial;
+		partial.id = "partial"; partial.sourceFile = source;
+		NodeDef missing; missing.id = "missing"; missing.stages.resize(1);
+		missing.stages[0].clips = {StageClip{"clips/missing.af"}, StageClip{"clips/missing.af"}};
+		NodeDef installed; installed.id = "installed"; installed.stages.resize(1);
+		installed.stages[0].clips = {StageClip{"clips/installed.af"}, StageClip{"clips/installed.af"}};
+		partial.stages = {missing.stages[0], installed.stages[0]};
+		NodeDef complete;
+		complete.id = "complete"; complete.sourceFile = source;
+		complete.stages = installed.stages;
+		std::unordered_map<std::string, NodeDef> scenes{{partial.id, partial}, {complete.id, complete}};
+		std::vector<std::string> lines;
+		std::vector<PendingImportProblem> records;
+		ProblemSink problems{lines, records};
+		ClipInstalledCache cache;
+		std::vector<std::string> visited;
+		resourceProbe = [&](std::string_view value) {
+			visited.emplace_back(value);
+			return value == "clips\\installed.af";
+		};
+		SweepClipAvailability(scenes, problems, cache);
+		Check(!scenes.at("partial").clipsAvailable && scenes.at("complete").clipsAvailable,
+			"a missing clip hides only the affected scene");
+		Check(cache.size() == 2 && cache.at("clips/installed.af") && !cache.at("clips/missing.af"),
+			"the sweep retains installed siblings and negative results under their exact authored specs");
+		Check(visited.size() == 4, "each distinct spec probes once per load despite repeated scene references");
+		Check(records.size() == 1 && records.front().owner == source &&
+			records.front().code == "missing-clips" && records.front().clip == "clips/missing.af" &&
+			lines.front().find("1 scene(s) hidden") != std::string::npos,
+			"missing-clip diagnostics retain source ownership, counts and an authored example");
+		std::vector<ContentFileStats> files(1);
+		AccumulateFileStats(scenes, cache, files, {{source.string(), 0}});
+		Check(files[0].nodes == 2 && files[0].hidden == 1 && files[0].clips == 6 &&
+			files[0].distinctClips == 2 && files[0].missingClips == 1 &&
+			files[0].missingClipExamples == std::vector<std::string>{"clips/missing.af"} && visited.size() == 4,
+			"Imports file statistics reuse availability without reopening resources");
+		ClipLibraryRegistration entry;
+		entry.clip.file = "clips/installed.af"; entry.sourceFile = source;
+		std::map<std::string, std::uint32_t> added;
+		Check(AddRegisteredClipEntries(scenes, {entry}, problems, added, cache) == 1 && visited.size() == 4,
+			"registered clip entries reuse the same load-local availability");
+
+		resourceProbe = [](std::string_view) { return false; };
+		ClipInstalledCache nextCache;
+		std::unordered_map<std::string, NodeDef> nextScenes{{complete.id, complete}};
+		SweepClipAvailability(nextScenes, problems, nextCache);
+		Check(!nextScenes.at("complete").clipsAvailable && !nextCache.at("clips/installed.af") &&
+			cache.at("clips/installed.af"), "a new load rechecks removed resources without altering the old snapshot");
+		resourceProbe = [](std::string_view) { return true; };
+		ClipInstalledCache restoredCache;
+		std::unordered_map<std::string, NodeDef> restoredScenes{{partial.id, partial}};
+		SweepClipAvailability(restoredScenes, problems, restoredCache);
+		Check(restoredScenes.at("partial").clipsAvailable && restoredCache.at("clips/missing.af"),
+			"a later load observes newly installed resources after a previous miss");
+	}
+
 	void CheckPlaybackAdmission()
 	{
 		using namespace OSF::Animation;
@@ -69,10 +183,58 @@ namespace
 		const auto detail = std::string{ a_message } + " (missing error containing \"" + a_needle + "\")";
 		Check(false, detail);
 	}
+	void CheckCanonicalNodes()
+	{
+		using namespace OSF::Registry;
+		struct RestoreDirectory {
+			std::filesystem::path previous = std::filesystem::current_path();
+			~RestoreDirectory() { std::filesystem::current_path(previous); }
+		} restore;
+		std::filesystem::current_path(restore.previous.parent_path() / "node-registry");
+		auto& reg = ContentRegistry::GetSingleton();
+		reg.LoadAll();
+		const auto head = reg.Find("PACK/HEAD");
+		const auto tail = reg.Find("other/tail", head);
+		Check(head && tail && reg.Size() == 2, "global case-insensitive IDs and cross-file cycles resolve without containers");
+		if (head && tail) {
+			Check(head->name == "Inherited label" && head->priority == 9 && head->weight == 6 &&
+				head->unlisted && !head->playerInputLock && head->pack == "Source pack" && head->folder == "Defaults",
+				"node metadata resolves file defaults and per-node overrides once at load");
+			Check(head->tags == std::vector<std::string>{"Common", "file", "head"} && head->tagSet.size() == 3,
+				"file and node tags form a stable case-insensitive union");
+			Check(head->roles.size() == 1 && head->roles[0].name == "player" &&
+				tail->roles.size() == 1 && tail->roles[0].name == "visitor" &&
+				tail->name == "Destination" && tail->pack == "Node pack" && tail->folder == "Override" &&
+				tail->weight == 2 && !tail->unlisted,
+				"a destination owns its cast, grouping and matchmaking metadata");
+			Check(head->edges.front().to == tail->id && !head->edges.front().covered && tail->edges.front().covered,
+				"seamless and covered edges share global destinations across files");
+			const auto plan = reg.BuildNodePlan(head, 1);
+			Check(plan && plan->stages.size() == 2 && plan->stages[0].loops == 2 &&
+				plan->stages[1].loops == 0 && plan->stages[1].timer == 3,
+				"one node retains its complete ordered timeline and independent stage budgets");
+			Check(!reg.Find("#s0") && !reg.Find("head") && !reg.BuildNodePlan(head, 2),
+				"no synthetic or local node aliases exist and cast count must match");
+		}
+		for (const auto* id : {"pack/bad-target", "pack/dependent", "pack/old-use", "pack/old-entry", "pack/old-map",
+			"pack/nested", "pack/stage-lane", "pack/frozen-count", "old/schema", "old/container"}) {
+			Check(!reg.Find(id), std::string("invalid or retired node declaration is rejected: ") + id);
+		}
+		const auto errors = reg.LoadErrors();
+		Check(errors.size() == 10, "each invalid node or file reports one diagnostic");
+		CheckError(errors, "missing or rejected node 'missing/destination'", "a missing global target is diagnosed");
+		CheckError(errors, "missing or rejected node 'pack/bad-target'", "dependent routes cannot silently retarget a rejected destination");
+		reg.LoadAll();
+		Check(reg.LoadErrors() == errors, "cross-file validation diagnostics have deterministic order");
+		Check(reg.Find("other/tail", head).get() == tail.get() && reg.Find("other/tail").get() != tail.get(),
+			"a route keeps its original destination publication after reload");
+	}
+
 }
 
 int main()
 {
+	CheckClipAvailability();
 	CheckCatalogBuilder();
 	CheckPlaybackAdmission();
 	using OSF::Registry::ContentRegistry;
@@ -100,11 +262,7 @@ int main()
 
 	auto& reg = ContentRegistry::GetSingleton();
 	reg.LoadAll();
-	if (const auto held = reg.Find("test.reg.refs")) {
-		Check(held->FindNode("#s0") && held->FindNode("#s0")->allowManualHold, "linear nodes parse opt-in manual hold");
-	} else Check(false, "manual hold fixture loads");
 	if (const auto authored = reg.Find("test.bare")) {
-		Check(authored->FindNode("#s0") && !authored->FindNode("#s0")->allowManualHold, "manual hold defaults off for existing content");
 		Check(authored->sourceKind == OSF::Registry::CatalogSourceKind::kAuthoredScene,
 			"ordinary scene definitions are classified as authored scenes");
 	} else {
@@ -117,7 +275,14 @@ int main()
 		Check(false, "reference source-kind fixture loads");
 	}
 	// Authored scenes only; generated clip entries and clipLibrary registrations don't count.
-	Check(reg.Size() == 37, "authored scene count");
+	if (const auto first = reg.Find("test.boundaries/first")) {
+		const auto second = reg.Find("test.boundaries/second", first);
+		Check(first && first->edges.size() == 2 && !first->edges[0].covered && first->edges[1].covered,
+			"cover is a per-boundary property and defaults to seamless");
+		Check(second && second->edges.size() == 1 && second->edges[0].covered,
+			"automatic boundaries carry the same cover requirement as manual ones");
+	} else Check(false, "authored boundary fixture loads");
+	Check(reg.Size() == 41, "authored scene count");
 
 	std::int32_t curatedCount = 0;
 	std::int32_t curatedFlagged = 0;
@@ -127,7 +292,7 @@ int main()
 	bool animatedFound = false;
 	bool clipOnlyFound = false;
 	std::int32_t duplicateCount = 0;
-	reg.ForEachDef([&](const OSF::Registry::SceneDef& d) {
+	reg.ForEachDef([&](const OSF::Registry::NodeDef& d) {
 		if (d.library && d.pack == "Test Clip Library") {
 			++curatedCount;
 			if (d.name == "Friendly Pose") {
@@ -135,17 +300,17 @@ int main()
 					d.worldPlacement == OSF::Animation::WorldPlacementMode::kFollowActor &&
 					!d.playerInputLock && !d.hideApparel &&
 					d.tagSet.contains("scene.clip") && d.tagSet.contains("pose") && d.tagSet.contains("standing") &&
-					d.nodes.size() == 1 && d.nodes[0].stages.size() == 1 &&
-					d.nodes[0].stages[0].name == "Friendly Pose" &&
-					d.nodes[0].stages[0].clips.size() == 1 &&
-					d.nodes[0].stages[0].clips[0].file == "clips/test/friendly.af";
+					d.stages.size() == 1 &&
+					d.stages[0].name == "Friendly Pose" &&
+					d.stages[0].clips.size() == 1 &&
+					d.stages[0].clips[0].file == "clips/test/friendly.af";
 			} else if (d.name == "fallback.af") {
 				fallbackFound = d.folder == "Poses";
 			} else if (d.name == "Looking Away") {
-				animatedFound = d.folder == "Poses" && d.nodes.size() == 1 &&
-					d.nodes[0].stages.size() == 1 &&
-					d.nodes[0].stages[0].clips.size() == 1 &&
-					d.nodes[0].stages[0].clips[0].animId == "LookAway";
+				animatedFound = d.folder == "Poses" &&
+					d.stages.size() == 1 &&
+					d.stages[0].clips.size() == 1 &&
+					d.stages[0].clips[0].animId == "LookAway";
 			}
 		}
 		if (d.library && d.pack == "Test Clip Only" && d.name == "Only Pose") {
@@ -235,12 +400,12 @@ int main()
 		Check(false, "test.reg.anonymous loads");
 	}
 	if (const auto s = reg.Find("test.reg.props")) {
-		Check(s->nodes.size() == 1 && s->nodes[0].actions.size() == 3 && s->nodes[0].sounds.size() == 3,
+		Check(s->actions.size() == 3 && s->sounds.size() == 3,
 			"prop scene keeps its actions and expanded sound marks");
-		if (s->nodes.size() == 1 && s->nodes[0].actions.size() == 3 && s->nodes[0].sounds.size() == 3) {
-			const auto& attach = s->nodes[0].actions[0];
-			const auto& destroy = s->nodes[0].actions[1];
-			const auto& voice = s->nodes[0].actions[2];
+		if (s->actions.size() == 3 && s->sounds.size() == 3) {
+			const auto& attach = s->actions[0];
+			const auto& destroy = s->actions[1];
+			const auto& voice = s->actions[2];
 			Check(attach.type == "osf.prop.attach" && attach.role == "player" &&
 				attach.prop == "helmet", "prop attach identity and role parse");
 			Check(attach.kind == OSF::Registry::ActionKind::kPropAttach, "prop attach parses to its action kind");
@@ -261,20 +426,20 @@ int main()
 			Check(voice.kind == ActionKind::kVoicePlay && voice.role == "player" &&
 				voice.set == "Sound/OSF/test-voice.wem" && voice.emitter == SoundEmitter::kRole,
 				"osf.voice.play parses its positioned role emitter");
-			Check(s->nodes[0].sounds[0].spec == "Sound/OSF/test-flat.wem" &&
-				s->nodes[0].sounds[0].emitter == SoundEmitter::kRole,
+			Check(s->sounds[0].spec == "Sound/OSF/test-flat.wem" &&
+				s->sounds[0].emitter == SoundEmitter::kRole,
 				"flat sound parses its positioned role emitter");
-			Check(s->nodes[0].sounds[1].spec == "$test,voice" &&
-				s->nodes[0].sounds[1].emitter == SoundEmitter::kRole &&
-				s->nodes[0].sounds[2].emitter == SoundEmitter::kListener,
+			Check(s->sounds[1].spec == "$test,voice" &&
+				s->sounds[1].emitter == SoundEmitter::kRole &&
+				s->sounds[2].emitter == SoundEmitter::kListener,
 				"sound ladder inherits and per-mark overrides its emitter");
 		}
 	} else {
 		Check(false, "test.reg.props loads");
 	}
 	if (const auto s = reg.Find("test.reg.props.defaults")) {
-		if (s->nodes.size() == 1 && s->nodes[0].actions.size() == 1) {
-			const auto& attach = s->nodes[0].actions[0];
+		if (s->actions.size() == 1) {
+			const auto& attach = s->actions[0];
 			Check(attach.propAttachment.position == std::array<float, 3>{ 0.0f, 0.0f, 0.0f } &&
 				attach.propAttachment.rotation == std::array<float, 3>{ 0.0f, 0.0f, 0.0f } &&
 				attach.propAttachment.scale == 1.0f,
@@ -289,10 +454,10 @@ int main()
 	// The props registry is a parse-time desugar into the same fields an inline attach produces.
 	const auto firstAttach = [&](const char* a_scene) -> const OSF::Registry::ActionEntry* {
 		const auto s = reg.Find(a_scene);
-		if (!s || s->nodes.size() != 1 || s->nodes[0].actions.empty()) {
+		if (!s || s->actions.empty()) {
 			return nullptr;
 		}
-		return &s->nodes[0].actions[0];
+		return &s->actions[0];
 	};
 
 	if (const auto* attach = firstAttach("test.props.ref")) {
@@ -306,9 +471,9 @@ int main()
 			attach->propAttachment.scale == 0.75f,
 			"a template supplies node and transform the action never authored");
 		const auto s = reg.Find("test.props.ref");
-		Check(s->nodes[0].actions.size() == 2 &&
-			s->nodes[0].actions[1].kind == ActionKind::kPropDestroy &&
-			s->nodes[0].actions[1].prop == "helmet",
+		Check(s->actions.size() == 2 &&
+			s->actions[1].kind == ActionKind::kPropDestroy &&
+			s->actions[1].prop == "helmet",
 			"destroy still addresses the scene-local id, untouched by the registry");
 	} else {
 		Check(false, "test.props.ref loads with its attach");
@@ -317,7 +482,7 @@ int main()
 	if (const auto* attach = firstAttach("test.props.use")) {
 		// `prop` stays the runtime id; `use` only picks the definition to copy.
 		Check(attach->prop == "helmet_l" && attach->propAttachment.targetNode == "L_AnimObject1",
-			"a legacy inline node overrides a canonical template attachmentNode");
+			"an inline attachmentNode overrides its template");
 		Check(attach->propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
 			attach->propAttachment.scale == 0.75f,
 			"a 'use' reference inherits every key it does not override");
@@ -340,7 +505,7 @@ int main()
 	if (const auto* attach = firstAttach("test.props.partial")) {
 		Check(attach->propSource.kind == OSF::Props::SourceKind::kForm &&
 			attach->propAttachment.targetNode == "R_Wrist" && attach->propAttachment.scale == 1.0f,
-			"a canonical inline attachmentNode overrides a legacy template node");
+			"an inline attachmentNode overrides a partial template");
 	} else {
 		Check(false, "test.props.partial loads with its attach");
 	}
@@ -361,8 +526,8 @@ int main()
 	}
 
 	if (const auto s = reg.Find("test.reg.frames")) {
-		if (s->nodes.size() == 1) {
-			const auto& node = s->nodes[0];
+		if (s->stages.size() == 1) {
+			const auto& node = *s;
 			Check(node.cues.size() == 3 && node.cues[1].role == "PLAYER" && node.cues[0].role.empty(),
 				"a cue role is kept as authored and is optional");
 			Check(node.cues.size() == 3 && !node.cues[0].nativeOnly && node.cues[1].nativeOnly && !node.cues[2].nativeOnly,
@@ -419,31 +584,30 @@ int main()
 			"scene with no tags of its own inherits the file-level tags");
 		Check(s->roles.size() == 1 && s->roles[0].name == "player" && s->roles[0].mask == "upperBody",
 			"compiled route inherits the upperBody role mask");
-		Check(s->nodes.size() == 1 && s->linearStages.size() == 1 && s->entry == "#s0",
-			"single-stage route desugars to one linear node");
-		if (s->nodes.size() == 1) {
-			const auto& node = s->nodes[0];
+		Check(s->stages.size() == 1 && s->id == "test.route.compiled.single",
+			"single-stage shorthand is one globally addressed node");
+		if (s->stages.size() == 1) {
+			const auto& node = *s;
 			const auto* stage = node.stages.size() == 1 ? &node.stages[0] : nullptr;
 			Check(node.cameras.empty(), "camera:none suppresses the document camera default");
-			Check(node.loopMode == LoopMode::kCount && node.loopCount == 1,
+			Check(node.loopMode == LoopMode::kTimeline && node.stages[0].loops == 1,
 				"compiled single stage keeps loops:1");
 			Check(stage && stage->loops == 1 && stage->clips.size() == 1 &&
 				stage->clips[0].file == "Fixture/Route/single.glb",
 				"compiled single-stage clip and loop policy parse");
-			Check(stage && node.cues.size() == 3 && stage->cues.size() == 3,
-				"compiled stage cue lane is retained and forwarded to its node");
+			Check(stage && node.cues.size() == 3,
+				"compiled stage cue lane is owned by the node");
 			if (node.cues.size() == 3) {
-				Check(!node.cues[0].nativeOnly && node.cues[1].nativeOnly && !node.cues[2].nativeOnly &&
-					stage && stage->cues[1].nativeOnly,
-					"compiled stages retain per-cue native delivery when forwarded to flow nodes");
+				Check(!node.cues[0].nativeOnly && node.cues[1].nativeOnly && !node.cues[2].nativeOnly,
+					"node lanes retain per-cue native delivery");
 				Check(node.cues[0].id == "route.start" && node.cues[0].pos == TrackPos::kFraction &&
 					node.cues[0].fraction == 0.0f &&
 					node.cues[1].id == "route.source.hidden" && node.cues[1].fraction == 0.375f &&
 					node.cues[2].id == "route.end" && node.cues[2].pos == TrackPos::kEnd,
 					"compiled numeric and named cue positions parse");
 			}
-			Check(stage && node.actions.size() == 2 && stage->actions.size() == 2,
-				"compiled stage action lane is retained and forwarded to its node");
+			Check(stage && node.actions.size() == 2,
+				"compiled stage action lane is owned by the node");
 			if (node.actions.size() == 2) {
 				const auto& attach = node.actions[0];
 				const auto& destroy = node.actions[1];
@@ -468,7 +632,7 @@ int main()
 					destroy.fraction == 0.75f && destroy.prop == "helmet",
 					"compiled prop destroy identity and timing parse");
 			}
-			const auto plan = reg.BuildNodePlan(s, node, 1);
+			const auto plan = reg.BuildNodePlan(s, 1);
 			Check(plan && !plan->anchored && plan->masks.size() == 1 && plan->masks[0] == "upperBody",
 				"compiled route builds a follow-actor upperBody playback plan");
 		}
@@ -489,15 +653,11 @@ int main()
 			"scene tags union with the file-level tags, de-duplicated case-insensitively");
 		Check(s->priority == 9 && s->weight == 7,
 			"scene priority overrides the file default while weight still inherits");
-		Check(s->nodes.size() == 2 && s->linearStages.size() == 2 &&
-			s->linearStages[0] == "#s0" && s->linearStages[1] == "#s1",
-			"two-stage route desugars in authored order");
-		const auto* first = s->FindNode("#s0");
-		const auto* second = s->FindNode("#s1");
-		Check(first && second, "two-stage route exposes both synthetic nodes");
+		const auto first = s;
+		const auto second = reg.Find("test.route.compiled.two-stage/stage-1", first);
+		Check(first && second && first->edges.front().to == second->id, "explicit route nodes use global edge destinations");
 		if (first && second) {
-			Check(first->loopMode == LoopMode::kCount && first->loopCount == 1 &&
-				second->loopMode == LoopMode::kCount && second->loopCount == 1,
+			Check(first->stages[0].loops == 1 && second->stages[0].loops == 1,
 				"both compiled route stages preserve loops:1");
 			Check(first->stages.size() == 1 && first->stages[0].clips[0].file == "Fixture/Route/handoff.glb" &&
 				second->stages.size() == 1 && second->stages[0].clips[0].file == "Fixture/Route/hold.glb",
@@ -506,15 +666,15 @@ int main()
 				"a clip-local mask applies only to its stage");
 			Check(first->actions.size() == 1 && first->actions[0].kind == ActionKind::kPropAttach,
 				"carry-forward stage omits a destroy before the next stage");
-			Check(second->cues.size() == 1 && second->stages[0].cues.size() == 1 &&
+			Check(second->cues.size() == 1 &&
 				second->cues[0].id == "route.station.entered" && second->cues[0].pos == TrackPos::kEnter,
 				"stage-two enter cue is retained and forwarded");
-			Check(second->actions.size() == 2 && second->stages[0].actions.size() == 2 &&
+			Check(second->actions.size() == 2 &&
 				second->actions[0].kind == ActionKind::kPropAttach &&
 				second->actions[0].pos == TrackPos::kFraction && second->actions[0].fraction == 0.0f,
 				"stage-two numeric-zero prop reattach is retained and forwarded");
-			const auto firstPlan = reg.BuildNodePlan(s, *first, 1);
-			const auto secondPlan = reg.BuildNodePlan(s, *second, 1);
+			const auto firstPlan = reg.BuildNodePlan(first, 1);
+			const auto secondPlan = reg.BuildNodePlan(second, 1);
 			Check(firstPlan && firstPlan->stages[0].masks[0] == "upperBody" &&
 				secondPlan && secondPlan->stages[0].masks[0] == "rightArm",
 				"a stage mask overrides and then falls back to the scene role mask");
@@ -522,30 +682,29 @@ int main()
 	} else {
 		Check(false, "test.route.compiled.two-stage loads");
 	}
-	if (const auto s = reg.Find("test.route.compiled.legacy-vocabulary")) {
+	if (const auto s = reg.Find("test.route.compiled.canonical-vocabulary")) {
 		Check(s->playerInputLock && s->hideApparel,
-			"legacy lockPlayer and stripActors override canonical document defaults");
+			"canonical input and apparel policies override document defaults");
 		Check(s->worldPlacement == OSF::Animation::WorldPlacementMode::kAnchorAndPin,
-			"legacy inPlace:false maps to canonical anchor-and-pin placement");
+			"canonical placement selects anchor-and-pin");
 		Check(s->sceneControls.enabled &&
 			(s->sceneControls.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kSpeed)) == 0,
-			"legacy playerControl maps to canonical scene controls");
+			"canonical scene controls apply capability overrides");
 	} else {
-		Check(false, "legacy vocabulary scene loads through compatibility aliases");
+		Check(false, "canonical vocabulary overrides load");
 	}
 	if (const auto s = reg.Find("test.hold.frame")) {
-		Check(s->nodes.size() == 2 && s->nodes[0].stages[0].hold < 0.0f && s->nodes[1].stages[0].hold == 1.0f,
-			"'hold': true freezes a stage on its last frame and leaves its neighbours playing");
-		Check(s->nodes.size() == 2 && s->nodes[1].loopMode == LoopMode::kHold &&
-			s->nodes[1].stages[0].loops == 0,
+		const auto frozen = reg.Find("test.hold.frame/stage-1", s);
+		Check(frozen && s->stages[0].hold < 0.0f && frozen->stages[0].hold == 1.0f,
+			"hold true freezes the destination on its last frame and leaves its neighbor playing");
+		Check(frozen && frozen->stages[0].loops == 0,
 			"an untimed frozen stage holds until advanced instead of taking the play-once default");
-		Check(s->nodes.size() == 2 && s->nodes[1].cues.size() == 1,
-			"a frozen stage still carries its track lanes");
+		Check(frozen && frozen->cues.size() == 1, "a frozen node still carries its track lanes");
 	} else {
 		Check(false, "test.hold.frame loads");
 	}
 	if (const auto s = reg.Find("test.hold.timed")) {
-		Check(s->nodes.size() == 1 && s->nodes[0].stages[0].hold == 0.25f && s->nodes[0].timerSec == 2.0f,
+		Check(s->stages[0].hold == 0.25f && s->stages[0].timer == 2.0f,
 			"a fractional hold parks mid-clip and keeps its timer as the way out");
 	} else {
 		Check(false, "test.hold.timed loads");
@@ -555,8 +714,8 @@ int main()
 	for (const auto id : { "unknown", "number", "null", "bool", "compiled" }) {
 		Check(!reg.Find(std::string("test.delivery.bad.") + id), "invalid cue delivery rejects its scene");
 	}
-	if (const auto s = reg.Find("test.delivery.good")) {
-		const auto& cues = s->nodes[0].cues;
+	if (const auto s = reg.Find("test.delivery.good/n")) {
+		const auto& cues = s->cues;
 		Check(cues.size() == 4 && cues[0].nativeOnly && cues[1].nativeOnly && cues[2].nativeOnly && !cues[3].nativeOnly,
 			"graph enter/exit/end cues retain delivery and a valid neighbor survives rejected scenes");
 	} else Check(false, "valid cue delivery graph loads");
@@ -630,7 +789,7 @@ int main()
 			"mmf: additive pose policy is inherited by template copies while omission stays override");
 		Check(s->roles[0].mask == "upperBody" && s->roles[1].mask == "upperBody" && s->roles[2].mask.empty(),
 			"mmf: an authored-lowercase mask canonicalizes and inherits; omission stays unmasked");
-		const auto plan = reg.BuildNodePlan(s, s->nodes[0], 3);
+		const auto plan = reg.BuildNodePlan(s, 3);
 		Check(plan.has_value(), "mmf: playback plan builds");
 		if (plan) {
 			Check(plan->poseModes.size() == 3 && plan->poseWeights.size() == 3 && plan->roleNames.size() == 3,
@@ -770,10 +929,10 @@ int main()
 	Check(!reg.Find("test.route.compiled.error.scale"), "compiled route rejects a zero prop scale");
 	Check(!reg.Find("test.route.compiled.error.source"), "compiled route rejects a malformed prop source");
 	Check(!reg.Find("test.route.compiled.error.at"), "compiled route rejects an out-of-range cue position");
-	Check(!reg.Find("test.route.compiled.error.vocabulary-policy"), "canonical and legacy policy keys conflict");
-	Check(!reg.Find("test.route.compiled.error.vocabulary-apparel"), "canonical and legacy apparel keys conflict");
-	Check(!reg.Find("test.route.compiled.error.vocabulary-controls"), "canonical and legacy scene-control keys conflict");
-	Check(!reg.Find("test.route.compiled.error.vocabulary-placement"), "canonical and legacy placement keys conflict");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-policy"), "retired policy keys conflict");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-apparel"), "retired apparel keys conflict");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-controls"), "retired scene-control keys conflict");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-placement"), "retired placement keys conflict");
 	Check(!reg.Find("test.bad.def"), "malformed registry definition rejects its file");
 	Check(!reg.Find("test.bad.type"), "non-array/non-object file-level roles rejects its file");
 	Check(!reg.Find("test.terr.unknown"), "an unknown object-override id rejects its scene");
@@ -793,8 +952,8 @@ int main()
 	Check(!reg.Find("test.props.badtype.never"), "a non-object 'props' rejects its file");
 	Check(!reg.Find("test.props.baddef.never"), "a malformed prop template rejects its file");
 	if (const auto s = reg.Find("test.props.err.ok")) {
-		Check(s->nodes.size() == 1 && s->nodes[0].actions.size() == 1 &&
-			s->nodes[0].actions[0].propAttachment.targetNode == "R_AnimObject1",
+		Check(s->actions.size() == 1 &&
+			s->actions[0].propAttachment.targetNode == "R_AnimObject1",
 			"prop reference errors reject only their own scene");
 	} else {
 		Check(false, "test.props.err.ok loads");
@@ -803,7 +962,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 57, "exactly the fifty-seven expected diagnostics");
+	Check(errors.size() == 59, "exactly the fifty-nine expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -830,16 +989,18 @@ int main()
 		"compiled-route source diagnostic identifies the malformed selector");
 	CheckError(errors, "cue 'route.out-of-range' numeric 'at' must be in [0,1)",
 		"compiled-route cue diagnostic states the fraction range");
-	CheckError(errors, "use either 'playerInputLock' or legacy 'lockPlayer', not both",
-		"canonical and legacy player-input-lock keys cannot silently disagree");
-	CheckError(errors, "use either 'hideApparel' or legacy 'stripActors', not both",
-		"canonical and legacy apparel keys cannot silently disagree");
-	CheckError(errors, "use either 'sceneControls' or legacy 'playerControl', not both",
-		"canonical and legacy scene-control keys cannot silently disagree");
-	CheckError(errors, "use either 'placement' or legacy 'inPlace', not both",
-		"canonical and legacy world-placement keys cannot silently disagree");
-	CheckError(errors, "uses both 'attachmentNode' and legacy 'node'",
-		"canonical and legacy prop-attachment-node keys cannot silently disagree");
+	CheckError(errors, "retired key 'lockPlayer'; use 'playerInputLock'",
+		"retired player-input-lock keys cannot silently disagree");
+	CheckError(errors, "retired key 'stripActors'; use 'hideApparel'",
+		"retired apparel keys cannot silently disagree");
+	CheckError(errors, "retired key 'playerControl'; use 'sceneControls'",
+		"retired scene-control keys cannot silently disagree");
+	CheckError(errors, "retired key 'inPlace'; use 'placement'",
+		"retired world-placement keys cannot silently disagree");
+	CheckError(errors, "retired key 'allowManualHold'; holding is caller navigation policy",
+		"retired manual-hold grants cannot constrain caller navigation policy");
+	CheckError(errors, "retired key 'node'; use 'attachmentNode'",
+		"retired prop-attachment-node keys cannot silently disagree");
 	CheckError(errors, "cue 'half.frame' 'atFrame' must be a whole frame number >= 0",
 		"fractional atFrame diagnostic states the whole-frame contract");
 	CheckError(errors, "cue 'two.clocks' sets both 'at' and 'atFrame'",
@@ -866,9 +1027,9 @@ int main()
 		"anchor keywords accept the same string-or-array shape as role filters");
 	CheckError(errors, "scene 'test.err.anchor-entry': anchor.base entries must be strings",
 		"a wrong-typed anchor.base element is reported against the element");
-	CheckError(errors, "scene 'test.err.clip-file-type': clip 'file' must be a string",
+	CheckError(errors, "node 'test.err.clip-file-type': clip 'file' must be a string",
 		"an object-form clip states its own 'file' contract");
-	CheckError(errors, "scene 'test.err.clip-offset-type': clip 'offset' must be an { x, y, z, heading } object",
+	CheckError(errors, "node 'test.err.clip-offset-type': clip 'offset' must be an { x, y, z, heading } object",
 		"a non-object clip offset names the field and the expected shape");
 	CheckError(errors, "scene 'test.err.role-offset-type': role 'p': 'offset' must be an { x, y, z, heading } object",
 		"a non-object role offset names the scene, role, field, and expected shape");
@@ -982,7 +1143,7 @@ int main()
 
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 21, "one import record per discovered *.osf.json");
+		Check(files.size() == 22, "one import record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::ContentFileStats* {
 			for (const auto& f : files) {
@@ -998,7 +1159,7 @@ int main()
 		bool sorted = true;
 		bool pathsRelative = true;
 		for (std::size_t i = 0; i < files.size(); ++i) {
-			accepted += files[i].scenes;
+			accepted += files[i].nodes;
 			owned += static_cast<std::uint32_t>(files[i].problems.size());
 			if (i && files[i - 1].path > files[i].path) {
 				sorted = false;
@@ -1007,15 +1168,15 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 37, "per-file scene counts sum to the authored total");
+		Check(accepted == 41, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
 		const auto* bare = find("fixture_bare.osf.json");
-		Check(bare && bare->scenes == 1, "the bare single-scene fixture reports one scene");
+		Check(bare && bare->nodes == 1, "the bare single-scene fixture reports one scene");
 		Check(bare && bare->schema == OSF::Registry::kSchemaVersion, "the declared schema is recorded");
 		Check(bare && bare->bytes > 0, "the file size is recorded");
-		Check(bare && bare->declaredScenes == 1 && bare->rejectedScenes == 0,
+		Check(bare && bare->declaredNodes == 1 && bare->rejectedNodes == 0,
 			"clean files report exact authored and rejected scene counts");
 		Check(bare && bare->nodes > 0 && bare->stages > 0 && bare->clips > 0,
 			"node/stage/clip totals are recorded");
@@ -1025,9 +1186,9 @@ int main()
 		Check(bare && !bare->Rejected(), "a clean file is not flagged rejected");
 
 		const auto* malformed = find("fixture_malformed_type.osf.json");
-		Check(malformed && malformed->scenes == 0 && malformed->errors == 1,
+		Check(malformed && malformed->nodes == 0 && malformed->errors == 1,
 			"a rejected file keeps a record carrying its reject line");
-		Check(malformed && malformed->declaredScenes == 1 && malformed->rejectedScenes == 1,
+		Check(malformed && malformed->declaredNodes == 1 && malformed->rejectedNodes == 1,
 			"whole-file rejection preserves its authored scene count");
 		Check(malformed && !malformed->problems.empty() &&
 			malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(),
@@ -1035,26 +1196,26 @@ int main()
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 25,
+		Check(partial && partial->nodes == 1 && partial->errors == 25,
 			"a partially-loaded file reports both its scenes and its rejected ones");
-		Check(partial && partial->declaredScenes == 26 && partial->rejectedScenes == 25,
+		Check(partial && partial->declaredNodes == 26 && partial->rejectedNodes == 25,
 			"partial files report exact authored and rejected scene counts");
 		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
 			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");
 		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
 
 		const auto* route = find("fixture_route_compiled.osf.json");
-		Check(route && route->scenes == 3 && route->declaredScenes == 3 && route->rejectedScenes == 0,
-			"compiled route fixture reports canonical and legacy-vocabulary scenes");
-		Check(route && route->unlisted == 3 && route->anchored == 0 && route->nodes == 4 && route->stages == 4,
+		Check(route && route->nodes == 4 && route->declaredNodes == 4 && route->rejectedNodes == 0,
+			"compiled route fixture reports canonical-vocabulary scenes");
+		Check(route && route->unlisted == 4 && route->anchored == 0 && route->nodes == 4 && route->stages == 4,
 			"compiled route fixture reports document policy and stage totals");
 		Check(route && route->cues == 5 && route->actions == 5 && route->cameras == 0,
 			"compiled route fixture reports its cue/action lanes and camera:none default");
 
 		const auto* routeErrors = find("fixture_route_compiled_errors.osf.json");
-		Check(routeErrors && routeErrors->scenes == 0 && routeErrors->declaredScenes == 9 &&
-			routeErrors->rejectedScenes == 9 && routeErrors->errors == 9,
-			"compiled route error fixture reports nine independent scene rejections");
+		Check(routeErrors && routeErrors->nodes == 0 && routeErrors->declaredNodes == 11 &&
+			routeErrors->rejectedNodes == 11 && routeErrors->errors == 11,
+			"compiled route error fixture reports eleven independent scene rejections");
 		Check(routeErrors && routeErrors->Rejected(),
 			"compiled route error fixture is flagged rejected after contributing no scenes");
 
@@ -1063,7 +1224,7 @@ int main()
 		Check(clipLib && clipLib->pack == "Test Clip Library", "the file-level pack label is recorded");
 
 		const auto* clipOnly = find("fixture_clip_only.osf.json");
-		Check(clipOnly && clipOnly->scenes == 0 && clipOnly->clipEntries > 0,
+		Check(clipOnly && clipOnly->nodes == 0 && clipOnly->clipEntries > 0,
 			"a clipLibrary-only file reports zero scenes and its generated entries");
 		Check(clipOnly && !clipOnly->Rejected(), "a file contributing only clip entries is not rejected");
 	}
@@ -1090,25 +1251,23 @@ int main()
 			}
 			const auto linear = reg.Find("osf.smoke.linear");
 			if (Check(static_cast<bool>(linear), "live linear smoke scene is registered")) {
-				Check(linear->linearStages.size() == 2 && linear->nodes.size() == 2,
-					"live linear scene exposes two selectable stages");
-				Check(std::ranges::all_of(linear->nodes, [](const auto& node) {
-					return node.stages.size() == 1 && node.stages[0].clips.size() == 1 &&
-						node.stages[0].clips[0].file == "meshes/actors/human/animations/common/cower_idle.af";
-				}), "live linear stages use the authored one-player vanilla AF clip");
+				Check(linear->stages.size() == 2, "a two-stage shorthand retains one node with two timeline segments");
+				Check(std::ranges::all_of(linear->stages, [](const auto& stage) {
+					return stage.clips.size() == 1 &&
+						stage.clips[0].file == "meshes/actors/human/animations/common/cower_idle.af";
+				}), "smoke timeline stages use the authored one-player vanilla AF clip");
 			}
-			const auto graph = reg.Find("osf.smoke.graph");
+			const auto graph = reg.Find("osf.smoke.graph/first");
 			if (Check(static_cast<bool>(graph), "live graph smoke scene is registered")) {
-				Check(graph->entry == "first" && graph->nodes.size() == 3,
-					"live graph has its expected entry and three nodes");
-				const auto* first = graph->FindNode("first");
-				const auto* middle = graph->FindNode("middle");
-				const auto* timed = graph->FindNode("timed");
+				const auto first = graph;
+				const auto middle = reg.Find("osf.smoke.graph/middle", graph);
+				const auto timed = reg.Find("osf.smoke.graph/timed", graph);
+				Check(first && middle && timed, "smoke route has three independently addressable nodes");
 				Check(first && first->edges.size() == 1 && first->edges[0].id == "next" &&
-					first->edges[0].to == "middle" && first->edges[0].when == OSF::Registry::EdgeWhen::kAdvance,
+					first->edges[0].to == "osf.smoke.graph/middle" && first->edges[0].when == OSF::Registry::EdgeWhen::kAdvance,
 					"live graph named navigation leads from first to middle");
 				Check(middle && middle->edges.size() == 1 && middle->edges[0].isDefault &&
-					middle->edges[0].to == "timed" && middle->edges[0].when == OSF::Registry::EdgeWhen::kAdvance,
+					middle->edges[0].to == "osf.smoke.graph/timed" && middle->edges[0].when == OSF::Registry::EdgeWhen::kAdvance,
 					"live graph default advance leads from middle to timed");
 				Check(timed && timed->timerSec == 0.5f && timed->edges.size() == 1 &&
 					timed->edges[0].to == "$end" && timed->edges[0].when == OSF::Registry::EdgeWhen::kTimer,
@@ -1128,13 +1287,12 @@ int main()
 				additive->roles[0].poseMode == OSF::Animation::PoseMode::kAdditive && additive->roles[0].poseWeight == 0.25f,
 				"live additive fixture preserves its actual mask, mode and weight");
 			const auto mechanisms = reg.Find("osf.smoke.mechanisms");
-			Check(mechanisms && mechanisms->nodes.size() == 1 && mechanisms->nodes[0].actions.size() == 2,
+			Check(mechanisms && mechanisms->actions.size() == 2,
 				"live mechanism fixture retains both authored enter actions");
-			const auto foundation = reg.Find("osf.smoke.foundation.start");
-			Check(foundation && foundation->roles.size() == 2 && foundation->nodes.size() == 2 &&
-				foundation->FindNode("held") && foundation->FindNode("held")->allowManualHold &&
-				foundation->FindNode("held")->timerSec == 0.3f && foundation->FindNode("other") && !foundation->FindNode("other")->allowManualHold,
-				"foundation regression fixture retains per-node manual hold, timer and role contract");
+			const auto foundation = reg.Find("osf.smoke.foundation.start/held");
+			Check(foundation && foundation->roles.size() == 2 && foundation->timerSec == 0.3f &&
+				reg.Find("osf.smoke.foundation.start/other", foundation),
+				"foundation regression fixture retains timers and roles without a content hold grant");
 			const auto exampleRoot = restore.previous.parent_path().parent_path() / "build" / "author-example-fixture";
 			std::filesystem::create_directories(exampleRoot / "Data" / "OSF");
 			std::filesystem::copy_file(restore.previous.parent_path().parent_path() / "docs/examples/query-handoff/example.osf.json",
@@ -1154,5 +1312,6 @@ int main()
 
 	CheckContentProviders();
 	CheckLoopGlobals();
+	CheckCanonicalNodes();
 	return Finish("Scene registry");
 }

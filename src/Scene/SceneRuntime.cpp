@@ -197,7 +197,6 @@ namespace OSF::Scene
 		if (!s) {
 			return false;
 		}
-		a_out.id = s->id;
 		a_out.node = s->node;
 		a_out.participants = s->participants;
 		a_out.playbackId = s->playbackId;
@@ -206,19 +205,19 @@ namespace OSF::Scene
 		return true;
 	}
 
-	std::int32_t SceneRuntime::MintSlot(std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants)
+	std::int32_t SceneRuntime::MintSlot(std::string_view a_node, const std::vector<RE::Actor*>& a_participants)
 	{
 		std::lock_guard l{ _lock };
 
 		// Null or duplicate actors would break the one-actor-one-scene invariant.
 		for (std::size_t i = 0; i < a_participants.size(); i++) {
 			if (!a_participants[i]) {
-				REX::ERROR("[Scene] null actor in start '{}'", a_id);
+				REX::ERROR("[Scene] null actor in start '{}'", a_node);
 				return 0;
 			}
 			for (std::size_t j = i + 1; j < a_participants.size(); j++) {
 				if (a_participants[i] == a_participants[j]) {
-					REX::ERROR("[Scene] actor {:X} passed twice in start '{}'", a_participants[i]->formID, a_id);
+					REX::ERROR("[Scene] actor {:X} passed twice in start '{}'", a_participants[i]->formID, a_node);
 					return 0;
 				}
 			}
@@ -229,7 +228,7 @@ namespace OSF::Scene
 			std::int32_t busy = 0;
 			if (FindSlotForActor(a, &busy)) {
 				REX::WARN("[Scene] actor {:X} already in live scene {:#010x} — refusing start '{}' (Stop it first)",
-					a->formID, busy, a_id);
+					a->formID, busy, a_node);
 				return 0;
 			}
 		}
@@ -270,7 +269,6 @@ namespace OSF::Scene
 		Slot& s = _slots[slot];
 		s = Slot{};
 		s.generation = gen;
-		s.id = std::string(a_id);
 		s.node = std::string(a_node);
 		s.participants = a_participants;
 		for (auto* actor : a_participants) {
@@ -319,13 +317,6 @@ namespace OSF::Scene
 		return s ? s->node : std::string{};
 	}
 
-	std::string SceneRuntime::GetSceneId(std::int32_t a_scene)
-	{
-		std::lock_guard l{ _lock };
-		const auto* s = Resolve(a_scene);
-		return s ? s->id : std::string{};
-	}
-
 	bool SceneRuntime::SetSpeed(std::int32_t a_scene, float a_speed)
 	{
 		std::lock_guard l{ _lock };
@@ -367,9 +358,8 @@ namespace OSF::Scene
 		}
 		SlotView view;
 		if (!SnapshotSlot(a_scene, view) || view.participants.empty()) return false;
-		const auto* node = view.definition ? view.definition->FindNode(view.node) : nullptr;
-		if (!node) return false;
-		if (node->allowManualHold && !Animation::GraphManager::GetSingleton().SetSceneAutoAdvance(
+
+		if (!Animation::GraphManager::GetSingleton().SetSceneAutoAdvance(
 			view.participants.front(), a_enabled, view.playbackId)) return false;
 		std::lock_guard l{ _lock };
 		auto* s = Resolve(a_scene);
@@ -385,20 +375,12 @@ namespace OSF::Scene
 		return !s || s->autoAdvance;
 	}
 
-	bool SceneRuntime::AllowsManualHold(std::int32_t a_scene)
-	{
-		SlotView view;
-		if (!SnapshotSlot(a_scene, view)) return false;
-		const auto* node = view.definition ? view.definition->FindNode(view.node) : nullptr;
-		return node && node->allowManualHold;
-	}
-
 	void SceneRuntime::SetSingleStage(std::int32_t a_scene)
 	{
 		std::lock_guard l{ _lock };
 		if (Slot* s = Resolve(a_scene)) {
 			s->singleStage = true;
-			REX::DEBUG("[Scene] scene {:#010x} pinned single-stage — any edge out of node '{}' ends it", a_scene, s->node);
+			REX::DEBUG("[Scene] scene {:#010x} pinned single-stage — leaving the playback segment or node '{}' ends it", a_scene, s->node);
 		}
 	}
 
@@ -423,11 +405,7 @@ namespace OSF::Scene
 			return -1;
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
-		const auto def = view.definition;  // null for plan scenes
-		if (!def) {
-			return Animation::GraphManager::GetSingleton().GetSceneStage(first);
-		}
-		return def->LinearStageOf(view.node);
+		return Animation::GraphManager::GetSingleton().GetSceneStage(first);
 	}
 
 	bool SceneRuntime::SetStage(std::int32_t a_scene, std::int32_t a_stage)
@@ -437,14 +415,7 @@ namespace OSF::Scene
 			return false;
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
-		const auto def = view.definition;
-		if (!def) {
-			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage, view.playbackId);
-		}
-		if (a_stage < 0 || static_cast<std::size_t>(a_stage) >= def->linearStages.size()) {
-			return false;
-		}
-		return SetNode(a_scene, def->linearStages[a_stage]);
+		return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage, view.playbackId);
 	}
 
 	std::int32_t SceneRuntime::GetSceneForActor(RE::Actor* a_actor)
@@ -463,7 +434,7 @@ namespace OSF::Scene
 			if (s.generation == 0 || s.ended) {
 				continue;
 			}
-			out.push_back(ActiveScene{ MakeToken(s.generation, slot), s.id, s.node, s.participants, s.playbackId });
+			out.push_back(ActiveScene{ MakeToken(s.generation, slot), s.node, s.participants, s.playbackId });
 		}
 		return out;
 	}

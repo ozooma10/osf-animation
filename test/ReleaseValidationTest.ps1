@@ -41,9 +41,11 @@ try {
     Set-Content "$scratch/source.txt" 'initial'
     [IO.File]::AppendAllText($dll, ' changed')
     Reject { Test-ReleaseBuildReceipt $scratch 'engine' } 'Build output changed'
-    foreach ($encoding in @([Text.Encoding]::UTF8, [Text.Encoding]::Unicode)) {
-        [IO.File]::WriteAllBytes($dll, ([byte[]](77,90) + $encoding.GetBytes('OSFAnimationTestHarness.json')))
-        Reject { Assert-ProductionDll $dll } 'Instrumented Animation DLL'
+    foreach ($marker in @('OSFAnimationTestHarness.json', 'OSFAnimationProfilingBuild')) {
+        foreach ($encoding in @([Text.Encoding]::UTF8, [Text.Encoding]::Unicode)) {
+            [IO.File]::WriteAllBytes($dll, ([byte[]](77,90) + $encoding.GetBytes($marker)))
+            Reject { Assert-ProductionDll $dll } 'Instrumented Animation DLL'
+        }
     }
     [IO.File]::WriteAllText($dll, 'MZ production fixture')
     Copy-Item -LiteralPath $dll -Destination "$stage/Core/SFSE/Plugins"

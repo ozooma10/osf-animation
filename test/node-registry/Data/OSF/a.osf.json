@@ -1,0 +1,123 @@
+{
+  "schema": 2,
+  "name": "Inherited label",
+  "camera": "none",
+  "pack": "Source pack",
+  "folder": "Defaults",
+  "priority": 4,
+  "weight": 6,
+  "unlisted": true,
+  "playerInputLock": false,
+  "tags": [
+    "Common",
+    "file"
+  ],
+  "roles": [
+    {
+      "name": "player",
+      "offset": {
+        "y": 2
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pack/head",
+      "priority": 9,
+      "tags": [
+        "COMMON",
+        "head"
+      ],
+      "stages": [
+        {
+          "loops": 2,
+          "clips": [
+            "Fixture/first.glb"
+          ]
+        },
+        {
+          "timer": 3,
+          "clips": [
+            "Fixture/last.glb"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "when": "end",
+          "to": "other/tail"
+        }
+      ]
+    },
+    {
+      "id": "pack/bad-target",
+      "clip": "Fixture/x.glb",
+      "edges": [
+        {
+          "when": "end",
+          "to": "missing/destination"
+        }
+      ]
+    },
+    {
+      "id": "pack/dependent",
+      "clip": "Fixture/x.glb",
+      "edges": [
+        {
+          "when": "end",
+          "to": "pack/bad-target"
+        }
+      ]
+    },
+    {
+      "id": "pack/old-use",
+      "use": "other/tail",
+      "clip": "Fixture/x.glb"
+    },
+    {
+      "id": "pack/old-entry",
+      "entry": "unused",
+      "clip": "Fixture/x.glb"
+    },
+    {
+      "id": "pack/old-map",
+      "linearStages": [
+        "unused"
+      ],
+      "clip": "Fixture/x.glb"
+    },
+    {
+      "id": "pack/nested",
+      "nodes": [],
+      "clip": "Fixture/x.glb"
+    },
+    {
+      "id": "pack/stage-lane",
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ],
+          "cue": [
+            {
+              "at": "enter",
+              "id": "old"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pack/frozen-count",
+      "loops": 1,
+      "stages": [
+        {
+          "hold": true,
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ]
+    }
+  ]
+}

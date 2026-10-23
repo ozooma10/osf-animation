@@ -9,6 +9,8 @@
 #include "Camera/CameraService.h"
 #include "Input/InputService.h"
 #include "Player/PlayerInputLockService.h"
+#include "Profiling/Profile.h"
+#include "Profiling/ProfilerHost.h"
 #include "UI/FadeService.h"
 #include "UI/Subtitle.h"
 #include "Util/ClipPath.h"
@@ -315,7 +317,8 @@ namespace OSF::Animation
 	{
 		std::shared_ptr<Graph> g;
 		{
-			std::unique_lock l{ stateLock };
+			OSF_PROFILE_LOCK(std::unique_lock, l, "Lock.GM.state.unique", stateLock);
+			OSF_PROFILE_SCOPE("Anim.PlayDecoded.Hold");  // exclusive: every actor animation update waits on this
 			auto& slot = graphs[a_actor];
 			if (slot) {
 				// Don't clobber a scene participant: its next segment tick would overwrite this clip anyway.
@@ -365,7 +368,8 @@ namespace OSF::Animation
 
 	void GraphManager::RemoveFadedGraph(RE::TESObjectREFR* a_refr)
 	{
-		std::unique_lock l{ stateLock };
+		OSF_PROFILE_LOCK(std::unique_lock, l, "Lock.GM.state.unique", stateLock);
+		OSF_PROFILE_SCOPE("Anim.RemoveFaded.Hold");  // exclusive: every actor animation update waits on this
 		auto iter = graphs.find(a_refr);
 		if (iter == graphs.end()) {
 			return;
@@ -474,7 +478,8 @@ namespace OSF::Animation
 		const auto startSegment = static_cast<uint32_t>(a_startSegment);
 		std::vector<std::function<void()>> deferred;
 		{
-			std::unique_lock l{ stateLock };
+			OSF_PROFILE_LOCK(std::unique_lock, l, "Lock.GM.state.unique", stateLock);
+			OSF_PROFILE_SCOPE("Anim.PlayPrepared.Hold");  // exclusive: every actor animation update waits on this
 			if (prepared->worldEpoch != _worldEpoch.load(std::memory_order_acquire)) return false;
 
 			// Admit the full cast before mutating any graph; an owner may replace only the playback it names.
@@ -743,7 +748,8 @@ namespace OSF::Animation
 
 		std::vector<std::function<void()>> deferred;
 		{
-			std::unique_lock l{ stateLock };
+			OSF_PROFILE_LOCK(std::unique_lock, l, "Lock.GM.state.unique", stateLock);
+			OSF_PROFILE_SCOPE("Anim.StopScene.Hold");  // exclusive: every actor animation update waits on this
 			auto iter = graphs.find(a_actor);
 			if (iter == graphs.end() || !iter->second->playbackSession ||
 				(a_expectedPlayback && iter->second->playbackSession->playbackId != a_expectedPlayback) ||
@@ -760,7 +766,8 @@ namespace OSF::Animation
 	{
 		std::vector<std::function<void()>> deferred;
 		{
-			std::unique_lock l{ stateLock };
+			OSF_PROFILE_LOCK(std::unique_lock, l, "Lock.GM.state.unique", stateLock);
+			OSF_PROFILE_SCOPE("Anim.StopByPtr.Hold");  // exclusive: every actor animation update waits on this
 			StopPlaybackLocked(a_session, deferred);
 		}
 		FlushDeferredTasks(deferred);
@@ -773,6 +780,7 @@ namespace OSF::Animation
 #endif
 		// Bump the epoch first so already-queued tasks from the discarded world no-op.
 		_worldEpoch.fetch_add(1, std::memory_order_acq_rel);
+		OSF_PROFILE_HOST_WORLD_RESET(a_reason ? a_reason : "unknown");
 		API::EngineServices::WorldReset();
 		// A load can begin mid-save-op; don't let the save window outlive its world.
 		_saveWindow.store(false, std::memory_order_relaxed);
@@ -800,7 +808,8 @@ namespace OSF::Animation
 			clear();
 		}
 
-		std::unique_lock l{ stateLock };
+		OSF_PROFILE_LOCK(std::unique_lock, l, "Lock.GM.state.unique", stateLock);
+		OSF_PROFILE_SCOPE("Anim.StopAll.Hold");  // exclusive: every actor animation update waits on this
 		if (playbackSessions.empty() && graphs.empty()) {
 			return;
 		}
@@ -1407,6 +1416,7 @@ namespace OSF::Animation
 
 		// Re-assert kAnimationDriven after AI updates; save begin/end release it around serialization.
 		if (!_saveWindow.load(std::memory_order_relaxed)) {
+			OSF_PROFILE_SCOPE("Anim.Maint.AnimDrivenFlags");
 			SetAnchoredNpcAnimationDriven(true);
 		}
 
@@ -1422,7 +1432,8 @@ namespace OSF::Animation
 
 		std::vector<std::shared_ptr<PlaybackSession>> stalled;
 		{
-			std::shared_lock l{ stateLock };
+			OSF_PROFILE_SCOPE("Anim.Maint.StallScan");
+			OSF_PROFILE_LOCK(std::shared_lock, l, "Lock.GM.state.shared", stateLock);
 			for (const auto& s : playbackSessions) {
 				if (!s || s->ended.load(std::memory_order_relaxed) || s->endQueued.load(std::memory_order_relaxed)) {
 					continue;
@@ -1458,7 +1469,8 @@ namespace OSF::Animation
 		// pins the REFR and keeps graphCount > 0. Collect under the shared lock, remove outside it.
 		std::vector<RE::NiPointer<RE::TESObjectREFR>> strandedGraphs;
 		{
-			std::shared_lock l{ stateLock };
+			OSF_PROFILE_SCOPE("Anim.Maint.StrandedSweep");
+			OSF_PROFILE_LOCK(std::shared_lock, l, "Lock.GM.state.shared", stateLock);
 			for (auto& [refr, g] : graphs) {
 				std::scoped_lock gl{ g->stateLock };
 				if (g->playbackSession || g->removalQueued) {
@@ -1554,26 +1566,39 @@ namespace OSF::Animation
 			return;
 		}
 
-		std::shared_lock l{ gm.stateLock };
+		// Every animated actor's update lands here (about 7 per frame each) while any graph exists.
+		OSF_PROFILE_SCOPE("Anim.GraphUpdate");
+		OSF_PROFILE_LOCK(std::shared_lock, l, "Lock.GM.state.shared", gm.stateLock);
 		auto iter = gm.graphs.find(refr);
 		if (iter == gm.graphs.end()) {
+			OSF_PROFILE_COUNTER("Anim.GraphUpdate.Miss", 1);
 			return;
 		}
+		OSF_PROFILE_COUNTER("Anim.GraphUpdate.Hit", 1);
 		// Shared stateLock pins the map entry; bind by reference to skip a refcount RMW on this hot path.
 		auto& g = iter->second;
 
 		std::vector<std::function<void()>> deferred;
 		{
-			std::unique_lock gl{ g->stateLock };
-			g->Sample(PlaybackDelta(*a_updateData), a_this);
+			OSF_PROFILE_LOCK(std::unique_lock, gl, "Lock.Graph.state", g->stateLock);
+			{
+				OSF_PROFILE_SCOPE("Anim.GraphUpdate.Sample");
+				g->Sample(PlaybackDelta(*a_updateData), a_this);
+			}
 
 			// Marks before auto-end: the queue is FIFO and final at:"end" marks must precede the stop task.
-			gm.QueueTimedMarksIfFired(*g, deferred);
-			gm.QueueAutoEndIfFinished(*g, deferred);
-			gm.QueueFadeRemovalIfDone(*g, deferred);
+			{
+				OSF_PROFILE_SCOPE("Anim.GraphUpdate.Queue");
+				gm.QueueTimedMarksIfFired(*g, deferred);
+				gm.QueueAutoEndIfFinished(*g, deferred);
+				gm.QueueFadeRemovalIfDone(*g, deferred);
+			}
 		}
 		l.unlock();
-		FlushDeferredTasks(deferred);
+		{
+			OSF_PROFILE_SCOPE("Anim.GraphUpdate.Flush");
+			FlushDeferredTasks(deferred);
+		}
 	}
 
 	uint64_t GraphManager::Hook_ModelNodeUpdate(
@@ -1584,17 +1609,20 @@ namespace OSF::Animation
 			auto& gm = GetSingleton();
 			// Runs per skeleton per frame game-wide; lock-free when idle. A racing insert stamps next frame.
 			if (gm.graphCount.load(std::memory_order_relaxed) > 0) {
-				std::shared_lock l{ gm.stateLock };
+				// Every skeleton composed in the loaded area pays this while any graph exists.
+				OSF_PROFILE_SCOPE("Anim.Compose");
+				OSF_PROFILE_LOCK(std::shared_lock, l, "Lock.GM.state.shared", gm.stateLock);
 				if (!gm.graphs.empty()) {
 					for (auto& [refr, g] : gm.graphs) {
 						// Atomic compare, then verify under the graph lock. With no published target, ResolveAndBind accepts
 						// only this graph's current node, so the first compose after a 3D rebuild stamps immediately.
 						const auto* publishedTarget = g->StampTarget();
 						if (publishedTarget == a_this || publishedTarget == nullptr) {
-						std::unique_lock gl{ g->stateLock };
+						OSF_PROFILE_LOCK(std::unique_lock, gl, "Lock.Graph.state", g->stateLock);
 						bool recovered = false;
 						if (g->StampTarget() != a_this) {
-							if (!g->ResolveAndBind(a_this)) {
+							// An unbound graph tries every skeleton composed in the world until it rebinds.
+							if (!OSF_PROFILE_CALL("Anim.Compose.RecoveryBind", g->ResolveAndBind(a_this))) {
 								continue;
 							}
 							recovered = true;
@@ -1603,7 +1631,10 @@ namespace OSF::Animation
 							REX::TRACE("[Anim] compose recovered rig binding — actor {:08X}, modelNode {}",
 								refr ? refr->formID : 0, static_cast<const void*>(a_this));
 						}
-						g->StampPose(a_this);
+						{
+							OSF_PROFILE_SCOPE("Anim.Compose.StampPose");
+							g->StampPose(a_this);
+						}
 						if (g->playbackSession && spdlog::should_log(spdlog::level::trace)) {
 							const auto stampMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 								std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -1628,6 +1659,7 @@ namespace OSF::Animation
 							doPin = true;
 						}
 						if (doPin && a_parentTransform) {
+							OSF_PROFILE_SCOPE("Anim.Compose.RootPin");
 							float* root = reinterpret_cast<float*>(a_parentTransform);
 							root[12] = pinWorld.x;  // NiTransform translation (+0x30)
 							root[13] = pinWorld.y;

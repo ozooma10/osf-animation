@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Minibota (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/minibota/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/minibota",
       "name": "Vanilla · Minibota",

@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Sfbgs004-human (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/sfbgs004/human/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/sfbgs004-human/furniture/rover",
       "name": "Vanilla · Sfbgs004-human / Furniture / Rover",

@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Animation development smoke fixtures",
   "unlisted": true,
   "camera": "none",
@@ -9,38 +9,92 @@
   "clearHeldItems": false,
   "fade": false,
   "sceneControls": false,
-  "roles": [{ "name": "player" }],
-  "scenes": [
+  "roles": [
+    {
+      "name": "player"
+    }
+  ],
+  "nodes": [
     {
       "id": "osf.smoke.linear",
       "stages": [
-        { "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] },
-        { "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }
+        {
+          "loops": 0,
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        },
+        {
+          "loops": 0,
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        }
       ]
     },
     {
-      "id": "osf.smoke.graph",
-      "entry": "first",
-      "nodes": [
+      "id": "osf.smoke.graph/first",
+      "stages": [
         {
-          "id": "first",
-          "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }],
           "loops": 0,
-          "edges": [{ "id": "next", "label": "Next", "to": "middle", "when": "advance" }]
-        },
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        }
+      ],
+      "loops": 0,
+      "edges": [
         {
-          "id": "middle",
-          "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }],
-          "loops": 0,
-          "edges": [{ "id": "finish", "label": "Finish", "to": "timed", "when": "advance", "default": true }]
-        },
+          "id": "next",
+          "label": "Next",
+          "to": "osf.smoke.graph/middle",
+          "when": "advance"
+        }
+      ]
+    },
+    {
+      "id": "osf.smoke.graph/middle",
+      "stages": [
         {
-          "id": "timed",
-          "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }],
           "loops": 0,
-          "timer": 0.5,
-          "cue": [{ "atFrame": 1, "id": "smoke.tick" }],
-          "edges": [{ "to": "$end", "when": "timer" }]
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        }
+      ],
+      "loops": 0,
+      "edges": [
+        {
+          "id": "finish",
+          "label": "Finish",
+          "to": "osf.smoke.graph/timed",
+          "when": "advance",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "osf.smoke.graph/timed",
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        }
+      ],
+      "loops": 0,
+      "timer": 0.5,
+      "cue": [
+        {
+          "atFrame": 1,
+          "id": "smoke.tick"
+        }
+      ],
+      "edges": [
+        {
+          "to": "$end",
+          "when": "timer"
         }
       ]
     }

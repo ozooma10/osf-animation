@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Mantaa (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/mantaa/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/mantaa",
       "name": "Vanilla · Mantaa",

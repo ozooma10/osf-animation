@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Animation feature acceptance fixtures",
   "unlisted": true,
   "camera": "none",
@@ -9,27 +9,67 @@
   "clearHeldItems": false,
   "fade": false,
   "sceneControls": false,
-  "roles": [{ "name": "player" }],
-  "scenes": [
+  "roles": [
+    {
+      "name": "player"
+    }
+  ],
+  "nodes": [
     {
       "id": "osf.smoke.mechanisms",
-      "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"],
-        "action": [
-          { "at": "enter", "type": "osf.control.lock" },
-          { "at": "enter", "type": "osf.equipment.hide", "role": "player" }
-        ]
-      }]
+      "action": [
+        {
+          "at": "enter",
+          "type": "osf.control.lock"
+        },
+        {
+          "at": "enter",
+          "type": "osf.equipment.hide",
+          "role": "player"
+        }
+      ],
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        }
+      ]
     },
     {
       "id": "osf.smoke.additive",
-      "roles": [{ "name": "player", "mask": "upperBody", "poseMode": "additive", "poseWeight": 0.25 }],
-      "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }]
+      "roles": [
+        {
+          "name": "player",
+          "mask": "upperBody",
+          "poseMode": "additive",
+          "poseWeight": 0.25
+        }
+      ],
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        }
+      ]
     },
     {
       "id": "osf.smoke.match",
       "unlisted": false,
-      "tags": ["osf-smoke-only"],
-      "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }]
+      "tags": [
+        "osf-smoke-only"
+      ],
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "meshes/actors/human/animations/common/cower_idle.af"
+          ]
+        }
+      ]
     }
   ]
 }

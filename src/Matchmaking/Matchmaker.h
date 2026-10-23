@@ -14,7 +14,7 @@
 namespace OSF::Registry
 {
 	struct SceneRole;
-	struct SceneDef;
+	struct NodeDef;
 }
 
 namespace OSF::Animation { enum class WorldPlacementMode : std::uint8_t; }
@@ -50,11 +50,11 @@ namespace OSF::Matchmaking
 	bool RoleAccepts(const Registry::SceneRole& a_role, RE::Actor* a_actor);
 
 	// Empty role names keep caller order; otherwise every actor must name exactly one role.
-	bool BindSceneRoles(const Registry::SceneDef& a_def, const std::vector<RE::Actor*>& a_actors,
+	bool BindSceneRoles(const Registry::NodeDef& a_def, const std::vector<RE::Actor*>& a_actors,
 		const std::vector<std::string>& a_roleNames, std::vector<RE::Actor*>& a_ordered, std::string& a_error);
 
 	// Any-of: listed base form or listed keyword. a_matchedKeyword gets the matching keyword (null on a base-form match).
-	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword = nullptr);
+	bool AnchorAccepts(const Registry::NodeDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword = nullptr);
 
 	// Memoizes HasKeyword per unique keyword so a sweep over many defs costs one engine call per distinct keyword.
 	class AnchorMatchCache
@@ -63,7 +63,7 @@ namespace OSF::Matchmaking
 		explicit AnchorMatchCache(RE::TESObjectREFR* a_ref);
 
 		// False when constructed with a null ref.
-		bool Accepts(const Registry::SceneDef& a_def);
+		bool Accepts(const Registry::NodeDef& a_def);
 
 	private:
 		RE::TESObjectREFR*                       ref = nullptr;

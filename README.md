@@ -2,6 +2,10 @@
 
 OSF Animation is a native animation and scene-runtime framework for Starfield.
 
+This checkout targets **2.0.0 (unreleased)**: global node IDs, schema 2 content, scene ABI 2.0,
+services ABI 4.0, and the engine-free depth-1 layer composition seam. Consumers must migrate together.
+See [migration](docs/V2_MIGRATION.md) and [offline acceptance](docs/RELEASE_2.0.0_ACCEPTANCE.md).
+
 Key Features:
 - Synced multi-actor AF/GLTF/GLB playback
 - Optional OSF Animation Browser addon with its own native DLL, the scene browser, animation library (4,600+ base-game clips incl. creatures), and emote wheel
@@ -24,7 +28,8 @@ Key Features:
 - **Pack authors:** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
   ship animation scenes with JSON plus GLB/AF clips, no Papyrus or scripting required; full schema in [docs/SCENE_SCHEMA.md](docs/SCENE_SCHEMA.md).
 
-- **Developers:** [profiling workflow](docs/PROFILING.md) covers WPR/WPA CPU sampling.
+- **Developers:** [profiling workflow](docs/PROFILING.md) covers the development-only profiler override
+  (named scopes, lock waits, allocations, per-frame cost, Perfetto timelines) and WPR/WPA CPU sampling.
 - **Experimental import tools:** [Skyrim human animation importer](tools/skyrim-import/README.md)
   converts local HKX fixtures through background Blender; see its validation limits.
 - **Before releasing:** run `pwsh -NoProfile -File tools/test-release.ps1 -Interactive` for native,
@@ -41,19 +46,19 @@ Key Features:
   Playback and the native/Papyrus APIs remain available with both Browser and OSF UI absent.
   See [native addon ownership and public services](docs/BROWSER_ADDON.md).
 
-## Installing or upgrading to 1.5.0
+## Installing or upgrading to 2.0.0
 
-Install **OSF Animation v1.5.0.zip** for the engine. For the browser and wheel, also
-install **OSF Animation Browser v1.5.0.zip** and OSF UI 2.0.0+. The Browser installer
+Install **OSF Animation v2.0.0.zip** for the engine. For the browser and wheel, also
+install **OSF Animation Browser v2.0.0.zip** and OSF UI 2.0.0+. The Browser installer
 offers the optional vanilla/creature library and emote content. OSF Settings 1.0.0+
 provides engine settings, hotkeys, and the launcher. Configure Browser preferences inside the Browser.
 
 Replace the old Animation mod files instead of merging; preserve custom content
 and saved user data. Install matching engine/Browser versions and **rebind the two
 browser hotkeys**. Engine settings use defaults unless saved under `osf.animation.engine`.
-Wheel pins and scene IDs remain unchanged.
+Wheel pins retain their storage; references to changed content IDs need updating for the global-node catalog.
 
-Follow the [1.5.0 upgrade guide](docs/UPGRADING.md) for the replacement steps,
+Follow the [2.0.0 upgrade guide](docs/UPGRADING.md) for the replacement steps,
 saved-preference behavior, and first-launch checks. See the [changelog](CHANGELOG.md)
 for the complete release notes.
 

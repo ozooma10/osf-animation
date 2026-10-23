@@ -1,4 +1,5 @@
 #include "Registry/ContentRegistry.h"
+#include "Profiling/Profile.h"
 #include "Registry/ContentRegistryClips.h"
 #include "Util/StringUtil.h"
 #include "Util/Species.h"
@@ -28,24 +29,21 @@ namespace OSF::Registry
 
 	void ContentRegistry::PublishProviders()
 	{
-		if (providers.empty()) {
-			snapshot.store(baseSnapshot, std::memory_order_release);
-			return;
-		}
+		OSF_PROFILE_SCOPE("Registry.PublishProviders");
 		auto next = std::make_shared<ContentRegistrySnapshot>(*baseSnapshot);
 		for (const auto& [owner, provider] : providers) {
 			try {
 				const auto entries = provider(*baseSnapshot);
 				if (entries.size() > 100000) throw std::runtime_error("too many clip scenes");
-				std::unordered_map<std::string, SceneDef> additions;
+				std::unordered_map<std::string, NodeDef> additions;
 				for (const auto& entry : entries) {
 					const auto id = Util::ToLower(entry.id);
-					if (id.empty() || id.size() > 512 || next->scenes.contains(id) || additions.contains(id))
+					if (id.empty() || id.size() > 512 || next->nodes.contains(id) || additions.contains(id))
 						throw std::runtime_error("invalid or duplicate scene id");
-					const auto source = baseSnapshot->scenes.find(Util::ToLower(entry.source));
-					if (source == baseSnapshot->scenes.end() || entry.node >= source->second.nodes.size())
-						throw std::runtime_error("unknown source scene or node");
-					const auto& node = source->second.nodes[entry.node];
+					const auto source = baseSnapshot->nodes.find(Util::ToLower(entry.source));
+					if (source == baseSnapshot->nodes.end())
+						throw std::runtime_error("unknown source node");
+					const auto& node = source->second;
 					if (entry.stage >= node.stages.size() || entry.clip >= node.stages[entry.stage].clips.size())
 						throw std::runtime_error("unknown source stage or clip");
 					auto clip = node.stages[entry.stage].clips[entry.clip];
@@ -53,7 +51,7 @@ namespace OSF::Registry
 					if (installed == baseSnapshot->clipAvailability.end() || !installed->second)
 						throw std::runtime_error("source clip is unavailable");
 					if (entry.clearOffset) clip.offset.reset();
-					SceneDef def;
+					NodeDef def;
 					def.id = entry.id;
 					def.name = entry.name;
 					def.provider = owner;
@@ -76,16 +74,17 @@ namespace OSF::Registry
 					stage.name = def.name;
 					stage.tags = def.tags;
 					stage.clips.push_back(std::move(clip));
-					ContentRegistryClips::DesugarLinear(def, {stage});
+					def.stages.push_back(std::move(stage));
 					additions.emplace(id, std::move(def));
 				}
-				next->scenes.merge(additions);
+				next->nodes.merge(additions);
 			} catch (const std::exception& e) {
 				REX::ERROR("[Registry] content provider '{}' rejected: {}", owner, e.what());
 			} catch (...) {
 				REX::ERROR("[Registry] content provider '{}' failed", owner);
 			}
 		}
+		FinalizePublication(*next);
 		snapshot.store(std::move(next), std::memory_order_release);
 	}
 }

@@ -24,12 +24,12 @@ namespace OSF::API
 {
 	namespace
 	{
-		constexpr std::size_t kStartOptionsV1Size = offsetof(OSFStartOptions, inPlaceMode);
+		constexpr std::size_t kStartOptionsSize = sizeof(OSFStartOptions);
 
 		bool ValidStartOptions(const OSFStartOptions& a_opts)
 		{
-			if (a_opts.size < kStartOptionsV1Size) {
-				REX::WARN("[API] rejected OSFStartOptions with size {} (minimum {})", a_opts.size, kStartOptionsV1Size);
+			if (a_opts.size < kStartOptionsSize) {
+				REX::WARN("[API] rejected OSFStartOptions with size {} (minimum {})", a_opts.size, kStartOptionsSize);
 				return false;
 			}
 			return true;
@@ -39,13 +39,9 @@ namespace OSF::API
 		{
 			// camera may lack a NUL terminator.
 			const std::size_t len = ::strnlen(a_opts.camera, sizeof(a_opts.camera));
-			// inPlaceMode (minor 2) only when the consumer's stamped size covers it.
-			std::int32_t inPlaceMode = -1;
-			if (a_opts.size >= offsetof(OSFStartOptions, inPlaceMode) + sizeof(a_opts.inPlaceMode)) {
-				inPlaceMode = a_opts.inPlaceMode;
-			}
-			auto over = Scene::MakeOverrides(a_opts.stripMode, a_opts.lockPlayerMode, a_opts.playerControlMode,
-				a_opts.fadeMode, inPlaceMode, std::string_view(a_opts.camera, len), a_opts.loopScale);
+			const std::int32_t followActorMode = a_opts.followActorMode;
+			auto over = Scene::MakeOverrides(a_opts.hideApparelMode, a_opts.playerInputLockMode, a_opts.sceneControlsMode,
+				a_opts.fadeMode, followActorMode, std::string_view(a_opts.camera, len), a_opts.loopScale);
 			over.anchorRef = a_opts.anchorRef;
 			over.anchorBase = Scene::MakeAnchorAt(a_opts.anchorRef, std::nullopt);
 			return over;
@@ -90,8 +86,6 @@ namespace OSF::API
 				launch.worldAnchor = MakeAnchor(a_opts);
 			}
 			launch.stage = a_opts.startStage;
-            if (a_opts.size >= offsetof(OSFStartOptions, startNode) + sizeof(a_opts.startNode) && a_opts.startNode)
-                launch.node = a_opts.startNode;
 			// Preserve native ABI behavior; Papyrus rejects out-of-range linear stages.
 			launch.invalidStage = Scene::InvalidStagePolicy::kUseEntry;
 			launch.speed = a_opts.speed;
@@ -101,17 +95,16 @@ namespace OSF::API
 
 		// OSFStartOptions ABI guard: append fields only at the end and bump the MINOR.
 		static_assert(std::is_standard_layout_v<OSFStartOptions>, "OSFStartOptions must be standard-layout (POD ABI)");
-		static_assert(sizeof(OSFStartOptions) == 144, "OSFStartOptions layout changed — update the size + version, ship a new header");
+		static_assert(sizeof(OSFStartOptions) == 136, "OSFStartOptions layout changed — update the size + version, ship a new header");
 		static_assert(offsetof(OSFStartOptions, size) == 0, "OSFStartOptions.size must be first (cbSize prefix)");
 		static_assert(offsetof(OSFStartOptions, camera) == 20, "OSFStartOptions.camera offset drift");
 		static_assert(offsetof(OSFStartOptions, startStage) == 96, "OSFStartOptions.startStage offset drift");
 		static_assert(offsetof(OSFStartOptions, anchorHeadingRad) == 116, "OSFStartOptions.anchorHeadingRad offset drift");
 		static_assert(offsetof(OSFStartOptions, anchorRef) == 120, "OSFStartOptions.anchorRef offset drift");
-		static_assert(offsetof(OSFStartOptions, inPlaceMode) == 128, "OSFStartOptions.inPlaceMode offset drift (MINOR 2 append)");
-        static_assert(offsetof(OSFStartOptions, startNode) == 136);
+		static_assert(offsetof(OSFStartOptions, followActorMode) == 128, "OSFStartOptions.followActorMode offset drift");
 		static_assert(sizeof(OSFStartOptions::camera) == 64, "OSFStartOptions.camera buffer size changed");
 
-		// OSFSceneQuery / OSFSceneMatch (minor 5) ABI guards: append only, size-prefixed.
+		// OSFSceneQuery / OSFSceneMatch ABI guards: append only, size-prefixed.
 		static_assert(std::is_standard_layout_v<OSFSceneQuery> && std::is_standard_layout_v<OSFSceneMatch>);
 		static_assert(sizeof(OSFSceneQuery) == 64, "OSFSceneQuery layout changed - append only and bump the MINOR");
 		static_assert(offsetof(OSFSceneQuery, size) == 0 && offsetof(OSFSceneQuery, requireAnchor) == 4);
@@ -119,13 +112,12 @@ namespace OSF::API
 		static_assert(offsetof(OSFSceneQuery, anchor) == 40 && offsetof(OSFSceneQuery, allOfCount) == 48);
 		static_assert(offsetof(OSFSceneQuery, roleCount) == 60);
 		static_assert(sizeof(OSFSceneMatch) == 808, "OSFSceneMatch layout changed - append only and bump the MINOR");
-		static_assert(offsetof(OSFSceneMatch, sceneId) == 8 && offsetof(OSFSceneMatch, roleIndex) == 264);
+		static_assert(offsetof(OSFSceneMatch, nodeId) == 8 && offsetof(OSFSceneMatch, roleIndex) == 264);
 		static_assert(offsetof(OSFSceneMatch, roles) == 296);
 
 		static_assert(std::is_standard_layout_v<OSFSceneEvent>, "OSFSceneEvent must be standard-layout (POD ABI)");
-		static_assert(offsetof(OSFSceneEvent, detectedNs) == 104 && sizeof(OSFSceneEvent) == 112, "OSFSceneEvent layout changed - bump the API version");
+		static_assert(offsetof(OSFSceneEvent, detectedNs) == 96 && sizeof(OSFSceneEvent) == 104, "OSFSceneEvent layout changed - bump the API version");
 		static_assert(offsetof(OSFSceneEvent, cause) == 88);
-		static_assert(offsetof(OSFSceneEvent, sceneId) == 96);
 		static_assert(offsetof(OSFSceneEvent, size) == 0, "OSFSceneEvent.size must be first");
 		static_assert(offsetof(OSFSceneEvent, sceneHandle) == 4, "OSFSceneEvent.sceneHandle offset drift");
 		static_assert(offsetof(OSFSceneEvent, eventType) == 8, "OSFSceneEvent.eventType offset drift");
@@ -426,8 +418,7 @@ namespace OSF::API
 // Returns nullptr on ABI mismatch or before the API is marked ready.
 extern "C" __declspec(dllexport) OSF::API::IOSFSceneAPI* OSF_RequestSceneAPI(std::uint32_t a_abiVersion)
 {
-	if ((a_abiVersion >> 16) != OSF::API::kOSFSceneAPIMajor ||
-		(a_abiVersion & 0xFFFFu) > OSF::API::kOSFSceneAPIMinor) {
+	if (!OSF::API::SceneRequestSupported(a_abiVersion, OSF::API::kOSFSceneAPIVersion)) {
 		return nullptr;
 	}
 	return OSF::API::SceneAPIImpl::GetSingleton().IfReady();

@@ -12,7 +12,8 @@ Exit codes: 0 passed, 1 drift or provenance mismatch, 2 sources required but mis
 [CmdletBinding()]
 param(
     # Fail (exit 2) instead of skipping when a sibling source checkout is missing.
-    [switch]$RequireSources
+    [switch]$RequireSources,
+    [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -45,51 +46,72 @@ function Invoke-GitBytes([string]$Repository, [string[]]$Arguments) {
     } finally { $process.Dispose() }
 }
 
-$failures = [Collections.Generic.List[string]]::new()
-$notes = [Collections.Generic.List[string]]::new()
-$missingSources = [Collections.Generic.List[string]]::new()
-
-foreach ($file in $lock.files) {
-    $path = Join-Path $repo $file.path
-    if (-not (Test-Path -LiteralPath $path)) { $failures.Add("$($file.path): missing"); continue }
-    $actual = Get-NormalizedHash ([IO.File]::ReadAllBytes($path))
-    if ($actual -ne $file.sha256) {
-        $failures.Add("$($file.path): hash $actual does not match the lock; re-vendor from $($file.source) $($lock.sources.($file.source).tag) or update sdk-lock.json")
-    }
-}
-
-foreach ($property in $lock.sources.PSObject.Properties) {
-    $name = $property.Name
-    $source = $property.Value
-    $sibling = [IO.Path]::GetFullPath((Join-Path $repo $source.sibling))
-    if (-not (Test-Path -LiteralPath (Join-Path $sibling '.git'))) {
-        $missingSources.Add("${name}: no checkout at $sibling; provenance not checked")
-        continue
-    }
-    $tagged = Invoke-GitBytes $sibling @('rev-parse', '--verify', '--quiet', "$($source.tag)^{commit}")
-    if ($null -eq $tagged) {
-        $notes.Add("${name}: tag $($source.tag) not present in $sibling; checked the locked commit only")
-    } elseif ([Text.Encoding]::ASCII.GetString($tagged).Trim() -ne $source.commit) {
-        $failures.Add("${name}: tag $($source.tag) resolves to $([Text.Encoding]::ASCII.GetString($tagged).Trim()), lock says $($source.commit)")
-    }
-    foreach ($file in @($lock.files | Where-Object source -eq $name)) {
-        $blob = Invoke-GitBytes $sibling @('cat-file', 'blob', "$($source.commit):$($file.sourcePath)")
-        if ($null -eq $blob) {
-            $failures.Add("$($file.path): $($file.sourcePath) not found at $name $($source.commit)")
-        } elseif ((Get-NormalizedHash $blob) -ne $file.sha256) {
-            $failures.Add("$($file.path): lock hash does not match $($file.sourcePath) at $name $($source.commit)")
-        }
-        $current = Join-Path $sibling $file.sourcePath
-        if ((Test-Path -LiteralPath $current) -and (Get-NormalizedHash ([IO.File]::ReadAllBytes($current))) -ne $file.sha256) {
-            $notes.Add("$($file.path): sibling $name working copy of $($file.sourcePath) differs from the locked release (newer SDK?)")
+. (Join-Path $PSScriptRoot 'WorkflowCache.ps1')
+$null = Invoke-WorkflowCached -Stamp (Join-Path $repo 'build/workflow-cache/sdk-lock.json') -Force:$Force -Fingerprint {
+    $paths = @($PSCommandPath, "$PSScriptRoot/WorkflowCache.ps1", "$repo/sdk-lock.json")
+    $values = @([string]$RequireSources)
+    foreach ($file in $lock.files) { $paths += Join-Path $repo $file.path }
+    foreach ($property in $lock.sources.PSObject.Properties) {
+        $source = $property.Value
+        $sibling = [IO.Path]::GetFullPath((Join-Path $repo $source.sibling))
+        $values += [string](Test-Path -LiteralPath (Join-Path $sibling '.git'))
+        $tagged = Invoke-GitBytes $sibling @('rev-parse', '--verify', '--quiet', "$($source.tag)^{commit}")
+        $values += if ($null -eq $tagged) { 'missing-tag' } else { [Convert]::ToHexString($tagged) }
+        foreach ($file in @($lock.files | Where-Object source -eq $property.Name)) {
+            $paths += Join-Path $sibling $file.sourcePath
+            $blob = Invoke-GitBytes $sibling @('cat-file', 'blob', "$($source.commit):$($file.sourcePath)")
+            $values += if ($null -eq $blob) { 'missing-blob' } else { [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([byte[]]$blob)) }
         }
     }
-}
+    Get-WorkflowFingerprint -Paths $paths -Values $values
+} -Action {
+    $failures = [Collections.Generic.List[string]]::new()
+    $notes = [Collections.Generic.List[string]]::new()
+    $missingSources = [Collections.Generic.List[string]]::new()
 
-foreach ($note in $notes) { Write-Host "note: $note" }
-foreach ($missing in $missingSources) { Write-Host "skipped: $missing" }
-foreach ($failure in $failures) { Write-Host "FAILED: $failure" }
-if ($failures.Count) { exit 1 }
-if ($RequireSources -and $missingSources.Count) { exit 2 }
-Write-Host "SDK lock: $(@($lock.files).Count) vendored file(s) match $(@($lock.sources.PSObject.Properties | ForEach-Object { "$($_.Name) $($_.Value.tag)" }) -join ', ')"
+    foreach ($file in $lock.files) {
+        $path = Join-Path $repo $file.path
+        if (-not (Test-Path -LiteralPath $path)) { $failures.Add("$($file.path): missing"); continue }
+        $actual = Get-NormalizedHash ([IO.File]::ReadAllBytes($path))
+        if ($actual -ne $file.sha256) {
+            $failures.Add("$($file.path): hash $actual does not match the lock; re-vendor from $($file.source) $($lock.sources.($file.source).tag) or update sdk-lock.json")
+        }
+    }
+
+    foreach ($property in $lock.sources.PSObject.Properties) {
+        $name = $property.Name
+        $source = $property.Value
+        $sibling = [IO.Path]::GetFullPath((Join-Path $repo $source.sibling))
+        if (-not (Test-Path -LiteralPath (Join-Path $sibling '.git'))) {
+            $missingSources.Add("${name}: no checkout at $sibling; provenance not checked")
+            continue
+        }
+        $tagged = Invoke-GitBytes $sibling @('rev-parse', '--verify', '--quiet', "$($source.tag)^{commit}")
+        if ($null -eq $tagged) {
+            $notes.Add("${name}: tag $($source.tag) not present in $sibling; checked the locked commit only")
+        } elseif ([Text.Encoding]::ASCII.GetString($tagged).Trim() -ne $source.commit) {
+            $failures.Add("${name}: tag $($source.tag) resolves to $([Text.Encoding]::ASCII.GetString($tagged).Trim()), lock says $($source.commit)")
+        }
+        foreach ($file in @($lock.files | Where-Object source -eq $name)) {
+            $blob = Invoke-GitBytes $sibling @('cat-file', 'blob', "$($source.commit):$($file.sourcePath)")
+            if ($null -eq $blob) {
+                $failures.Add("$($file.path): $($file.sourcePath) not found at $name $($source.commit)")
+            } elseif ((Get-NormalizedHash $blob) -ne $file.sha256) {
+                $failures.Add("$($file.path): lock hash does not match $($file.sourcePath) at $name $($source.commit)")
+            }
+            $current = Join-Path $sibling $file.sourcePath
+            if ((Test-Path -LiteralPath $current) -and (Get-NormalizedHash ([IO.File]::ReadAllBytes($current))) -ne $file.sha256) {
+                $notes.Add("$($file.path): sibling $name working copy of $($file.sourcePath) differs from the locked release (newer SDK?)")
+            }
+        }
+    }
+
+    foreach ($note in $notes) { Write-Host "note: $note" }
+    foreach ($missing in $missingSources) { Write-Host "skipped: $missing" }
+    foreach ($failure in $failures) { Write-Host "FAILED: $failure" }
+    if ($failures.Count) { exit 1 }
+    if ($RequireSources -and $missingSources.Count) { exit 2 }
+    Write-Host "SDK lock: $(@($lock.files).Count) vendored file(s) match $(@($lock.sources.PSObject.Properties | ForEach-Object { "$($_.Name) $($_.Value.tag)" }) -join ', ')"
+
+}
 exit 0

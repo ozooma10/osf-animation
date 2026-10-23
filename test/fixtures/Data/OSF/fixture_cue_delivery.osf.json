@@ -1,174 +1,144 @@
 {
-  "schema": 1,
-  "scenes": [
+  "schema": 2,
+  "nodes": [
     {
-      "id": "test.delivery.good",
       "roles": [
         {
           "name": "p"
         }
       ],
-      "nodes": [
-        {
-          "id": "n",
-          "stages": [
-            {
-              "clips": [
-                "Fixture/x.glb"
-              ]
-            }
-          ],
-          "cue": [
-            {
-              "at": "enter",
-              "id": "a",
-              "delivery": "native"
-            },
-            {
-              "at": "exit",
-              "id": "b",
-              "delivery": "native"
-            },
-            {
-              "at": "end",
-              "id": "c",
-              "delivery": "native"
-            },
-            {
-              "at": 0.2,
-              "id": "d",
-              "delivery": "both"
-            }
-          ]
-        }
-      ],
-      "entry": "n"
-    },
-    {
-      "id": "test.delivery.bad.unknown",
-      "roles": [
-        {
-          "name": "p"
-        }
-      ],
-      "nodes": [
-        {
-          "id": "n",
-          "stages": [
-            {
-              "clips": [
-                "Fixture/x.glb"
-              ]
-            }
-          ],
-          "cue": [
-            {
-              "id": "x",
-              "at": 0.1,
-              "delivery": "typo"
-            }
-          ]
-        }
-      ],
-      "entry": "n"
-    },
-    {
-      "id": "test.delivery.bad.number",
-      "roles": [
-        {
-          "name": "p"
-        }
-      ],
-      "nodes": [
-        {
-          "id": "n",
-          "stages": [
-            {
-              "clips": [
-                "Fixture/x.glb"
-              ]
-            }
-          ],
-          "cue": [
-            {
-              "id": "x",
-              "at": 0.1,
-              "delivery": 1
-            }
-          ]
-        }
-      ],
-      "entry": "n"
-    },
-    {
-      "id": "test.delivery.bad.null",
-      "roles": [
-        {
-          "name": "p"
-        }
-      ],
-      "nodes": [
-        {
-          "id": "n",
-          "stages": [
-            {
-              "clips": [
-                "Fixture/x.glb"
-              ]
-            }
-          ],
-          "cue": [
-            {
-              "id": "x",
-              "at": 0.1,
-              "delivery": null
-            }
-          ]
-        }
-      ],
-      "entry": "n"
-    },
-    {
-      "id": "test.delivery.bad.bool",
-      "roles": [
-        {
-          "name": "p"
-        }
-      ],
-      "nodes": [
-        {
-          "id": "n",
-          "stages": [
-            {
-              "clips": [
-                "Fixture/x.glb"
-              ]
-            }
-          ],
-          "cue": [
-            {
-              "id": "x",
-              "at": 0.1,
-              "delivery": true
-            }
-          ]
-        }
-      ],
-      "entry": "n"
-    },
-    {
-      "id": "test.delivery.bad.compiled",
+      "id": "test.delivery.good/n",
       "stages": [
         {
           "clips": [
             "Fixture/x.glb"
-          ],
-          "cue": [
-            {
-              "id": "x",
-              "at": 0.1,
-              "delivery": "papyrus"
-            }
+          ]
+        }
+      ],
+      "cue": [
+        {
+          "at": "enter",
+          "id": "a",
+          "delivery": "native"
+        },
+        {
+          "at": "exit",
+          "id": "b",
+          "delivery": "native"
+        },
+        {
+          "at": "end",
+          "id": "c",
+          "delivery": "native"
+        },
+        {
+          "at": 0.2,
+          "id": "d",
+          "delivery": "both"
+        }
+      ]
+    },
+    {
+      "roles": [
+        {
+          "name": "p"
+        }
+      ],
+      "id": "test.delivery.bad.unknown/n",
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ],
+      "cue": [
+        {
+          "id": "x",
+          "at": 0.1,
+          "delivery": "typo"
+        }
+      ]
+    },
+    {
+      "roles": [
+        {
+          "name": "p"
+        }
+      ],
+      "id": "test.delivery.bad.number/n",
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ],
+      "cue": [
+        {
+          "id": "x",
+          "at": 0.1,
+          "delivery": 1
+        }
+      ]
+    },
+    {
+      "roles": [
+        {
+          "name": "p"
+        }
+      ],
+      "id": "test.delivery.bad.null/n",
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ],
+      "cue": [
+        {
+          "id": "x",
+          "at": 0.1,
+          "delivery": null
+        }
+      ]
+    },
+    {
+      "roles": [
+        {
+          "name": "p"
+        }
+      ],
+      "id": "test.delivery.bad.bool/n",
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
+          ]
+        }
+      ],
+      "cue": [
+        {
+          "id": "x",
+          "at": 0.1,
+          "delivery": true
+        }
+      ]
+    },
+    {
+      "id": "test.delivery.bad.compiled",
+      "cue": [
+        {
+          "id": "x",
+          "at": 0.1,
+          "delivery": "papyrus"
+        }
+      ],
+      "stages": [
+        {
+          "clips": [
+            "Fixture/x.glb"
           ]
         }
       ]

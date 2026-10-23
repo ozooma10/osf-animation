@@ -1,4 +1,5 @@
 #include "OSFScript.h"
+#include "Profiling/Profile.h"
 
 #include "API/MinimumVersion.h"
 #include "API/BrowserForwarder.h"
@@ -96,19 +97,19 @@ namespace OSF::Papyrus
 			if (const auto* v = member("BlendIn"); v && v->is<float>()) {
 				out.blendIn = RE::BSScript::get<float>(*v);
 			}
-			if (const auto* v = member("StripMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("HideApparelMode"); v && v->is<std::int32_t>()) {
 				out.hideApparelMode = RE::BSScript::get<std::int32_t>(*v);
 			}
-			if (const auto* v = member("LockPlayerMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("PlayerInputLockMode"); v && v->is<std::int32_t>()) {
 				out.playerInputLockMode = RE::BSScript::get<std::int32_t>(*v);
 			}
-			if (const auto* v = member("PlayerControlMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("SceneControlsMode"); v && v->is<std::int32_t>()) {
 				out.sceneControlsMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("FadeMode"); v && v->is<std::int32_t>()) {
 				out.fadeMode = RE::BSScript::get<std::int32_t>(*v);
 			}
-			if (const auto* v = member("InPlaceMode"); v && v->is<std::int32_t>()) {
+			if (const auto* v = member("FollowActorMode"); v && v->is<std::int32_t>()) {
 				out.followActorMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("Camera"); v && v->is<RE::BSFixedString>()) {
@@ -122,6 +123,7 @@ namespace OSF::Papyrus
 
 		bool Play(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_file, RE::BSFixedString a_animId)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.Play");
 			if (!a_actor) {
 				REX::DEBUG("[Papyrus] Play: no actor given");
 				return false;
@@ -135,6 +137,7 @@ namespace OSF::Papyrus
 
 		bool Stop(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.Stop");
 			if (!a_actor) {
 				REX::DEBUG("[Papyrus] Stop: no actor given");
 				return false;
@@ -144,16 +147,19 @@ namespace OSF::Papyrus
 
 		bool Sync(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, bool a_anchor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.Sync");
 			return Animation::GraphManager::GetSingleton().Sync(a_actors, a_anchor);
 		}
 
 		bool SetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_stage)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.SetSceneStage");
 			return Scene::SceneRuntime::GetSingleton().SetStage(a_scene, a_stage);
 		}
 
 		bool SetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, int32_t a_stage)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.SetSceneStageForActor");
 			if (!a_actor) {
 				REX::DEBUG("[Papyrus] SetSceneStageForActor: no actor given");
 				return false;
@@ -163,26 +169,31 @@ namespace OSF::Papyrus
 
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ReloadPacks");
 			return Content::ReloadAll();  // Papyrus name kept for compatibility
 		}
 
 		int32_t GetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneStage");
 			return Scene::SceneRuntime::GetSingleton().GetStage(a_scene);
 		}
 
 		int32_t GetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneStageForActor");
 			return Animation::GraphManager::GetSingleton().GetSceneStage(a_actor);
 		}
 
 		bool IsPlaying(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.IsPlaying");
 			return Animation::GraphManager::GetSingleton().IsPlaying(a_actor);
 		}
 
 		RE::BSFixedString GetCurrentAnimation(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetCurrentAnimation");
 			if (!a_actor) {
 				return "";
 			}
@@ -191,6 +202,7 @@ namespace OSF::Papyrus
 
 		bool SetSpeed(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, float a_speed)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.SetSpeed");
 			if (!a_actor) {
 				REX::DEBUG("[Papyrus] SetSpeed: no actor given");
 				return false;
@@ -200,6 +212,7 @@ namespace OSF::Papyrus
 
 		float GetSpeed(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSpeed");
 			if (!a_actor) {
 				return 0.0f;
 			}
@@ -209,35 +222,42 @@ namespace OSF::Papyrus
 		bool SetSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_role,
 			float a_x, float a_y, float a_z, float a_heading)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.SetSceneAlignment");
 			return Scene::SceneRuntime::GetSingleton().SetAlignment(a_scene, a_role.c_str(), { a_x, a_y, a_z, a_heading * Util::kDegToRadF });
 		}
 		std::vector<float> GetSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_role)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneAlignment");
 			const auto value = Scene::SceneRuntime::GetSingleton().GetAlignment(a_scene, a_role.c_str());
 			return value ? std::vector<float>{ value->x, value->y, value->z, value->heading / Util::kDegToRadF } : std::vector<float>{};
 		}
 		bool SaveSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.SaveSceneAlignment");
 			return Scene::SceneRuntime::GetSingleton().SaveAlignment(a_scene);
 		}
 		bool ResetSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_role)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ResetSceneAlignment");
 			return Scene::SceneRuntime::GetSingleton().SetAlignment(a_scene, a_role.c_str(), {});
 		}
 
 		bool SetSceneSpeed(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, float a_speed)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.SetSceneSpeed");
 			return Scene::SceneRuntime::GetSingleton().SetSpeed(a_scene, a_speed);
 		}
 
 		float GetSceneSpeed(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneSpeed");
 			return Scene::SceneRuntime::GetSingleton().GetSpeed(a_scene);
 		}
 
 		bool SetAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.SetAnchor");
 			if (!a_actor) {
 				REX::DEBUG("[Papyrus] SetAnchor: no actor given");
 				return false;
@@ -247,6 +267,7 @@ namespace OSF::Papyrus
 
 		bool ClearAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ClearAnchor");
 			if (!a_actor) {
 				return false;
 			}
@@ -255,11 +276,13 @@ namespace OSF::Papyrus
 
 		bool StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StopScene");
 			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
 		}
 
 		bool StopSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StopSceneForActor");
 			if (!a_actor) {
 				REX::DEBUG("[Papyrus] StopSceneForActor: no actor given");
 				return false;
@@ -272,6 +295,7 @@ namespace OSF::Papyrus
 
 		RE::BSFixedString GetVersion(OSFVM&, uint32_t, std::monostate)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetVersion");
 			const auto v = SFSE::GetPluginVersion();
 			return RE::BSFixedString(std::format("{}.{}.{}", v.major(), v.minor(), v.patch()));
 		}
@@ -280,6 +304,7 @@ namespace OSF::Papyrus
 			RE::BSFixedString a_consumer, std::int32_t a_major,
 			std::int32_t a_minor, std::int32_t a_patch)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ReportMinimumVersion");
 			if (a_major < 0 || a_minor < 0 || a_patch < 0) {
 				REX::WARN("[Papyrus] ReportMinimumVersion rejected negative version component");
 				return false;
@@ -291,17 +316,20 @@ namespace OSF::Papyrus
 
 		bool IsReady(OSFVM&, uint32_t, std::monostate)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.IsReady");
 			return Animation::GraphManager::GetSingleton().HooksInstalled();
 		}
 
 		bool OpenBrowser(OSFVM&, uint32_t, std::monostate)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.OpenBrowser");
 			return API::OpenBrowser();
 		}
 
 		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartScene");
 			return Scene::LaunchDef(a_id.c_str(), a_actors, Scene::MakeDefLaunchOptions(ReadSceneOptions(a_opts)),
 				"[Papyrus] OSF.StartScene");
 		}
@@ -309,6 +337,7 @@ namespace OSF::Papyrus
 		// Separate native: Papyrus structs can't hold the role array.
 		bool ReplaceScene(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_id, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ReplaceScene");
 			const auto opts = ReadSceneOptions(a_opts);
 			return Scene::SceneRuntime::GetSingleton().Replace(a_scene, a_id.c_str(), {},
 				{ opts.anchor, Scene::OptHeadingRad(opts), opts.stage });
@@ -316,11 +345,13 @@ namespace OSF::Papyrus
 		bool ReplaceSceneRoles(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ReplaceSceneRoles");
 			return Scene::SceneRuntime::GetSingleton().Replace(a_scene, a_id.c_str(), ToStrings(a_roles), {});
 		}
 		bool ReplaceSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene,
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ReplaceSceneByTagsQuery");
 			return Scene::SceneRuntime::GetSingleton().ReplaceByQuery(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) });
 		}
 		// asRoles[i] constrains participant i (GetSceneParticipants order); an empty array = unconstrained.
@@ -328,6 +359,7 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf,
 			std::vector<RE::BSFixedString> a_roles, RE::TESObjectREFR* a_anchor, bool a_requireAnchor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.ReplaceSceneByQuery");
 			if (a_requireAnchor && !a_anchor) {
 				REX::DEBUG("[Papyrus] ReplaceSceneByQuery: abRequireAnchor needs akAnchor");
 				return false;
@@ -335,20 +367,24 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().ReplaceByQuery(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) },
 				ToStrings(a_roles), a_anchor, a_requireAnchor ? Matchmaking::AnchorMode::kRequire : Matchmaking::AnchorMode::kAllow);
 		}
-		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
+
+		RE::BSFixedString GetNode(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
 		{
-			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetSceneId(a_scene));
+			OSF_PROFILE_SCOPE("Papyrus.GetNode");
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetNode(a_scene));
 		}
 
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneRoles");
 			const auto roles = ToStrings(a_roles);
 			return Scene::LaunchDef(a_id.c_str(), a_actors, {}, "[Papyrus] OSF.StartSceneRoles", &roles);
 		}
 
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneByTags");
 			Matchmaking::TagQuery q;
 			q.allOf = ToTags(a_tags);
 			const auto opts = ReadSceneOptions(a_opts);
@@ -359,6 +395,7 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
 			std::vector<RE::BSFixedString> a_noneOf, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneByTagsQuery");
 			Matchmaking::TagQuery q{ ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) };
 			const auto opts = ReadSceneOptions(a_opts);
 			return Scene::LaunchMatched(a_actors, q, opts, "[Papyrus] OSF.StartSceneByTagsQuery");
@@ -369,6 +406,7 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf,
 			std::vector<RE::BSFixedString> a_roles, RE::TESObjectREFR* a_anchor, bool a_requireAnchor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.FindSceneByQuery");
 			const auto roles = ToStrings(a_roles);
 			if (a_actors.empty() || std::ranges::find(a_actors, nullptr) != a_actors.end() ||
 				!Matchmaking::RoleConstraintsFit(roles, a_actors.size()) || (a_requireAnchor && !a_anchor)) {
@@ -384,6 +422,7 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf,
 			std::vector<RE::BSFixedString> a_roles, SceneOptionsArg a_opts, bool a_requireAnchor)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneByQuery");
 			const auto opts = ReadSceneOptions(a_opts);
 			if (a_requireAnchor && !opts.anchor) {
 				REX::DEBUG("[Papyrus] StartSceneByQuery: abRequireAnchor needs SceneOptions.Anchor");
@@ -397,6 +436,7 @@ namespace OSF::Papyrus
 
 		int32_t StartSceneAtAnchor(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::TESObjectREFR* a_furniture, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneAtAnchor");
 			if (a_actors.empty()) {
 				REX::DEBUG("[Papyrus] StartSceneAtAnchor: no actors given");
 				return 0;
@@ -415,6 +455,7 @@ namespace OSF::Papyrus
 
 		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.RegisterSceneCallback");
 			if (!a_receiver.get()) {
 				REX::DEBUG("[Papyrus] RegisterSceneCallback: null receiver");
 				return 0;
@@ -424,6 +465,7 @@ namespace OSF::Papyrus
 
 		int32_t RegisterSceneCallbackStatic(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_script, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.RegisterSceneCallbackStatic");
 			if (a_script.empty()) {
 				REX::DEBUG("[Papyrus] RegisterSceneCallbackStatic: empty script name");
 				return 0;
@@ -433,36 +475,43 @@ namespace OSF::Papyrus
 
 		bool UnregisterSceneCallback(OSFVM&, uint32_t, std::monostate, int32_t a_token)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.UnregisterSceneCallback");
 			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
 		}
 
 		bool AdvanceScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.AdvanceScene");
 			return Scene::SceneRuntime::GetSingleton().Advance(a_scene);
 		}
 
 		bool NavigateScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_edgeId)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.NavigateScene");
 			return Scene::SceneRuntime::GetSingleton().Navigate(a_scene, a_edgeId.c_str());
 		}
 
 		int32_t GetSceneEdgeCount(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneEdgeCount");
 			return Scene::SceneRuntime::GetSingleton().EdgeCount(a_scene);
 		}
 
 		RE::BSFixedString GetSceneEdgeId(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneEdgeId");
 			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeId(a_scene, a_index).c_str());
 		}
 
 		RE::BSFixedString GetSceneEdgeLabel(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneEdgeLabel");
 			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeLabel(a_scene, a_index).c_str());
 		}
 
 		std::vector<RE::Actor*> GetSceneParticipants(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneParticipants");
 			return Scene::SceneRuntime::GetSingleton().GetParticipants(a_scene);
 		}
 
@@ -590,6 +639,7 @@ namespace OSF::Papyrus
 		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_files, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneFiles");
 			return StartFilesImpl("StartSceneFiles", a_actors, a_files, false, {}, {}, {}, {}, a_opts);
 		}
 
@@ -597,6 +647,7 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_files, std::vector<float> a_x, std::vector<float> a_y, std::vector<float> a_z,
 			std::vector<float> a_headingDeg, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneFilesPlaced");
 			return StartFilesImpl("StartSceneFilesPlaced", a_actors, a_files, true, a_x, a_y, a_z, a_headingDeg, a_opts);
 		}
 
@@ -604,6 +655,7 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_files, std::vector<float> a_timers, std::vector<int32_t> a_loops,
 			std::vector<float> a_blends, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneStages");
 			return StartStagesImpl("StartSceneStages", a_actors, a_files, a_timers, a_loops, a_blends, false, {}, {}, {}, {}, a_opts);
 		}
 
@@ -612,12 +664,14 @@ namespace OSF::Papyrus
 			std::vector<float> a_blends, std::vector<float> a_x, std::vector<float> a_y, std::vector<float> a_z,
 			std::vector<float> a_headingDeg, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneStagesPlaced");
 			return StartStagesImpl("StartSceneStagesPlaced", a_actors, a_files, a_timers, a_loops, a_blends, true, a_x, a_y, a_z, a_headingDeg, a_opts);
 		}
 
 		int32_t StartSceneRolesEx(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles, SceneOptionsArg a_opts)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StartSceneRolesEx");
 			const auto roles = ToStrings(a_roles);
 			return Scene::LaunchDef(a_id.c_str(), a_actors, Scene::MakeDefLaunchOptions(ReadSceneOptions(a_opts)),
 				"[Papyrus] OSF.StartSceneRolesEx", &roles);
@@ -626,6 +680,7 @@ namespace OSF::Papyrus
 		bool PlaySequence(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			std::vector<RE::BSFixedString> a_files, std::vector<int32_t> a_loops, std::vector<float> a_blends, bool a_loopWhole)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.PlaySequence");
 			std::vector<std::string> files;
 			std::vector<std::string> animIds;
 			files.reserve(a_files.size());
@@ -640,16 +695,19 @@ namespace OSF::Papyrus
 
 		bool HideEquipment(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::Actor* a_actor, int32_t a_slotMask)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.HideEquipment");
 			return Scene::SceneRuntime::GetSingleton().HideEquipment(a_scene, a_actor, static_cast<std::uint32_t>(a_slotMask));
 		}
 
 		bool RestoreEquipment(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.RestoreEquipment");
 			return Scene::SceneRuntime::GetSingleton().RestoreHiddenEquipment(a_scene);
 		}
 
 		int32_t StopAllForActors(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.StopAllForActors");
 			std::vector<int32_t> handles;
 			int32_t stopped = 0;
 			for (auto* actor : a_actors) {
@@ -678,6 +736,7 @@ namespace OSF::Papyrus
 
 		std::vector<RE::BSFixedString> GetSceneLoadErrors(OSFVM&, uint32_t, std::monostate)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetSceneLoadErrors");
 			std::vector<RE::BSFixedString> out;
 			for (const auto& e : Registry::ContentRegistry::GetSingleton().LoadErrors()) {
 				out.emplace_back(e.c_str());
@@ -687,6 +746,7 @@ namespace OSF::Papyrus
 
 		std::vector<RE::BSFixedString> GetMissingClipRefs(OSFVM&, uint32_t, std::monostate)
 		{
+			OSF_PROFILE_SCOPE("Papyrus.GetMissingClipRefs");
 			std::vector<RE::BSFixedString> out;
 			for (const auto& e : Registry::ContentRegistry::GetSingleton().MissingClipRefs()) {
 				out.emplace_back(e.c_str());
@@ -709,6 +769,7 @@ namespace OSF::Papyrus
 
 		// a_taskletCallable=false on every engine-mutating native so the VM runs it on the game thread
 		// (equipment/weapon/fade/HUD services are game-thread only). Pure readers stay tasklet-callable.
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetNode", &GetNode, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, false, false);
@@ -720,7 +781,6 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceSceneByQuery", &ReplaceSceneByQuery, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindSceneByQuery", &FindSceneByQuery, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByQuery", &StartSceneByQuery, false, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);
 
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, false, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFilesPlaced", &StartSceneFilesPlaced, false, false);

@@ -1,4 +1,5 @@
 #include "Animation/GraphManager.h"
+#include "Profiling/Profile.h"
 #include "Equipment/EquipmentService.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/AlignmentStore.h"
@@ -108,6 +109,7 @@ namespace OSF::Scene
 	}
 	bool SceneRuntime::QueuePreparation(const std::shared_ptr<PreparedTransition>& p)
 	{
+		p->context.covered = p->covered;
 		for (auto* actor : p->cast) {
 			if (!actor)
 				return false;
@@ -117,25 +119,35 @@ namespace OSF::Scene
 		{
 			std::lock_guard l{ _lock };
 			auto*           s = Resolve(p->context.scene);
-			if (!s || s->preparation || s->cover)
+			if (!s || s->preparation || s->cover || s->playbackId != p->old.playbackId || s->node != p->old.node)
 				return false;
-			if (p->covered) {
+			if (p->covered && p->failureReason.empty()) {
 				p->coverToken = UI::FadeService::GetSingleton().BeginTransition();
-				if (!p->coverToken) return false;
-				p->coverState.started = NowMs();
-				s->cover = p;
+				if (!p->coverToken) {
+					p->failureReason = "transition-cover-unavailable";
+				} else {
+					p->coverState.started = NowMs();
+					s->cover = p;
+				}
 			}
 			s->transitioning = true;
 			s->preparation = p;
 			s->preparationResult = "pending";
 			s->preparationError.clear();
 		}
-		Util::NativeMainThreadQueue::Post([this, p] { StartPreparation(p); });
-		if (p->covered) PollCover(p);
+		// Even an unavailable cover finishes through the shared refusal policy: untouched
+		// manual sources resume, consumed automatic boundaries terminate without stranding.
+		if (!p->failureReason.empty()) {
+			Util::NativeMainThreadQueue::Post([this, p] { FinishPreparation(p, Outcome::Failed, false); });
+		} else {
+			Util::NativeMainThreadQueue::Post([this, p] { StartPreparation(p); });
+			if (p->covered) PollCover(p);
+		}
 		return true;
 	}
 	void SceneRuntime::StartPreparation(const std::shared_ptr<PreparedTransition>& p)
 	{
+		OSF_PROFILE_SCOPE("Prep.Start");
 		if (!PreparationValid(p)) {
 			FinishPreparation(p, p->reset ? Outcome::WorldReset : p->failureReason == "transition-cover-timeout" ? Outcome::TimedOut : Outcome::Cancelled, false);
 			return;
@@ -219,6 +231,7 @@ namespace OSF::Scene
 	}
 	void SceneRuntime::PollPreparation()
 	{
+		OSF_PROFILE_SCOPE("Prep.Poll");
 		if (_preparationPollQueued || _preparers.PendingCount() == 0)
 			return;
 		_preparationPollQueued = true;
@@ -231,6 +244,7 @@ namespace OSF::Scene
 	}
 	bool SceneRuntime::BuildPreparationPlan(const std::shared_ptr<PreparedTransition>& p)
 	{
+		OSF_PROFILE_SCOPE("Prep.BuildPlan");
 		if (!PreparationValid(p))
 			return false;
 		auto&      state = ActorState::Get();
@@ -277,8 +291,8 @@ namespace OSF::Scene
 			}
 			return true;
 		};
-		const auto actions = [&](const Registry::SceneRef& def, std::string_view nodeId, const std::vector<RE::Actor*>& cast, Registry::ActionPos position) {
-			const auto* node = def ? def->FindNode(nodeId) : nullptr;
+		const auto actions = [&](const Registry::NodeRef& def, const std::vector<RE::Actor*>& cast, Registry::ActionPos position) {
+			const auto* node = def.get();
 			if (!node)
 				return true;
 			for (const auto& action : node->actions) {
@@ -307,7 +321,7 @@ namespace OSF::Scene
 			}
 			return true;
 		};
-		if (p->context.kind != Kind::Start && p->context.kind != Kind::Stage && !actions(p->old.definition, p->old.node, p->old.participants, Registry::ActionPos::kExit))
+		if (p->context.kind != Kind::Start && p->context.kind != Kind::Stage && !actions(p->old.definition, p->old.participants, Registry::ActionPos::kExit))
 			return false;
 		// Required consumer claims precede optional gear and hides. Prior claims are released
 		// only by explicit exit actions or by the same provider's destination replacement.
@@ -343,7 +357,7 @@ namespace OSF::Scene
 					return false;
 			}
 		}
-		if (p->context.kind != Kind::Stage && !actions(p->target, p->context.toNode, p->cast, Registry::ActionPos::kEnter))
+		if (p->context.kind != Kind::Stage && !actions(p->target, p->cast, Registry::ActionPos::kEnter))
 			return false;
 		const auto result = state.PreviewPlan(p->changes);
 		if (result != ActorState::Status::Ok && p->failureReason.empty())
@@ -357,6 +371,7 @@ namespace OSF::Scene
 	}
 	bool SceneRuntime::CommitPreparation(const std::shared_ptr<PreparedTransition>& p)
 	{
+		OSF_PROFILE_SCOPE("Prep.Commit");
 		if (!PreparationValid(p))
 			return false;
 		if (p->covered && (p->coverState.Expired(NowMs()) || !UI::FadeService::GetSingleton().OwnsTransition(p->coverToken))) {
@@ -376,22 +391,21 @@ namespace OSF::Scene
 				auto*           s = Resolve(handle);
 				if (!s || s->preparation != p)
 					return false;
-				s->id = p->context.toScene;
 				s->node = p->context.toNode;
 				s->participants = p->cast;
 				s->definition = p->target;
-				if (p->context.kind == Kind::Handoff) {
+				if (p->context.kind == Kind::Transition) {
 					s->anchor = p->anchor;
 					s->anchorBase = p->anchorBase;
 					s->anchorRef = p->anchorRef;
-					s->align = {};
+					if (!p->target.SamePublication(p->old.definition)) s->align = {};
 					s->alignSelected = 0;
 				}
 				speed = s->speed.value;
 				if (s->definition && s->definition->roles.size() == p->cast.size()) {
 					std::vector<std::string> roles;
 					for (const auto& role : s->definition->roles) roles.push_back(role.name);
-					alignment = s->align.Enter(s->node, Alignment::Read(s->id, s->node, roles));
+					alignment = s->align.Enter(s->node, Alignment::Read(s->node, roles));
 				}
 			}
 			if (!Animation::GraphManager::GetSingleton().PlayPrepared(p->playback, speed, &p->published, p->old.playbackId))
@@ -412,6 +426,7 @@ namespace OSF::Scene
 	}
 	void SceneRuntime::FinishPreparation(const std::shared_ptr<PreparedTransition>& p, Outcome outcome, bool applied)
 	{
+		OSF_PROFILE_SCOPE("Prep.Finish");
 		_preparations.erase(p->context.attempt);
 		if (p->covered && (p->reset || outcome != Outcome::Committed)) ReleaseCover(p);
 		if (p->reset || outcome == Outcome::WorldReset)
@@ -432,7 +447,7 @@ namespace OSF::Scene
 		std::erase_if(_resources, [&](const auto& e) {
 			if (e.second.scene != p->context.scene)
 				return false;
-			return success ? !p->resources.contains(e.first) : e.second.attempt == p->context.attempt;
+			return success ? !p->resources.contains(e.first) : OwnsPendingResource(e.second.attempt, p->context.attempt);
 		});
 		if (success)
 			for (const auto& [key, provider] : p->resources) _resources[key] = { p->context.scene, provider, 0 };
@@ -460,14 +475,18 @@ namespace OSF::Scene
 			// Pose blending advances independently; hold automatic clip/stage progression until reveal completes.
 			Animation::GraphManager::GetSingleton().HoldForPreparation(p->cast.front(), p->published, p->covered);
 			if (p->context.kind == Kind::Start) {
-				CompleteStart(p->context.scene, p->context.toScene, p->context.toNode, p->cast, p->playerInputLock, p->hideApparel, p->clearHeldItems, p->fade, p->overrides);
+				CompleteStart(p->context.scene, p->context.toNode, p->cast, p->playerInputLock, p->hideApparel, p->clearHeldItems, p->fade, p->overrides);
 			} else if (p->context.kind != Kind::Stage) {
-				if (p->context.kind == Kind::Handoff) {
+				if (p->context.kind == Kind::Transition) {
 					EngageDefaultPlayerInputLock(p->context.scene, p->playerInputLock, p->cast);
-					if (!p->old.cameraOverridden)
-						EngageDefaultCamera(p->context.scene, p->context.toNode, p->playerInputLock, {}, p->cast);
-					EngageDefaultSceneControls(p->context.scene, p->context.toScene, std::nullopt, p->cast);
-					Fire(p->context.scene, Event::kSceneHandoff, p->context.toNode, "", p->old.id);
+					if (!p->old.cameraOverridden) {
+						// The new node owns its camera policy. A caller's explicit camera remains session-owned.
+						UndoMechanism(p->context.scene, Mechanism::kCameraState);
+						UndoMechanism(p->context.scene, Mechanism::kCamera);
+						EngageDefaultCamera(p->context.scene, p->playerInputLock, {}, p->cast);
+					}
+					EngageDefaultSceneControls(p->context.scene, p->context.toNode, p->overrides.sceneControls, p->cast);
+					Fire(p->context.scene, Event::kNodeTransition, p->context.toNode, "", p->old.node);
 				}
 				SlotView view;
 				if (LifecycleValid(p->context.scene, p->context.toNode, true) && SnapshotSlot(p->context.scene, view) && view.playbackId == p->published && view.node == p->context.toNode)
@@ -497,7 +516,6 @@ namespace OSF::Scene
 			{
 				std::lock_guard l{ _lock };
 				if (auto* s = Resolve(p->context.scene)) {
-					s->id = p->old.id;
 					s->node = p->old.node;
 					s->participants = p->old.participants;
 					s->definition = p->old.definition;
@@ -514,6 +532,7 @@ namespace OSF::Scene
 	bool SceneRuntime::OnPlaybackStage(Animation::PlaybackId playback, std::int32_t stage, bool automatic)
 	{
 		auto p = std::make_shared<PreparedTransition>();
+		bool singleStage = false;
 		{
 			std::lock_guard l{ _lock };
 			auto*           s = FindSlotForPlayback(playback, &p->context.scene);
@@ -526,15 +545,28 @@ namespace OSF::Scene
 					s->preparation->automatic = true;
 				return automatic;
 			}
-			p->old = { s->id, s->node, s->participants, s->playbackId, s->definition, s->cameraOverridden };
+			p->old = { s->node, s->participants, s->playbackId, s->definition, s->cameraOverridden };
 			p->cast = s->participants;
 			p->target = s->definition;
+			singleStage = s->singleStage;
 		}
 		const auto current = Animation::GraphManager::GetSingleton().GetScenePlayback(p->cast.front(), playback);
 		if (!current || stage < 0 || stage >= current->stageCount)
 			return false;
+		if (singleStage && stage != current->stage) {
+			{
+				std::lock_guard l{ _lock };
+				auto* s = Resolve(p->context.scene);
+				if (!s || s->transitioning || s->playbackId != playback || s->node != p->old.node) return false;
+				s->transitioning = true;
+				s->terminationCause = automatic ? TerminationCause::kCompleted : TerminationCause::kCancelled;
+			}
+			ApplyTransition(p->context.scene, p->old.node, {}, true,
+				automatic ? Origin::PlaybackCompletion : Origin::Caller);
+			return true;
+		}
 		p->context.kind = Kind::Stage;
-		p->context.fromScene = p->context.toScene = p->old.id;
+		p->context.origin = automatic ? Origin::PlaybackCompletion : Origin::Caller;
 		p->context.fromNode = p->context.toNode = p->old.node;
 		p->context.fromStage = current->stage;
 		p->context.toStage = stage;

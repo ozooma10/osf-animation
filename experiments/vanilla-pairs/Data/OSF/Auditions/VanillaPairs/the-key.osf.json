@@ -1,0 +1,171 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla Pairs - Audition - 03 The Key",
+  "pack": "OSF Vanilla Pairs - Audition",
+  "folder": "03 The Key",
+  "tags": [
+    "osf.audition.vanilla-pairs"
+  ],
+  "unlisted": true,
+  "hideApparel": false,
+  "clearHeldItems": true,
+  "playerInputLock": true,
+  "placement": "anchorAndPin",
+  "camera": "scene_orbit",
+  "fade": false,
+  "scenes": [
+    {
+      "id": "osf.audition.vanilla-pairs.key.full",
+      "name": "The Key | Full confrontation once (43s)",
+      "roles": [
+        {
+          "name": "Marauder",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Reaver",
+          "gender": "any",
+          "offset": {
+            "x": -0.390767,
+            "y": -0.878807,
+            "z": 0.0,
+            "heading": 15.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Full scene - shove at 20.47s, struggle at 21.33s",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_marauder/sync_idle.af",
+              "sec": 43
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_reaver/sync_idle.af",
+              "sec": 43
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "osf.audition.vanilla-pairs.key.contacts",
+      "name": "The Key | Frozen contact checkpoints",
+      "roles": [
+        {
+          "name": "Marauder",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Reaver",
+          "gender": "any",
+          "offset": {
+            "x": -0.390767,
+            "y": -0.878807,
+            "z": 0.0,
+            "heading": 15.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Shove reach - frame 611 / 20.37s - Next",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_marauder/sync_idle.af",
+              "sec": 43
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_reaver/sync_idle.af",
+              "sec": 43
+            }
+          ],
+          "hold": 0.47364341085271316
+        },
+        {
+          "name": "Wrist catch - frame 663 / 22.10s - Next",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_marauder/sync_idle.af",
+              "sec": 43
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_reaver/sync_idle.af",
+              "sec": 43
+            }
+          ],
+          "hold": 0.513953488372093
+        },
+        {
+          "name": "Body fall - frame 700 / 23.33s - Stop or Next",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_marauder/sync_idle.af",
+              "sec": 43
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_reaver/sync_idle.af",
+              "sec": 43
+            }
+          ],
+          "hold": 0.5426356589147286
+        }
+      ]
+    },
+    {
+      "id": "osf.audition.vanilla-pairs.key.start-pose",
+      "name": "The Key | Frozen start for alignment",
+      "roles": [
+        {
+          "name": "Marauder",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Reaver",
+          "gender": "any",
+          "offset": {
+            "x": -0.390767,
+            "y": -0.878807,
+            "z": 0.0,
+            "heading": 15.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Source frame 0 - Stop when done",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_marauder/sync_idle.af",
+              "sec": 43
+            },
+            {
+              "file": "meshes/actors/human/animations/furniture/scenes/dialoguecfthekey_establishingscene/cfthekey_reaver/sync_idle.af",
+              "sec": 43
+            }
+          ],
+          "hold": 0
+        }
+      ]
+    }
+  ]
+}

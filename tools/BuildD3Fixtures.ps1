@@ -44,7 +44,7 @@ $tone=New-D3Tone 2400 660
 foreach($channel in @(@('voice',660),@('contact',880),@('other',1100))) {
     [IO.File]::WriteAllBytes((Join-Path $assets ($channel[0]+'.wav')),(New-D3Tone 192000 $channel[1]))
 }
-$scenes = @()
+$nodes = @()
 foreach ($route in @('lane','beat')) {
     [IO.Directory]::CreateDirectory((Join-Path $assets $route)) | Out-Null
     $marks=@()
@@ -55,26 +55,24 @@ foreach ($route in @('lane','beat')) {
         if ($route -eq 'lane') { $mark.spec="OSF/D3/$file" } else { $mark.id="d3:OSF/D3/$file" }
         $marks+=,$mark
     }
-    $node=@{id='main';stages=@(@{clips=@('OSF/D3/motion.gltf:d3');loops=0});loops=0;timer=8.1;
+    $node=@{id="osf.d3.$route";stages=@(@{clips=@('OSF/D3/motion.gltf:d3');loops=0});loops=0;timer=8.1;
         edges=@(@{to='$end';when='timer'})}
     $node[$(if($route -eq 'lane'){'sound'}else{'cue'})]=$marks
-    $scenes+=@{id="osf.d3.$route";tags=@('osf-d3');stripActors=$false;lockPlayer=$false;placement='followActor';
-        roles=@(@{name='lead';gender='any'});entry='main';nodes=@($node)}
+    $nodes+=,$node
     $mark=@{at=0.05;role='lead'}
     [IO.File]::WriteAllBytes((Join-Path $assets "$route/cancel.wav"),$tone)
     if($route -eq 'lane'){$mark.spec="OSF/D3/$route/cancel.wav"}else{$mark.id="d3:OSF/D3/$route/cancel.wav"}
-    $node=@{id='main';stages=@(@{clips=@('OSF/D3/motion.gltf:d3');loops=0});loops=0;
-        edges=@(@{id='authored';label='Authored voice';to='authored';when='advance'})}
+    $node=@{id="osf.d3.cancel-$route";stages=@(@{clips=@('OSF/D3/motion.gltf:d3');loops=0});loops=0;
+        edges=@(@{id='authored';label='Authored voice';to="osf.d3.cancel-$route/authored";when='advance'})}
     $node[$(if($route -eq 'lane'){'sound'}else{'cue'})]=@($mark)
-    $authored=@{id='authored';stages=@(@{clips=@('OSF/D3/motion.gltf:d3');loops=0});loops=0;
+    $authored=@{id="osf.d3.cancel-$route/authored";stages=@(@{clips=@('OSF/D3/motion.gltf:d3');loops=0});loops=0;
         sound=@(@{at='enter';role='lead';spec='OSF/D3/authored.wav'})}
-    $scenes+=@{id="osf.d3.cancel-$route";tags=@('osf-d3');stripActors=$false;lockPlayer=$false;placement='followActor';
-        roles=@(@{name='lead';gender='any'});entry='main';nodes=@($node,$authored)}
+    $nodes+=@($node,$authored)
 }
 [IO.File]::WriteAllBytes((Join-Path $assets 'authored.wav'),$tone)
-$scenes+=@{id='osf.d3.silent';tags=@('osf-d3');stripActors=$false;lockPlayer=$false;placement='followActor';
+$nodes+=@{id='osf.d3.silent';tags=@('osf-d3');hideApparel=$false;playerInputLock=$false;placement='followActor';
     roles=@(@{name='lead';gender='any'});stages=@(@{clips=@('OSF/D3/motion.gltf:d3');loops=0})}
-@{schema=1;name='Private D3 audio comparison';unlisted=$true;camera='none';placement='followActor';
+@{schema=2;name='Private D3 audio comparison';unlisted=$true;camera='none';placement='followActor';
     playerInputLock=$false;hideApparel=$false;clearHeldItems=$false;fade=$false;sceneControls=$false;
-    scenes=$scenes} | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $assets 'd3.osf.json') -Encoding utf8NoBOM
+    roles=@(@{name='lead';gender='any'});tags=@('osf-d3');nodes=$nodes} | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $assets 'd3.osf.json') -Encoding utf8NoBOM
 Write-Output "Generated D3 fixtures in $assets"

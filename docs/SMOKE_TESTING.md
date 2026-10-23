@@ -6,7 +6,7 @@ Run from the repository with PowerShell 7.2 or newer:
 pwsh -NoProfile -File tools/test-release.ps1 -Plan
 pwsh -NoProfile -File tools/test-release.ps1 -Interactive
 # Explicitly omit in-game checks (not a complete release run):
-pwsh -NoProfile -File tools/test-release.ps1 -Offline
+pwsh -NoProfile -File tools/test-release.ps1 -Offline -Jobs 1
 # Use currently deployed host DLLs instead of the pinned releases:
 pwsh -NoProfile -File tools/test-release.ps1 -Interactive -Hosts Deployed
 ```
@@ -65,7 +65,7 @@ installs under this run's evidence directory. The runtime DLL is built in
 `build/smoke-native` and staged separately, leaving `build/windows/x64/releasedbg`
 available to the release packager. The original deployment environment variables
 are restored, and the final XMake configuration is `releasedbg`, `build`, with
-`animation_smoke=n`.
+`animation_smoke=n` and `profiling=n`.
 
 ## What runs
 
@@ -75,7 +75,7 @@ are restored, and the final XMake configuration is `releasedbg`, `build`, with
 | Bench contracts | Rejects missing suites, stale or changed evidence, mismatched source/DLL hashes, skipped game cases, and truthy string flags. Exercises release receipts, instrumented DLL rejection, staged/ZIP tampering, forbidden entries and Papyrus mismatch rejection. |
 | SDK | `tools/Test-SdkLock.ps1`: vendored OSF UI / OSF Settings SDK files match `sdk-lock.json` hashes; with sibling checkouts present, the locked tags and commits also match. |
 | Production | Normal releasedbg DLL, installed into private staging. |
-| Native | All fourteen `xmake test` suites, including shared preparation/rollback, actor-state ownership/reconciliation, synthetic AF/rig/BA2 import, playback stage/mark semantics, production catalog conversion, clip-duration cache separation, shared scene-launch behavior and browser/engine boundary coverage. Executed suite identities and counts must match the inventory. |
+| Native | All sixteen `xmake test` suites, including the profiler core, shared preparation/rollback, actor-state ownership/reconciliation, synthetic AF/rig/BA2 import, playback stage/mark semantics, production catalog conversion, clip-duration cache separation, depth-one byte-identical layer composition, shared scene-launch behavior and browser/engine boundary coverage. Executed suite identities and counts must match the inventory. |
 | Fixtures | Compiles the private Papyrus script; generates the live GLTF/GLB/gzip clips and WAV; decodes and samples the three clips through the production importer. |
 | Browser | Independent production addon DLL build, clean dependency install, all Vitest assertions, TypeScript check, and production Vite build. A fresh JSON receipt must include every test file, with no skipped/todo tests; individual assertions appear in the aggregate report and JUnit. |
 | Distribution | Engine and browser FOMOD ZIPs; required entries, exact production DLL hash, separation of payloads, and no test fixtures, source maps, or player values. |
@@ -90,7 +90,7 @@ GLTF/GLB/gzip decoding and ozz sampling without copyrighted game assets or a
 developer's local clip library. Existing standalone `osf-import-test` and
 `osf-af-import-test` remain useful for specific content.
 
-The game suite currently has **69 assertions** across the 18 areas in the coverage
+The game suite currently has **69 assertions** across the 19 areas in the coverage
 manifest. It uses installed vanilla assets plus generated test content:
 
 - Native API validation; compiled Papyrus calls, scene callbacks and post-load rebind.
@@ -149,7 +149,8 @@ Use `-OutputDirectory <new directory>` to choose another destination. Within thi
 repository it must be under `build/smoke` so output cannot alter its own source
 fingerprint. Existing directories are rejected. Bench invocations are serialized
 with an exclusive file lock; ordinary editing/build commands should stay idle
-while it runs. `-Jobs 4` controls native compilation parallelism.
+while it runs. `-Jobs` controls native compilation parallelism throughout the gate, including the Browser
+helper. It defaults to 4; use `-Jobs 1` for serial compilation.
 
 Exit codes are **0** for the requested checks passing, **1** for a failed assertion
 or build, and **2** for blocked infrastructure or missing evidence. Skipped stages
@@ -201,5 +202,5 @@ each result independently:
 
 Keep visual/controller and save-load observations alongside the automated report;
 passing the smoke suite alone does not close these acceptance gates.
-Use the [1.5.0 acceptance checklist](RELEASE_1.5.0_ACCEPTANCE.md) to record the
+Use the [2.0.0 acceptance record](RELEASE_2.0.0_ACCEPTANCE.md) to record the
 remaining installation, restart and hands-on observations against the candidate.

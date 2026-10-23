@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Common (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/human/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/common/bleedout",
       "name": "Vanilla · Common / Bleedout",

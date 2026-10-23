@@ -2,8 +2,8 @@
 <fomod>
   <Name>OSF Animation Browser</Name>
   <Author>ozooma10</Author>
-  <Version MachineVersion="1.5.0">1.5.0</Version>
-  <Description>Optional in-game animation browser and emote wheel. Requires matching OSF Animation 1.5.0, OSF UI 2.0.0+, and OSF Settings 1.0.0+. Includes its own native DLL and optional vanilla/creature library and emote content. Install alongside the engine, replace any old Browser installation, and rebind both browser hotkeys after upgrading from the combined settings provider.</Description>
+  <Version MachineVersion="2.0.0">2.0.0</Version>
+  <Description>Optional in-game animation browser and emote wheel. Requires matching OSF Animation 2.0.0, OSF UI 2.0.0+, and OSF Settings 1.0.0+. Includes its own native DLL and optional vanilla/creature library and emote content. Install alongside the engine, replace any old Browser installation, and rebind both browser hotkeys after upgrading from the combined settings provider.</Description>
   <Groups>
     <element>Animation</element>
   </Groups>

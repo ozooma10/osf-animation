@@ -22,7 +22,7 @@ export type BrowserAction =
   | { type: "catalog/received"; scenes: SceneModel[] }
   | { type: "library/received"; scenes: SceneModel[] }
   | { type: "active/received"; scenes: ActiveLaunch[] }
-  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch }
+  | { type: "launch/succeeded"; handle: number; nodeId: string; afterLaunch: AfterLaunch }
   | { type: "launch/failed"; error: string }
   | { type: "settings/received"; preferences: Partial<BrowserPreferences> }
   | { type: "settings/open"; open: boolean }
@@ -51,7 +51,7 @@ export type BrowserAction =
   | { type: "anchor/cleared" }
   | { type: "anchor/matched"; token: number; ids: ReadonlySet<string> }
   | { type: "location/selected"; mode: LocationMode; token?: number | null }
-  | { type: "selection/changed"; sceneId: string | null; stage?: number | null }
+  | { type: "selection/changed"; nodeId: string | null; stage?: number | null }
   | { type: "mode/changed"; mode: BrowserMode }
   | { type: "browser/opened"; mode: Exclude<BrowserMode, "wheel"> }
   | { type: "filter/search"; search: string }

@@ -11,8 +11,10 @@ See docs/SMOKE_TESTING.md for coverage and the remaining acceptance boundaries.
 [CmdletBinding()]
 param(
     [switch]$RunGame,
+    [switch]$PrepareOnly,
     [switch]$Interactive,
     [ValidateSet('Released','Deployed')][string]$Hosts = 'Released',
+    [switch]$ForceVerification,
     [switch]$Plan,
     [string]$Harness = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'OSF Test Harness'),
     [string]$OutputDirectory = '',
@@ -20,11 +22,13 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($RunGame -and $PrepareOnly) { throw '-RunGame and -PrepareOnly are mutually exclusive.' }
 if ($RunGame -and -not $Interactive -and -not $Plan) {
     throw '[blocked] The game suite requires explicit -Interactive for keyboard, mouse and focus control.'
 }
 $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'SmokeBench.ps1')
+. (Join-Path $PSScriptRoot 'WorkflowChecks.ps1')
 . (Join-Path $repo 'packaging/ReleaseValidation.ps1')
 $coverage = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/coverage.json') -Raw | ConvertFrom-Json)
 $runtimeCases = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/runtime-cases.json') -Raw | ConvertFrom-Json)
@@ -34,7 +38,7 @@ $names = @('coverage','bench-contracts','sdk','production-build','native','fixtu
 $unverified = @($coverage | ForEach-Object { "$($_.feature): $($_.gap)" })
 if (-not $RunGame) { $unverified = @('In-game assertions skipped. Use -RunGame with the local OSF Test Harness.') + $unverified }
 if ($Plan) {
-    [ordered]@{ stages=$names; runGame=[bool]$RunGame; interactive=[bool]$Interactive; hosts=$Hosts; runtimeCases=$runtimeCases; coverage=$coverage;
+    [ordered]@{ stages=$names; prepareOnly=[bool]$PrepareOnly; jobs=$Jobs; runGame=[bool]$RunGame; interactive=[bool]$Interactive; hosts=$Hosts; runtimeCases=$runtimeCases; coverage=$coverage;
         unverified=$unverified; runtimeRunner=$suite } | ConvertTo-Json -Depth 12
     exit 0
 }
@@ -51,7 +55,7 @@ if (-not $relativeOutput.StartsWith('..') -and -not [IO.Path]::IsPathRooted($rel
 [IO.Directory]::CreateDirectory($directory) | Out-Null
 $report = [ordered]@{
     startedUtc=[DateTime]::UtcNow.ToString('o'); finishedUtc=$null; outcome='running'
-    scope=$(if ($RunGame) { 'offline+runtime' } else { 'offline' }); completeAutomatedSuite=$false; automatedPassed=$false
+    scope=$(if ($RunGame) { 'offline+runtime' } elseif ($PrepareOnly) { 'offline+prepare' } else { 'offline' }); completeAutomatedSuite=$false; automatedPassed=$false
     source=$null; runtime=$null; productionDllSha256=$null; runtimeDllSha256=$null; hosts=$Hosts
     runtimeCases=@($runtimeCases | ForEach-Object { @{name=$_;status='not-run';message='No live result from this invocation.'} })
     nativeCases=@(); browserCases=@(); browserTestReport=$null
@@ -60,6 +64,7 @@ $report = [ordered]@{
 }
 $exitCode = 2
 $lock = $null
+$preparationLock = $null
 $identity = $null
 $oldMods = $env:XSE_SF_MODS_PATH
 $oldGame = $env:XSE_SF_GAME_PATH
@@ -107,6 +112,11 @@ function Invoke-SmokeCommand([string]$Program, [string[]]$Arguments, [switch]$Ru
 Push-Location $repo
 try {
     [IO.Directory]::CreateDirectory((Join-Path $repo 'build')) | Out-Null
+    if ($PrepareOnly) {
+        $state = Join-Path $Harness 'state'
+        [IO.Directory]::CreateDirectory($state) | Out-Null
+        $preparationLock = [IO.File]::Open((Join-Path $state 'runner.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+    }
     $lock = [IO.File]::Open((Join-Path $repo 'build/smoke.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
     $identity = Get-SmokeSourceIdentity $repo
     $identity | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $directory 'source.json')
@@ -118,13 +128,8 @@ try {
         $script:stage.message = "$($targets.Count) native suites; $($runtimeCases.Count) game assertions; $($coverage.Count) feature areas"
     }
     Invoke-SmokeStage 'bench-contracts' {
-        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'test/SmokeBenchTest.ps1'))
-        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'test/ReleaseValidationTest.ps1'))
-        if ($RunGame) {
-            $harnessTests = Join-Path $Harness 'tests/AnimationSmoke.Tests.ps1'
-            if (-not (Test-Path -LiteralPath $harnessTests)) { throw '[blocked] Animation harness contract tests are missing; pass -Harness.' }
-            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$harnessTests)
-        }
+        $script:stage.log = Join-Path $directory 'bench-contracts.log'
+        Invoke-AnimationContractChecks $repo $Harness ([bool]($RunGame -or $PrepareOnly)) $script:stage.log -Force:$ForceVerification
     }
     Invoke-SmokeStage 'sdk' {
         Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'Test-SdkLock.ps1'))
@@ -134,8 +139,8 @@ try {
     Invoke-SmokeStage 'production-build' {
         $env:XSE_SF_MODS_PATH = $productionMods
         $env:XSE_SF_GAME_PATH = $null
-        Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n')
-        Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
+        Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n','--profiling=n')
+        Invoke-SmokeCommand 'xmake' @('build','-y',"-j$Jobs",'OSF Animation')
         Invoke-SmokeCommand 'xmake' @('install','-y','-o',$productionMod,'OSF Animation')
         $report.productionDllSha256 = (Get-FileHash -LiteralPath (Join-Path $productionMod 'SFSE/Plugins/OSF Animation.dll')).Hash
         Write-ReleaseBuildReceipt $repo 'engine' $identity
@@ -164,7 +169,7 @@ try {
         $browserStarted = [DateTimeOffset]::UtcNow
         $ui = Join-Path $repo 'extensions/browser/ui'
         try {
-            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildBrowserAddon.ps1'),'-NoDeploy','-TestReport',$report.browserTestReport)
+            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildBrowserAddon.ps1'),'-NoDeploy','-TestReport',$report.browserTestReport,'-Jobs',"$Jobs")
         } finally {
             if (Test-Path -LiteralPath $report.browserTestReport) {
                 $browserReceipt = Get-Content -LiteralPath $report.browserTestReport -Raw | ConvertFrom-Json
@@ -174,7 +179,7 @@ try {
         $files = @(Get-ChildItem -LiteralPath (Join-Path $ui 'tests') -Recurse -File |
             Where-Object Name -Match '\.test\.tsx?$' | ForEach-Object { [IO.Path]::GetRelativePath($ui,$_.FullName).Replace('\','/') })
         Test-SmokeBrowserReceipt $browserReceipt $ui $files $browserStarted
-        $script:stage.message = "$($report.browserCases.Count) browser assertions, clean install, typecheck, and production build"
+        $script:stage.message = "$($report.browserCases.Count) browser assertions, verified dependency install, typecheck, and production build"
     }
     Invoke-SmokeStage 'distribution' {
         $archives = Join-Path $directory 'archives'
@@ -190,7 +195,7 @@ try {
         $results | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $directory 'install-matrix.json')
         $script:stage.message = 'Five FOMOD combinations installed twice; payload hashes and retained user/other-mod files verified'
     } @('distribution')
-    if ($RunGame) {
+    if ($RunGame -or $PrepareOnly) {
         Invoke-SmokeStage 'runtime-preflight' {
             if (-not (Test-Path -LiteralPath $suite)) { throw '[blocked] Animation runtime harness is missing; pass -Harness.' }
             $planText = & pwsh -NoProfile -File $suite -Plan -AnimationProject $repo
@@ -204,7 +209,7 @@ try {
             if (-not (Test-Path -LiteralPath $suite)) { throw '[blocked] Animation runtime harness is missing; pass -Harness.' }
             $env:XSE_SF_MODS_PATH = $runtimeMods
             # Separate output keeps instrumented builds out of build/windows, which the packager uses.
-            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build/smoke-native','--animation_smoke=y')
+            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build/smoke-native','--animation_smoke=y','--profiling=n')
             Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
             Invoke-SmokeCommand 'xmake' @('install','-y','-o',$runtimeMod,'OSF Animation')
             # The harness accepts one private staged mod root. Include the independently built addon DLL.
@@ -214,8 +219,11 @@ try {
             Copy-Item -LiteralPath (Join-Path $repo 'test/smoke/data/OSF') -Destination $runtimeMod -Recurse -Force
             Copy-Item -Path (Join-Path $fixtureMod '*') -Destination $runtimeMod -Recurse -Force
             $report.runtimeDllSha256 = (Get-FileHash -LiteralPath (Join-Path $runtimeMod 'SFSE/Plugins/OSF Animation.dll')).Hash
+            @(Get-ChildItem -LiteralPath $runtimeMod -Recurse -File | ForEach-Object {
+                @{path=[IO.Path]::GetRelativePath($runtimeMod,$_.FullName);sha256=(Get-FileHash -LiteralPath $_.FullName).Hash}
+            }) | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $directory 'runtime-files.json') -Encoding utf8NoBOM
         } @('coverage','bench-contracts','sdk','production-build','native','fixtures','browser','distribution','install-matrix','runtime-preflight')
-        Invoke-SmokeStage 'runtime' {
+        if ($RunGame) { Invoke-SmokeStage 'runtime' {
             $report.runtime = Join-Path $directory 'runtime-result.json'
             $started = [DateTimeOffset]::UtcNow
             try {
@@ -230,7 +238,9 @@ try {
             $receipt = Get-Content -LiteralPath $report.runtime -Raw | ConvertFrom-Json
             Test-SmokeRuntimeReceipt $receipt $runtimeCases $identity.sha256 $report.runtimeDllSha256 $started ([DateTimeOffset]::UtcNow)
             $script:stage.message = "$($runtimeCases.Count) fresh in-game assertions passed"
-        } @('runtime-build')
+        } @('runtime-build') } else {
+            (Get-Stage 'runtime').message = 'Prepared only; no game process or MO2 staging requested.'
+        }
     } else {
         (Get-Stage 'runtime-preflight').message = 'Use -RunGame to check the runtime harness protocol.'
         (Get-Stage 'runtime-build').message = 'Use -RunGame to build the isolated test DLL.'
@@ -246,7 +256,7 @@ try {
         Invoke-SmokeStage 'restore-production-config' {
             $env:XSE_SF_MODS_PATH = $oldMods
             $env:XSE_SF_GAME_PATH = $oldGame
-            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n')
+            Invoke-SmokeCommand 'xmake' @('f','-y','-p','windows','-a','x64','-m','releasedbg','-o','build','--animation_smoke=n','--profiling=n')
         }
         if ($identity) {
             Invoke-SmokeStage 'source-unchanged' {
@@ -258,16 +268,17 @@ try {
     }
     $env:XSE_SF_MODS_PATH = $oldMods
     $env:XSE_SF_GAME_PATH = $oldGame
-    $required = if ($RunGame) { $names } else { @($names | Where-Object { $_ -notin @('runtime-preflight','runtime-build','runtime') }) }
+    $required = if ($RunGame) { $names } elseif ($PrepareOnly) { @($names | Where-Object { $_ -ne 'runtime' }) } else { @($names | Where-Object { $_ -notin @('runtime-preflight','runtime-build','runtime') }) }
     $exitCode = if (@($report.stages | Where-Object status -eq 'failed').Count) { 1 }
         elseif (@($report.stages | Where-Object { $_.name -in $required -and $_.status -ne 'passed' }).Count) { 2 } else { 0 }
     $report.automatedPassed = $exitCode -eq 0
     $report.completeAutomatedSuite = $report.automatedPassed -and [bool]$RunGame
     $report.outcome = if ($exitCode -eq 2) { 'blocked' } elseif ($exitCode -eq 1) { 'failed' }
-        elseif ($RunGame) { 'automated-passed-acceptance-gaps-open' } else { 'offline-passed' }
+        elseif ($RunGame) { 'automated-passed-acceptance-gaps-open' } elseif ($PrepareOnly) { 'prepared-not-run' } else { 'offline-passed' }
     $report.finishedUtc = [DateTime]::UtcNow.ToString('o')
     Save-SmokeReport $report $directory
     if ($lock) { $lock.Dispose() }
+    if ($preparationLock) { $preparationLock.Dispose() }
     Pop-Location
     Write-Host "Smoke report: $(Join-Path $directory 'report.md')"
 }

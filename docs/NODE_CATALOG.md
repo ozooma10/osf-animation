@@ -1,13 +1,35 @@
 # Node catalog and execution
 
-The additive `nodes` array in catalog schema 3 exposes every resolved node, including graph nodes and synthetic linear stages. Its address is the exact `(scene, id)` pair; IDs are not flattened into a delimiter-based string. The containing scene supplies roles, placement, anchor requirements and source provenance. An Intimacy published node ID remains a separate semantic binding to this motion address.
+Animation 2.0 publishes catalog schema **4** with one `nodes` array. Each globally unique,
+case-insensitive ID owns its name, tags, priority, weight, visibility, cast, placement, anchor,
+source provenance and ordered `stages`. A stage is an actual playback segment, never another node.
+No scene container or synthetic linear ID is published. File defaults resolve during loading;
+tags union case-insensitively and node scalar/role declarations replace defaults.
 
-Graph nodes may declare `name`, `tags`, `priority`, positive `weight`, and `unlisted`. Tags are a case-insensitive union with scene tags. Ranking and visibility inherit the scene when omitted. Synthetic linear nodes inherit their stage name and tags. `clipsAvailable` checks every segment of that node and its cast size; a missing clip elsewhere in the route does not hide a usable node. Scene-level discovery retains its existing conservative availability rule.
+`clipsAvailable` checks the complete node timeline. Matching ranks the resulting node metadata.
+Consumers that only want route entries must select explicit IDs or entry tags; entry is not a
+second registry concept. Intimacy's published semantic ID is a separate binding to one motion ID.
 
-`stage` is the linear index, or -1; `entry` identifies the authored route entry; `segments` counts internal timeline segments. These are discovery records, not new scene definitions: starting at a node retains the original route, cues and outgoing edges.
+Scene ABI **2.0** `StartScene`/`StartSceneRoles` accept the global node ID and an optional initial
+stage. `GetNode(handle)` reports that ID; stage getters report the current segment. Services **4.0**
+`MatchCast`/`MatchAnchor` return global-ID arrays. Cast matching is positional and includes unlisted
+nodes for explicit consumer selection; ordinary tag matchmaking still respects visibility/ranking.
 
-Scene ABI **1.7** appends borrowed `OSFStartOptions.startNode`. `StartScene` and `StartSceneRoles` copy and validate it before preparation. Unknown nodes or a simultaneous nonzero `startStage` refuse instead of falling back; omitted options preserve existing starts. Matchmade scene starts continue using the authored entry.
+`ReplaceNode(handle, nodeId, roles, count, options)` selects an exact destination and role binding.
+`OSFTransitionOptions` supplies stage, optional anchor/heading and `covered`. Authored edges and
+exact requests share destination admission, preparation, ownership, rollback and completion.
+True means accepted, not committed; observe events and `ReadScenePreparation`.
 
-Services **3.15** appends `MatchNodeCast`, `MatchNodeAnchor`, and `ReplaceNodeRoles`. The cast query returns exact address pairs for every available node compatible with the ordered cast. It includes unlisted nodes so explicit callers can discover them; consumers filter catalog tags, visibility, ranking and caller authority. The anchor query returns compatible scene IDs without disqualifying usable nodes for a missing sibling clip. Both require Animation's verified frame context. `ReplaceNodeRoles` copies the exact address and role assignment, and retains the existing asynchronous preparation, rollback and optional covered handoff. It returns acceptance, not playback success. Use authored `Navigate`/`Advance` for seamless in-route edges.
+Authored routes retain their immutable source publication across reload/provider withdrawal.
+Exact requests use the current publication. Final publication validation includes generated and
+provider nodes, rejects missing targets and dependent routes, and preserves valid cycles.
+Provider registration/removal can restore/reject these routes without reparsing files. Existing
+NodeRefs remain valid. A provider receives base candidates, never its previous output.
 
-The scene ABI append preserves older stamped option sizes. The services append preserves earlier table prefixes. Existing scene catalog and matching APIs retain their behavior. Catalog schema 3 remains additive: older readers may ignore `nodes`.
+Full catalog source clips use global `node`, `stage`, `clip` offsets. Compact provider input schema
+**2** carries the same source addresses and node metadata. Catalog reads and provider callbacks use
+cached clip availability and do no resource IO. The Browser's typed/streamed parsers use these new
+schemas; the `activeLaunches` web event carries current global node IDs.
+
+Native clients must rebuild against scene 2.0/services 4.0; previous majors and old prefix layouts
+are rejected. The persistence C ABI remains unchanged.

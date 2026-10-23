@@ -4,6 +4,8 @@
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Matchmaking/Matchmaker.h"
+#include "Profiling/Profile.h"
+#include "Profiling/ProfilerHost.h"
 #include "Registry/ContentRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneEventRelay.h"
@@ -30,6 +32,7 @@ namespace OSF::Scene
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition,
 		std::string_view a_edge)
 	{
+		OSF_PROFILE_SCOPE("Scene.Fire");
 		// Replay before dispatch so SCENE_END listeners see restored actors. Load teardown bypasses this.
 		if (a_event == Event::kSceneEnd) {
 			GetSingleton().ReplayLedger(a_handle);
@@ -63,12 +66,13 @@ namespace OSF::Scene
 			auto& rt = GetSingleton();
 			std::lock_guard l{ rt._lock };
 			if (const auto* s = rt.Resolve(a_handle)) {
-				e.sceneId = s->id;
 				if (a_event == Event::kSceneEnd) e.cause = static_cast<std::int32_t>(s->terminationCause);
 			}
 		}
-		if (a_event == Event::kSceneEnd)
-			REX::INFO("[Scene] end id='{}' handle={:#010x} cause={}", e.sceneId, a_handle, TerminationCauseName(static_cast<TerminationCause>(e.cause)));
+		if (a_event == Event::kSceneEnd) {
+			REX::INFO("[Scene] end id='{}' handle={:#010x} cause={}", a_node, a_handle, TerminationCauseName(static_cast<TerminationCause>(e.cause)));
+			OSF_PROFILE_HOST_SCENE_END(a_node);
+		}
 		e.node = std::string(a_node);
 		e.edge = std::string(a_edge);
 		e.trackPosition = std::string(a_trackPosition);
@@ -78,7 +82,7 @@ namespace OSF::Scene
 			{
 				std::lock_guard l{ GetSingleton()._lock };
 				const auto*     s = GetSingleton().Resolve(a_handle);
-				if (!s || s->transitioning || s->node != a_node)
+				if (!s || s->node != a_node)
 					return;
 			}
 			if (!LifecycleValid(a_handle, a_node, true))
@@ -104,6 +108,7 @@ namespace OSF::Scene
 	void SceneRuntime::DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
 		std::string_view a_role, std::string_view a_trackPosition, float a_time, std::uint64_t a_detectedNs, bool a_nativeOnly)
 	{
+		OSF_PROFILE_SCOPE("Scene.DispatchCue");
 		if (spdlog::should_log(spdlog::level::debug)) {
 			REX::DEBUG("[Scene] scene {:#010x} CUE '{}' node='{}' role='{}' trackPosition='{}' time={:.3f}",
 				a_handle, a_cue, a_node, a_role, a_trackPosition, a_time);
@@ -111,7 +116,6 @@ namespace OSF::Scene
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kCue;
-		e.sceneId = GetSingleton().GetSceneId(a_handle);
 		e.node = std::string(a_node);
 		e.cue = std::string(a_cue);
 		e.trackPosition = std::string(a_trackPosition);
@@ -132,7 +136,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}
@@ -149,6 +153,7 @@ namespace OSF::Scene
 	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role,
 		Registry::SoundEmitter a_emitter)
 	{
+		OSF_PROFILE_SCOPE("Scene.PlaySound");
 		RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role);
 
 		Audio::SoundPlayback::Play(actor, static_cast<std::uint32_t>(a_handle), a_spec, a_emitter,
@@ -162,7 +167,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}
@@ -178,6 +183,7 @@ namespace OSF::Scene
 
 	void SceneRuntime::RunCamera(std::int32_t a_handle, Registry::CameraState a_state, bool a_hasPlayer, float a_distance)
 	{
+		OSF_PROFILE_SCOPE("Scene.RunCamera");
 		const auto stateName = Registry::CameraStateName(a_state);
 		// NPC-only scenes must not seize the player's camera.
 		if (!a_hasPlayer) {
@@ -219,7 +225,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}
@@ -247,7 +253,6 @@ namespace OSF::Scene
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kAction;
-		e.sceneId = GetSingleton().GetSceneId(a_handle);
 		e.node = std::string(a_node);
 		e.actionType = std::string(a_type);
 		e.role = std::string(a_role);
@@ -291,7 +296,7 @@ namespace OSF::Scene
 			return;
 		}
 		const auto def = view.definition;
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		const auto* node = def.get();
 		if (!node) {
 			return;
 		}
@@ -320,6 +325,7 @@ namespace OSF::Scene
 	void SceneRuntime::RunAction(std::int32_t a_handle, std::string_view a_node, const Registry::ActionEntry& a_action,
 		std::string_view a_trackPosition, bool a_hasPlayer)
 	{
+		OSF_PROFILE_SCOPE("Scene.RunAction");
 		if (a_action.kind == Registry::ActionKind::kControlLock) {
 			if (a_hasPlayer) {
 				REX::DEBUG("[Scene] scene {:#010x} action osf.control.lock engaged player input lock (role '{}')", a_handle, a_action.role);

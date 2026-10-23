@@ -2,6 +2,8 @@
 
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
+#include "Profiling/Profile.h"
+#include "Profiling/ProfilerHost.h"
 #include "UI/FadeService.h"
 #include "UI/Subtitle.h"
 #include "Util/NativeMainThreadQueue.h"
@@ -23,18 +25,39 @@ namespace OSF::Maintenance
 		void FrameThunk() noexcept
 		{
 			(*g_frameHook)();
+			// The profiler's frame boundary: OSF time between consecutive marks is one frame's cost.
+			OSF_PROFILE_FRAME();
+			{
+				OSF_PROFILE_SCOPE("Frame.Maintenance");
 #ifdef OSF_ANIMATION_SMOKE
-			Testing::D3AudioProbe::FrameDrain();
+				Testing::D3AudioProbe::FrameDrain();
 #endif
-			Util::NativeMainThreadQueue::Drain();
-			// Playback time and pose stamping live in the AnimationManager/BGSModelNode::Update hooks.
-			Camera::CameraService::GetSingleton().Tick();
-			UI::FadeService::GetSingleton().Tick();
-			UI::Subtitle::Tick();
-			Animation::GraphManager::GetSingleton().MaintenanceTick();
+				{
+					OSF_PROFILE_SCOPE("Frame.Drain");
+					Util::NativeMainThreadQueue::Drain();
+				}
+				// Playback time and pose stamping live in the AnimationManager/BGSModelNode::Update hooks.
+				{
+					OSF_PROFILE_SCOPE("Frame.Camera.Tick");
+					Camera::CameraService::GetSingleton().Tick();
+				}
+				{
+					OSF_PROFILE_SCOPE("Frame.Fade.Tick");
+					UI::FadeService::GetSingleton().Tick();
+				}
+				{
+					OSF_PROFILE_SCOPE("Frame.Subtitle.Tick");
+					UI::Subtitle::Tick();
+				}
+				{
+					OSF_PROFILE_SCOPE("Frame.GraphManager.MaintenanceTick");
+					Animation::GraphManager::GetSingleton().MaintenanceTick();
+				}
 #ifdef OSF_ANIMATION_SMOKE
-			Testing::AnimationSmoke::Tick();
+				Testing::AnimationSmoke::Tick();
 #endif
+			}
+			OSF_PROFILE_HOST_POLL();
 		}
 	}
 

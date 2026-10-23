@@ -1,4 +1,5 @@
 #include "Util/Ba2.h"
+#include "Profiling/Profile.h"
 
 #include "Util/StringUtil.h"
 
@@ -33,6 +34,7 @@ namespace OSF::Util::Ba2
 
 		std::optional<std::vector<std::uint8_t>> ReadFromArchive(const std::filesystem::path& a_archive, const std::string& a_want)
 		{
+			OSF_PROFILE_SCOPE("Import.Ba2.ReadArchive");
 			std::ifstream f(a_archive, std::ios::binary);
 			if (!f) {
 				return std::nullopt;
@@ -130,6 +132,7 @@ namespace OSF::Util::Ba2
 
 	std::optional<std::vector<std::uint8_t>> ReadGameFile(std::string_view a_relPath, std::string_view a_preferredArchive)
 	{
+		OSF_PROFILE_SCOPE("Import.Ba2.ReadGameFile");
 		const std::string want = Normalize(a_relPath);
 		std::error_code ec;
 		const auto dataDir = std::filesystem::current_path() / "Data";

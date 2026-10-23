@@ -42,7 +42,7 @@ export interface ActiveCastMember {
 
 export interface ActiveLaunch {
   handle: number;
-  sceneId: string;
+  nodeId: string;
   stage: number;
   player: boolean;
   cast: ActiveCastMember[];

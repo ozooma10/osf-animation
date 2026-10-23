@@ -273,7 +273,7 @@ void AdvanceFeatures()
 		if (!WaitFeature("papyrus.binding",ready,8,"OSF.IsReady/GetVersion/callback registration did not return through Papyrus")) break;
 		if (!Check("papyrus.binding",true,"Shipped OSF.pex natives return readiness/version and a callback token through Papyrus")) return;
 		auto options = Options();
-		g.scene = g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph",options);
+		g.scene = g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph/first",options);
 		if (!g.scene) { Check("papyrus.callbacks",false,"Could not start the Papyrus event fixture"); return; }
 		Phase(102); break;
 	}
@@ -323,7 +323,7 @@ void AdvanceFeatures()
 		query.noneOf={"osf-smoke-only"};
 		if (!Check("matchmaking.tags",match && match->id == "osf.smoke.match" && match->order == std::vector<std::size_t>{0} && !Matchmaking::Pick({actor},query),"Live actor matchmaking honors positive/negative tags and complete role binding")) return;
 		const auto files=registry.FileStats();
-		if (!Check("registry.import-records",std::ranges::any_of(files,[](const auto& f) { return f.file == "animation-features.osf.json" && f.scenes == 3 && f.errors == 0; }),"Every extended fixture was accepted and attributed to its import record")) return;
+		if (!Check("registry.import-records",std::ranges::any_of(files,[](const auto& f) { return f.file == "animation-features.osf.json" && f.nodes == 3 && f.errors == 0; }),"Every extended fixture was accepted and attributed to its import record")) return;
 		feature.worn=Worn(actor); feature.retainedWorn=WornAfterFullHide(actor); feature.inputFlags=InputFlags();
 		if (feature.worn == feature.retainedWorn || !(feature.inputFlags & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement))) { Finish("blocked","Equipment/input fixture requires a clothed player with movement initially enabled"); return; }
 		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.mechanisms",options);
@@ -469,10 +469,10 @@ void AdvanceFeatures()
 		if (feature.worn == feature.retainedWorn || !(feature.inputFlags & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement))) {
 			Finish("blocked","Default policy checks require worn apparel and initially enabled movement"); return;
 		}
-		auto options=Options(); options.stripMode=options.lockPlayerMode=-1;
+		auto options=Options(); options.hideApparelMode=options.playerInputLockMode=-1;
 		// The first two inherit content policy; the latter two explicitly reverse it.
 		const bool optOut = feature.policyIndex == 1 || feature.policyIndex == 3;
-		if (feature.policyIndex >= 2) options.stripMode=options.lockPlayerMode=optOut ? 1 : 0;
+		if (feature.policyIndex >= 2) options.hideApparelMode=options.playerInputLockMode=optOut ? 1 : 0;
 		g.scene=g.sceneAPI->StartScene(&actor,1,optOut ? "osf.smoke.optout" : "osf.smoke.defaults",options);
 		constexpr const char* names[]{"policy.defaults","policy.opt-outs","policy.override-off","policy.override-on"};
 		if (!g.scene) { Check(names[feature.policyIndex],false,"Policy fixture could not start"); return; }
@@ -511,7 +511,7 @@ void AdvanceFeatures()
 		feature.persistenceRegistered=feature.persistence && feature.persistence->IsReady(feature.persistence) && feature.persistence->RegisterClient(feature.persistence,&client);
 		if (!Check("persistence.save",feature.persistenceRegistered,"Private acceptance persistence client registered with the live host")) return;
 		feature.worn=Worn(actor); feature.retainedWorn=WornAfterFullHide(actor); feature.inputFlags=InputFlags();
-		auto options=Options(); options.stripMode=options.lockPlayerMode=1;
+		auto options=Options(); options.hideApparelMode=options.playerInputLockMode=1;
 		std::memcpy(options.camera,"scene_orbit",12);
 		g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.defaults",options);
 		if (!g.scene) { Check("persistence.save-reengage",false,"Could not start a locked, stripped scene before saving"); return; }
@@ -556,7 +556,7 @@ void AdvanceFeatures()
 		if (!WaitFeature("papyrus.rebind",ready,10,"OSF natives did not return from the rebuilt VM")) break;
 		if (!Check("papyrus.rebind",true,"OSF readiness native executed through Papyrus after a real quickload")) return;
 		{ std::scoped_lock lock(g.eventsMutex); g.events.clear(); }
-		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph",options);
+		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph/first",options);
 		if (!g.scene || g.scene == feature.beforeLoadScene) {
 			Check("api.callbacks-after-load",false,"Could not start a distinct fresh graph after quickload"); return;
 		}

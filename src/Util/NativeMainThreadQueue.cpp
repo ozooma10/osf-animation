@@ -1,5 +1,7 @@
 #include "Util/NativeMainThreadQueue.h"
 
+#include "Profiling/Profile.h"
+
 #include <iterator>
 #include <mutex>
 #include <utility>
@@ -43,7 +45,10 @@ namespace OSF::Util::NativeMainThreadQueue
 			Guard() { g_draining = true; }
 			~Guard() { g_draining = false; }
 		} guard;
+		OSF_PROFILE_GAUGE("MainQueue.BatchSize", batch.size());
 		for (auto& task : batch) {
+			// Untagged tasks are measured here; OSF_PROFILE_TASK call sites add their own named scope.
+			OSF_PROFILE_SCOPE("MainQueue.Task");
 			task();
 		}
 	}

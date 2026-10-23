@@ -11,7 +11,8 @@
 namespace OSF::Preparation
 {
     using Token = std::uint64_t;
-    enum class Kind : std::uint32_t { Start, Handoff, Node, Stage };
+    enum class Kind : std::uint32_t { Start, Transition, Stage };
+    enum class Origin : std::uint32_t { Caller, ManualEdge, TimedCue, PlaybackCompletion };
     enum class Phase : std::uint32_t { Plan, Apply, Ready, Validate };
     enum class Decision : std::uint32_t { Approve, Pending, Veto };
     enum class Outcome : std::uint32_t { Committed, Vetoed, Failed, Cancelled, TimedOut, OwnerWithdrawn, WorldReset };
@@ -19,7 +20,9 @@ namespace OSF::Preparation
         Token attempt{};
         std::int32_t scene{};
         Kind kind{};
-        std::string fromScene, fromNode, toScene, toNode;
+        Origin origin{};
+        bool covered{};
+        std::string fromNode, toNode;
         std::int32_t fromStage{-1}, toStage{-1};
         std::vector<std::uint32_t> actors;
     };

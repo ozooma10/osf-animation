@@ -11,10 +11,10 @@ namespace OSF::API
 	struct ClipScene
 	{
 		std::string id, source, name;
-		std::uint32_t node{}, stage{}, clip{};
+		std::uint32_t stage{}, clip{};
 		std::vector<std::string> tags;
 		bool unlisted{}, library{}, followActor{}, playerInputLock{true}, hideApparel{true}, fade{}, clearOffset{};
-		NLOHMANN_DEFINE_TYPE_INTRUSIVE(ClipScene, id, source, name, node, stage, clip, tags,
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(ClipScene, id, source, name, stage, clip, tags,
 			unlisted, library, followActor, playerInputLock, hideApparel, fade, clearOffset)
 	};
 }

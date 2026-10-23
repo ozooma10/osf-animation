@@ -48,7 +48,6 @@ namespace OSF::Scene
 		std::optional<float> headingRad;
 		SceneRuntime::AnchorOverride worldAnchor;  // used only without a ref; cannot satisfy furniture requirements
 		std::int32_t stage = 0;
-        std::string node; // exact entry node; rejects unknown nodes and conflicting stage selection
 		InvalidStagePolicy invalidStage = InvalidStagePolicy::kReject;
 		std::optional<float> speed;  // seeds scene-owned speed before entry playback
 		bool emitHud = true;

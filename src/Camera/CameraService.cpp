@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -112,7 +113,7 @@ namespace OSF::Camera
 			return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 		}
 
-		// forward = (-sin yaw, cos yaw), as Scene::PlacementToWorld; +pitch tilts up.
+		// Free-camera quaternion convention: forward = (-sin yaw, cos yaw); +pitch tilts up.
 		RE::NiPoint3 LookDirection(float a_yaw, float a_pitch)
 		{
 			const float cp = std::cos(a_pitch);
@@ -182,6 +183,15 @@ namespace OSF::Camera
 				break;
 			}
 		}
+		baselineHasThirdPersonZoom = false;
+		if (baselineStateIndex == RE::CameraState::kThirdPerson) {
+			const auto* thirdPerson = static_cast<RE::ThirdPersonState*>(a_camera.cameraStates[RE::CameraState::kThirdPerson]);
+			if (thirdPerson && std::isfinite(thirdPerson->currentZoomOffset) && std::isfinite(thirdPerson->targetZoomOffset)) {
+				baselineCurrentZoom = thirdPerson->currentZoomOffset;
+				baselineTargetZoom = thirdPerson->targetZoomOffset;
+				baselineHasThirdPersonZoom = true;
+			}
+		}
 		baselineCaptured = true;
 	}
 
@@ -190,6 +200,9 @@ namespace OSF::Camera
 		QueueTask([this]() {
 			bool          wantFirst = false;
 			std::uint32_t priorState = 0xFFFFFFFFu;
+			bool restoreZoom = false;
+			float currentZoom = 0.0f;
+			float targetZoom = 0.0f;
 			{
 				std::scoped_lock l{ lock };
 				// Another imposition still holds the camera; keep the baseline for it.
@@ -198,6 +211,10 @@ namespace OSF::Camera
 				}
 				wantFirst = baselineWasFirstPerson;
 				priorState = baselineStateIndex;
+				restoreZoom = baselineHasThirdPersonZoom;
+				currentZoom = baselineCurrentZoom;
+				targetZoom = baselineTargetZoom;
+				baselineHasThirdPersonZoom = false;
 				baselineCaptured = false;
 			}
 			auto* camera = RE::PlayerCamera::GetSingleton();
@@ -243,6 +260,15 @@ namespace OSF::Camera
 			} else if (!camera->IsInThirdPerson()) {
 				camera->ForceThirdPerson();
 				REX::DEBUG("[Camera] restored to third person after scene camera release");
+			}
+			if (restoreZoom) {
+				// Native free-camera entry and POV changes reset these fields. Restore after the
+				// mode handback, including when the engine already returned to third person.
+				if (auto* thirdPerson = static_cast<RE::ThirdPersonState*>(camera->cameraStates[RE::CameraState::kThirdPerson])) {
+					thirdPerson->currentZoomOffset = currentZoom;
+					thirdPerson->targetZoomOffset = targetZoom;
+					REX::DEBUG("[Camera] restored third-person zoom {} (target {})", currentZoom, targetZoom);
+				}
 			}
 		});
 	}
@@ -933,6 +959,7 @@ namespace OSF::Camera
 		holdCount = 0;
 		overrideCount = 0;
 		baselineCaptured = false;
+		baselineHasThirdPersonZoom = false;
 		holdArmed.store(false, std::memory_order_relaxed);
 		suppressBounce.store(false, std::memory_order_relaxed);
 	}

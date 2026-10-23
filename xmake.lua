@@ -2,9 +2,11 @@ includes("lib/commonlibsf")
 
 -- CommonLib's automatic install defaults to every target. With two independent DLLs,
 -- deploy only the target that just finished (the other may not have linked yet).
+-- The profiling override deploys itself (see the engine target's after_build) and must
+-- never reach CommonLib's install directory, which is the normal mod.
 rule("commonlib.plugin")
     after_build(function (target)
-        if target:installdir() then
+        if target:installdir() and not target:values("osf.profiling") then
             import("core.project.task")
             task.run("install", {target = target:name()})
         end
@@ -12,7 +14,7 @@ rule("commonlib.plugin")
 rule_end()
 
 set_project("OSF Animation")
-set_version("1.5.0")
+set_version("2.0.0")
 set_license("GPL-3.0")
 set_languages("c++23")
 set_warnings("allextra")
@@ -33,6 +35,12 @@ option("animation_smoke")
     set_description("Enable the private development-only Animation smoke mailbox")
 option_end()
 
+option("profiling")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Build the development-only in-house profiler override DLL (never packaged)")
+option_end()
+
 target("OSF Animation")
     add_rules("commonlibsf.plugin", {
         name = "OSF Animation",
@@ -49,23 +57,61 @@ target("OSF Animation")
     else
         remove_files("src/Testing/AnimationSmoke.cpp")
     end
+    -- Development-only profiler (docs/PROFILING.md). Production compiles every profiling macro to
+    -- nothing and contains no profiler source; the override build adds the core and engine host.
+    if has_config("profiling") then
+        set_values("osf.profiling", true)
+        add_defines("OSF_PROFILING=1")
+        add_files("shared/Profiling/Profiler.cpp", "shared/Profiling/AllocationHooks.cpp")
+    else
+        remove_files("src/Profiling/**.cpp")
+    end
     add_headerfiles("src/**.h")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
-    -- CommonLib deploys the DLL/PDB and these payloads through its install rule.
-    for _, script in ipairs({"OSF", "OSFTypes", "OSFAdvanced"}) do
-        add_installfiles("dist/Scripts/" .. script .. ".pex", { prefixdir = "Scripts" })
-        add_installfiles("dist/Scripts/Source/" .. script .. ".psc", { prefixdir = "Scripts/Source" })
+    -- CommonLib deploys the DLL/PDB and these payloads through its install rule. The profiling
+    -- override inherits every payload from the normal mod through MO2's virtual file system.
+    if not has_config("profiling") then
+        for _, script in ipairs({"OSF", "OSFTypes", "OSFAdvanced"}) do
+            add_installfiles("dist/Scripts/" .. script .. ".pex", { prefixdir = "Scripts" })
+            add_installfiles("dist/Scripts/Source/" .. script .. ".psc", { prefixdir = "Scripts/Source" })
+        end
+        add_installfiles("dist/OSF/internal.osf.json", { prefixdir = "OSF" })
+        add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json", {
+            prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
+        })
     end
-    add_installfiles("dist/OSF/internal.osf.json", { prefixdir = "OSF" })
-    add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json", {
-        prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
-    })
 
-    -- The browser addon owns the view; remove only its old locations in this mod.
+    -- The profiling override deploys only its DLL/PDB. The normal mod drops the old locations of
+    -- the view, which the browser addon now owns.
     after_build(function (target)
         local mods = os.getenv("XSE_SF_MODS_PATH")
+        if mods and target:values("osf.profiling") then
+            -- DLL/PDB only; enable at higher MO2 priority than the normal mod, disable after profiling.
+            local root = path.join(mods, "OSF Animation Profiling")
+            local plugins = path.join(root, "SFSE", "Plugins")
+            os.mkdir(plugins)
+            local ok = try { function () os.cp(target:targetfile(), plugins .. "/"); return true end }
+            if not ok then
+                print("[OSF] profiling DLL is busy (game running?) - override NOT updated. Close the game and rebuild.")
+                return
+            end
+            if os.isfile(target:symbolfile()) then
+                os.cp(target:symbolfile(), plugins .. "/")
+            end
+            io.writefile(path.join(root, "meta.ini"), [[
+[General]
+gameName=Starfield
+modid=0
+version=]] .. (target:version() or "dev") .. [[-profile
+category="-1,"
+comments=Development-only profiler override for OSF Animation. Enable at higher conflict priority than the normal mod.
+notes=Contains only OSF Animation.dll and its PDB. Disable after profiling. Never package.
+]])
+            print("[OSF] deployed development-only profiling override to " .. root)
+            return
+        end
         if mods then
             local plugins = path.join(mods, target:name(), "SFSE", "Plugins")
             -- Both components now ship explicit engine/browser schema names.
@@ -96,6 +142,7 @@ target("osf-browser-boundary-test")
               "extensions/browser/src/API/EngineClient.cpp", "extensions/browser/src/API/UIBridgeCatalog.cpp",
               "extensions/browser/src/API/BrowserClipLibrary.cpp", "test/BrowserClipLibraryTest.cpp",
               "extensions/browser/src/Serialization/BrowserPreferences.cpp",
+              "extensions/browser/src/API/BrowserCatalogJson.cpp", "test/BrowserCatalogJsonTest.cpp",
               "extensions/browser/src/Serialization/ClipDurationCache.cpp")
     add_includedirs("extensions/browser/src", "src", "src/API")
     set_pcxxheader("extensions/browser/src/pch.h")
@@ -179,6 +226,13 @@ target("osf-additive-pose-test")
     add_files("test/AdditivePoseTest.cpp")
     add_includedirs("src")
 
+target("osf-layer-pose-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    add_files("test/LayerPoseTest.cpp")
+    add_includedirs("src")
+
 target("osf-sound-registry-test")
     set_kind("binary")
     set_default(false)
@@ -225,4 +279,15 @@ target("osf-preparation-test")
     set_default(false)
     add_tests("default")
     add_files("src/Preparation/Coordinator.cpp", "test/PreparationTest.cpp")
+    add_includedirs("src")
+
+-- Profiler core with OSF_PROFILING=1; ProfilerNoopTest.cpp is the production (no-define) expansion.
+target("osf-profiler-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    add_packages("zlib", "nlohmann_json")
+    add_files("shared/Profiling/Profiler.cpp", "shared/Profiling/AllocationHooks.cpp",
+              "src/Util/Gzip.cpp", "test/ProfilerTest.cpp", { defines = "OSF_PROFILING=1" })
+    add_files("test/ProfilerNoopTest.cpp")
     add_includedirs("src")

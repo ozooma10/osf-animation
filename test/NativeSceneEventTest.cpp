@@ -17,8 +17,7 @@ using OSF::Test::Finish;
 // Consumers of the old prefix must not mistake former tail padding for a new field.
 static_assert(offsetof(OSF::API::OSFSceneEvent, result) == 80);
 static_assert(offsetof(OSF::API::OSFSceneEvent, cause) == 88);
-static_assert(offsetof(OSF::API::OSFSceneEvent, sceneId) == 96);
-static_assert(offsetof(OSF::API::OSFSceneEvent, detectedNs) == 104);
+static_assert(offsetof(OSF::API::OSFSceneEvent, detectedNs) == 96);
 
 namespace
 {
@@ -311,21 +310,21 @@ int main()
 		NativeSceneEventRegistry registry;
 		std::vector<std::string> received;
 		const auto token = registry.Register([](const OSFSceneEvent* e, void* context) {
-			static_cast<std::vector<std::string>*>(context)->push_back(std::format("{}:{}:{}:{}:{}",
-				e->eventType, e->sceneId, e->node, e->edge, e->cause));
-		}, &received, 42, SceneEventType::kSceneEnd | SceneEventType::kSceneHandoff);
+			static_cast<std::vector<std::string>*>(context)->push_back(std::format("{}:{}:{}:{}",
+				e->eventType, e->node, e->edge, e->cause));
+		}, &received, 42, SceneEventType::kSceneEnd | SceneEventType::kNodeTransition);
 		CHECK(token != 0);
 		OSF::Scene::SceneEvent event;
 		event.detectedNs = 123456789;
 		CHECK(NativeEventPayload(event).detectedNs == event.detectedNs);
-		event.scene = 42; event.node = "entry"; event.sceneId = "old"; event.event = OSF::Scene::Event::kSceneEnd;
+		event.scene = 42; event.node = "old/entry"; event.event = OSF::Scene::Event::kSceneEnd;
 		for (int cause : { 0, 1, 2 }) {
 			event.cause = cause;
 			CHECK(registry.Dispatch(NativeEventPayload(event)) == 0);
 		}
-		event.event = OSF::Scene::Event::kSceneHandoff; event.sceneId = "new"; event.edge = "old"; event.cause = -1;
+		event.event = OSF::Scene::Event::kNodeTransition; event.node = "new/entry"; event.edge = "old/entry"; event.cause = -1;
 		CHECK(registry.Dispatch(NativeEventPayload(event)) == 0);
-		CHECK(received == std::vector<std::string>({ "16:old:entry::0", "16:old:entry::1", "16:old:entry::2", "64:new:entry:old:-1" }));
+		CHECK(received == std::vector<std::string>({ "16:old/entry::0", "16:old/entry::1", "16:old/entry::2", "64:new/entry:old/entry:-1" }));
 	}
 	TestFilterMaskAndUnregister();
 	TestSelfUnregisterAndGeneration();

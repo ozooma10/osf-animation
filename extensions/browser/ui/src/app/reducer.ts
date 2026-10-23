@@ -77,7 +77,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return {
         ...state,
         lastHandle: action.handle,
-        lastSceneId: action.sceneId,
+        lastSceneId: action.nodeId,
         opts: { ...state.opts, speed: "1" },
         minimized: !state.wheel && action.afterLaunch === "minimize",
         mode: state.mode,
@@ -237,10 +237,10 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "selection/changed":
       return {
         ...state,
-        selectedId: action.sceneId,
+        selectedId: action.nodeId,
         selectedStage: action.stage ?? null,
         briefFullAnims: false,
-        opts: action.sceneId !== state.selectedId ? { ...state.opts, speed: "1" } : state.opts,
+        opts: action.nodeId !== state.selectedId ? { ...state.opts, speed: "1" } : state.opts,
       };
     case "mode/changed":
       return {

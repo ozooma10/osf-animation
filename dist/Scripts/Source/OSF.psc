@@ -6,6 +6,9 @@ ScriptName OSF Native Hidden
 ; Once the scene ends the handle is invalid and queries return sentinels.
 
 
+; Current global motion node ID, or "" for an invalid handle or ad-hoc playback.
+string Function GetNode(int aiScene) Global Native
+
 ; Matchmakes by tags + role/gender fit (priority tier, then weighted random) and starts it. Returns the handle (0 = no match).
 int Function StartSceneByTags(Actor[] akActors, string[] asTags, OSFTypes:SceneOptions akOpts = None) Global Native
 
@@ -104,7 +107,6 @@ bool Function ReplaceSceneRoles(int aiScene, string asSceneId, string[] asRoleNa
 bool Function ReplaceSceneByTagsQuery(int aiScene, string[] allOf, string[] anyOf, string[] noneOf) Global Native
 ; asRoles[i] constrains participant i in GetSceneParticipants order; akAnchor replaces the retained anchor.
 bool Function ReplaceSceneByQuery(int aiScene, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, string[] asRoles, ObjectReference akAnchor = None, bool abRequireAnchor = false) Global Native
-string Function GetSceneId(int aiScene) Global Native
 
 ; Pins akActor's solo graph to a WORLD point + heading (DEGREES) and moves the capsule there.
 ; aiRootMode: 0 = pin (lock rendered root at the point), 1 = follow (ride the actor).
@@ -205,14 +207,14 @@ EndFunction
 int Function EVENT_SCENE_BEGIN() Global
     return 32
 EndFunction
-int Function EVENT_SCENE_HANDOFF() Global
+int Function EVENT_NODE_TRANSITION() Global
     return 64
 EndFunction
 int Function EVENT_ALL() Global
     return 65535
 EndFunction
 
-; SceneOptions tri-state values (StripMode / LockPlayerMode / FadeMode); 0 forces off, it doesn't inherit.
+; SceneOptions tri-state values (HideApparelMode / PlayerInputLockMode / FadeMode); 0 forces off, it doesn't inherit.
 int Function INHERIT() Global
     return -1
 EndFunction

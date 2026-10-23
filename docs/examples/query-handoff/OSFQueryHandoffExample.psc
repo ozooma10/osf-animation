@@ -49,7 +49,7 @@ bool Function RunExample(Actor leadActor, Actor partnerActor, ObjectReference wo
     if !OwnsExample(handle, generation)
         return False
     endif
-    if OSF.GetSceneId(handle) != "osf.example.handoff.start"
+    if OSF.GetNode(handle) != "osf.example.handoff.start"
         StopOwnedExample(handle, generation)
         return False
     endif
@@ -64,7 +64,7 @@ bool Function RunExample(Actor leadActor, Actor partnerActor, ObjectReference wo
         StopOwnedExample(handle, generation)
         return False
     endif
-    Debug.Trace("OSF example: " + OSF.GetSceneId(handle) + ", speed " + OSF.GetSceneSpeed(handle))
+    Debug.Trace("OSF example: " + OSF.GetNode(handle) + ", speed " + OSF.GetSceneSpeed(handle))
     Utility.Wait(2.0)
     if !OwnsExample(handle, generation)
         return False

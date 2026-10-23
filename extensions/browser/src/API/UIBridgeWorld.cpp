@@ -47,7 +47,7 @@ namespace OSF::API::UIBridgeWorld
 
 			RE::BGSKeyword*                         match = nullptr;
 			std::unordered_map<RE::TESFormID, bool> tested;
-			EngineClient::CatalogData::GetSingleton().ForEachDef([&](const Catalog::Scene& a_def) {
+			EngineClient::CatalogData::GetSingleton().ForEachDef([&](const Catalog::Node& a_def) {
 				if (match || !a_def.clipsAvailable) {
 					return;
 				}
@@ -907,14 +907,14 @@ namespace OSF::API::UIBridgeWorld
 			const auto  scanStart = std::chrono::steady_clock::now();
 			const json  j = ParsePayload(a_payload);
 			std::string kind = "actor";
-			std::string sceneId;
+			std::string nodeId;
 			float       radius = 4096.0f;  // ~58 m
 			if (j.is_object()) {
 				if (const auto it = j.find("kind"); it != j.end() && it->is_string()) {
 					kind = it->get<std::string>();
 				}
-				if (const auto it = j.find("sceneId"); it != j.end() && it->is_string()) {
-					sceneId = it->get<std::string>();
+				if (const auto it = j.find("nodeId"); it != j.end() && it->is_string()) {
+					nodeId = it->get<std::string>();
 				}
 				if (const auto it = j.find("radius"); it != j.end() && it->is_number()) {
 					radius = NumOr(j, "radius", radius);
@@ -963,7 +963,7 @@ namespace OSF::API::UIBridgeWorld
 				std::vector<bool>                                               defCustom;  // def index -> non-library
 				std::unordered_map<RE::BGSKeyword*, std::vector<std::uint32_t>> kwDefs;
 				std::unordered_map<RE::TESFormID, std::vector<std::uint32_t>>   baseDefs;
-				const auto                                                      addDef = [&](const Catalog::Scene& d) {
+				const auto                                                      addDef = [&](const Catalog::Node& d) {
 					if (!d.RequiresAnchor() || !d.clipsAvailable) {
 						return;
 					}
@@ -979,8 +979,8 @@ namespace OSF::API::UIBridgeWorld
 					}
 				};
 				auto& reg = EngineClient::CatalogData::GetSingleton();
-				if (!sceneId.empty()) {
-					if (const auto def = reg.Find(sceneId)) {
+				if (!nodeId.empty()) {
+					if (const auto def = reg.Find(nodeId)) {
 						addDef(*def);
 					}
 				}

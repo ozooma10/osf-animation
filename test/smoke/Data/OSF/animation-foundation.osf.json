@@ -1,42 +1,113 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF private foundation regressions",
   "placement": "anchorAndPin",
-  "stripActors": false,
-  "lockPlayer": false,
+  "hideApparel": false,
+  "playerInputLock": false,
   "clearHeldItems": false,
   "camera": "none",
   "fade": false,
   "sceneControls": false,
-  "roles": [{ "name": "lead" }, { "name": "partner", "offset": { "x": 0.75 } }],
-  "scenes": [
+  "roles": [
     {
-      "id": "osf.smoke.foundation.start",
-      "tags": ["osf-smoke-foundation-start"],
-      "entry": "held",
-      "nodes": [
+      "name": "lead"
+    },
+    {
+      "name": "partner",
+      "offset": {
+        "x": 0.75
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "tags": [
+        "osf-smoke-foundation-start"
+      ],
+      "id": "osf.smoke.foundation.start/held",
+      "timer": 0.3,
+      "loops": 0,
+      "stages": [
         {
-          "id": "held", "allowManualHold": true, "timer": 0.3, "loops": 0,
-          "stages": [{ "loops": 0, "clips": ["OSF/Smoke/head.glb", "OSF/Smoke/head.glb"] }],
-          "cue": [{ "at": 0.1, "id": "foundation.repeat", "repeat": "loop" }, { "at": 0.2, "id": "foundation.once" }],
-          "edges": [{ "id": "next", "label": "Next", "to": "other", "when": "advance" }, { "to": "$end", "when": "timer" }]
+          "loops": 0,
+          "clips": [
+            "OSF/Smoke/head.glb",
+            "OSF/Smoke/head.glb"
+          ]
+        }
+      ],
+      "cue": [
+        {
+          "at": 0.1,
+          "id": "foundation.repeat",
+          "repeat": "loop"
         },
         {
-          "id": "other", "loops": 0,
-          "stages": [{ "loops": 0, "clips": [{ "file": "OSF/Smoke/head.glb", "offset": { "x": 0.125 } }, "OSF/Smoke/head.glb"] }],
-          "edges": [{ "id": "back", "label": "Back", "to": "held", "when": "advance" }]
+          "at": 0.2,
+          "id": "foundation.once"
+        }
+      ],
+      "edges": [
+        {
+          "id": "next",
+          "label": "Next",
+          "to": "osf.smoke.foundation.start/other",
+          "when": "advance"
+        },
+        {
+          "to": "$end",
+          "when": "timer"
         }
       ]
     },
     {
-      "id": "osf.smoke.foundation.target",
-      "tags": ["osf-smoke-foundation-target"],
-      "entry": "finish",
-      "nodes": [{
-        "id": "finish", "allowManualHold": true, "timer": 0.3, "loops": 0,
-        "stages": [{ "loops": 0, "clips": ["OSF/Smoke/head.glb", "OSF/Smoke/head.glb"] }],
-        "edges": [{ "to": "$end", "when": "timer" }]
-      }]
+      "id": "osf.smoke.foundation.start/other",
+      "loops": 0,
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            {
+              "file": "OSF/Smoke/head.glb",
+              "offset": {
+                "x": 0.125
+              }
+            },
+            "OSF/Smoke/head.glb"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "back",
+          "label": "Back",
+          "to": "osf.smoke.foundation.start/held",
+          "when": "advance"
+        }
+      ]
+    },
+    {
+      "tags": [
+        "osf-smoke-foundation-target"
+      ],
+      "id": "osf.smoke.foundation.target/finish",
+      "timer": 0.3,
+      "loops": 0,
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "OSF/Smoke/head.glb",
+            "OSF/Smoke/head.glb"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "to": "$end",
+          "when": "timer"
+        }
+      ]
     }
   ]
 }

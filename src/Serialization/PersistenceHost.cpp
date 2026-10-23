@@ -1,4 +1,5 @@
 #include "Serialization/PersistenceHost.h"
+#include "Profiling/Profile.h"
 
 #define OSF_PERSISTENCE_HOST 1
 #include "API/OSFPersistenceAPI.h"
@@ -199,6 +200,7 @@ namespace OSF::Serialization::PersistenceHost
 
 			void BeginLoad(const char* reason)
 			{
+				OSF_PROFILE_SCOPE("Persist.BeginLoad");
 				std::lock_guard lifecycleLock(_lifecycleMutex);
 				if (_loadInProgress.load(std::memory_order_acquire)) {
 					return;
@@ -237,6 +239,7 @@ namespace OSF::Serialization::PersistenceHost
 
 			void FinishLoad(std::string_view saveName, bool succeeded)
 			{
+				OSF_PROFILE_SCOPE("Persist.FinishLoad");
 				BeginLoad("load-name hook fallback");
 				PersistenceBroker::LoadStats stats;
 				bool found = false;
@@ -298,6 +301,7 @@ namespace OSF::Serialization::PersistenceHost
 
 			bool ResolveFormID(std::uint32_t oldID, std::uint32_t& resolved)
 			{
+				OSF_PROFILE_COUNTER("Persist.ResolveFormID", 1);
 				resolved = 0;
 				if (!_loadInProgress.load(std::memory_order_acquire)) {
 					return false;
@@ -337,6 +341,7 @@ namespace OSF::Serialization::PersistenceHost
 
 			void Save(std::string_view saveName)
 			{
+				OSF_PROFILE_SCOPE("Persist.WriteSidecar");
 				const auto path = SidecarPath(saveName);
 				if (path.empty()) {
 					REX::ERROR("[Save] sidecar save skipped: save path unavailable");
@@ -465,6 +470,7 @@ namespace OSF::Serialization::PersistenceHost
 			RE::BSEventNotifyControl ProcessEvent(const RE::TESFormDeleteEvent& event,
 				RE::BSTEventSource<RE::TESFormDeleteEvent>*) override
 			{
+				OSF_PROFILE_SCOPE("Persist.FormDeleteSink");
 				Host::GetSingleton().OnDeleted(event.formID);
 				return RE::BSEventNotifyControl::kContinue;
 			}

@@ -38,7 +38,7 @@ export class OsfUiBridge implements AnimationBridge {
       "osf.animation.wheel.data", "osf.animation.pick", "osf.animation.openTarget",
       "osf.animation.scanResults", "osf.animation.actorIndicators",
       "osf.animation.pickTargets", "osf.animation.anchorMatch", "osf.animation.castMatch",
-      "osf.animation.activeScenes", "osf.animation.launchResult",
+      "osf.animation.activeLaunches", "osf.animation.launchResult",
       "osf.animation.notice", "osf.animation.mode", "ui.visibility",
       "osfui.debug.error",
     ];

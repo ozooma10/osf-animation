@@ -97,8 +97,8 @@ export class StandaloneBridge implements AnimationBridge {
           ...report.totals,
           files: report.totals.files - 1,
           rejectedFiles: 0,
-          declaredScenes: report.totals.declaredScenes - 1,
-          rejectedScenes: report.totals.rejectedScenes - 1,
+          declaredNodes: report.totals.declaredNodes - 1,
+          rejectedNodes: report.totals.rejectedNodes - 1,
           errors: report.totals.errors - 1,
           bytes: report.totals.bytes - 3_140,
         };
@@ -168,14 +168,14 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.stop") {
       this.resumeSpeeds.delete(Number(fields.handle));
       this.active = this.active.filter((scene) => scene.handle !== Number(fields.handle));
-      this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
+      this.later({ type: "osf.animation.activeLaunches", payload: { scenes: this.active } });
     } else if (command === "osf.animation.advance") {
       this.advance(Number(fields.handle));
     } else if (command === "osf.animation.playback.get") {
       for (const active of this.active) {
         active.time = active.duration > 0 ? (active.time + 0.1 * active.speed) % active.duration : 0;
       }
-      this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
+      this.later({ type: "osf.animation.activeLaunches", payload: { scenes: this.active } });
     } else if (command === "osf.animation.playback.set") {
       const active = this.active.find((scene) => scene.handle === Number(fields.handle));
       if (active) {
@@ -187,7 +187,7 @@ export class StandaloneBridge implements AnimationBridge {
           this.resumeSpeeds.delete(active.handle);
         }
       }
-      this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
+      this.later({ type: "osf.animation.activeLaunches", payload: { scenes: this.active } });
     } else if (command === "osf.animation.wheel.set") {
       this.customized = !fields.reset;
       this.pins = fields.reset ? [] : Array.isArray(fields.entries)
@@ -197,7 +197,7 @@ export class StandaloneBridge implements AnimationBridge {
       this.emitCatalog(this.catalogRaw ?? MOCK_CATALOG);
     } else if (command === "osf.animation.opened") {
       this.emit({ type: "osf.animation.world", payload: { generation: 1 } });
-      this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 50);
+      this.later({ type: "osf.animation.activeLaunches", payload: { scenes: this.active } }, 50);
       const target = new URLSearchParams(location.search).get("target");
       if (target === "actor" || target === "furniture") this.later({ type: "osf.animation.openTarget", payload: { slot: target, ...(target === "actor" ? MOCK_ACTORS[0] : MOCK_ANCHORS[0]) } }, 60);
     } else if (command === "osf.animation.requestClose") {
@@ -210,8 +210,8 @@ export class StandaloneBridge implements AnimationBridge {
   }
 
   private launch(fields: Record<string, unknown>): void {
-    const sceneId = String(fields.sceneId || "");
-    if (sceneId === "emote.facepalm") {
+    const nodeId = String(fields.nodeId || "");
+    if (nodeId === "emote.facepalm") {
       this.later({ type: "osf.animation.launchResult", payload: { ok: false, error: "No room in front of the actor (mock error)." } }, 80);
       return;
     }
@@ -222,26 +222,26 @@ export class StandaloneBridge implements AnimationBridge {
     const speed = Number(options.speed) || 1;
     this.active.push({
       handle,
-      sceneId,
+      nodeId,
       stage: Number(options.stage) || 0,
       player: tokens.includes(PLAYER_TOKEN),
       cast: tokens.map((token) => ({ token, name: token === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === token)?.name ?? "actor", player: token === PLAYER_TOKEN })),
       time: 0,
-      duration: sceneById(this.getState(), sceneId)?.stages[Number(options.stage) || 0]?.loopSec ?? 5,
+      duration: sceneById(this.getState(), nodeId)?.stages[Number(options.stage) || 0]?.loopSec ?? 5,
       speed,
     });
-      this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId } }, 80);
-    this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);
+      this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, nodeId } }, 80);
+    this.later({ type: "osf.animation.activeLaunches", payload: { scenes: this.active } }, 130);
   }
 
   private advance(handle: number): void {
     const scene = this.active.find((candidate) => candidate.handle === handle);
     if (scene) {
       scene.stage++;
-      const definition = sceneById(this.getState(), scene.sceneId);
+      const definition = sceneById(this.getState(), scene.nodeId);
       if (definition?.stages.length && scene.stage >= definition.stages.length) this.active = this.active.filter((candidate) => candidate !== scene);
     }
-    this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
+    this.later({ type: "osf.animation.activeLaunches", payload: { scenes: this.active } });
   }
 
   dispose(): void {

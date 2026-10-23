@@ -1,13 +1,13 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Internal (system scenes: solo health-check, pair smoke-test)",
   "unlisted": true,
-  "scenes": [
+  "nodes": [
     {
       "id": "solo",
       "name": "solo (base-framework playback check)",
       "tags": ["test"],
-      "stripActors": false,
+      "hideApparel": false,
       "stages": [
         {
           "loops": 0,

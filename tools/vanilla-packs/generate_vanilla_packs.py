@@ -303,7 +303,7 @@ def append_scenes(doc: dict, scene_id: str, name: str, tags: list[str],
         for n, chunk in enumerate(chunks, start=1):
             cid = sid if n == 1 else f"{sid}--{n}"
             cnm = snm if n == 1 else f"{snm} ({n})"
-            doc["scenes"].append(build_scene(cid, cnm, tags, chunk, anchor))
+            doc["nodes"].append(build_scene(cid, cnm, tags, chunk, anchor))
 
 
 def furniture_class_key(segments: list[str]) -> str | None:
@@ -365,13 +365,13 @@ def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str,
                 anchor_stats["unmapped:" + cls] += 1
 
         doc = packs.setdefault(top, {
-            "schema": 1,
+            "schema": 2,
             "name": f"OSF Vanilla — {humanize(top)} (generated, do not hand-edit)",
             "section": "library",
             # Browse/play by id only; the matchmaking pool belongs to custom mod scenes.
             "unlisted": True,
             "clipRoot": CLIP_ROOT,
-            "scenes": [],
+            "nodes": [],
         })
         append_scenes(doc, scene_id, name, tags, clips, anchor)
     return packs, anchor_stats
@@ -496,12 +496,12 @@ def build_creature_packs(species_map: dict[str, dict]) -> dict[str, dict]:
         species_id = "-".join(species_root_low.split("\\")[2:])  # bipeda | sfbgs004-human
         family = sp["family"]
         doc = {
-            "schema": 1,
+            "schema": 2,
             "name": f"OSF Vanilla — {humanize(species_id)} (generated, do not hand-edit)",
             "section": "library",
             "unlisted": True,
             "clipRoot": sp["clip_root"],
-            "scenes": [],
+            "nodes": [],
         }
         for leaf in sorted(sp["leaves"]):
             clips = sorted(sp["leaves"][leaf], key=stage_sort_key)
@@ -549,8 +549,8 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     total_clips = total_scenes = 0
     for top, doc in sorted(packs.items()):
-        n_scenes = len(doc["scenes"])
-        n_clips = sum(len(s["stages"]) for s in doc["scenes"])
+        n_scenes = len(doc["nodes"])
+        n_clips = sum(len(s["stages"]) for s in doc["nodes"])
         total_scenes += n_scenes
         total_clips += n_clips
         out_file = args.out / f"vanilla-{top}.osf.json"
@@ -564,8 +564,8 @@ def main() -> int:
         creature_packs = build_creature_packs(species_map)
         c_species = c_scenes = c_clips = 0
         for species_id, doc in sorted(creature_packs.items()):
-            n_scenes = len(doc["scenes"])
-            n_clips = sum(len(s["stages"]) for s in doc["scenes"])
+            n_scenes = len(doc["nodes"])
+            n_clips = sum(len(s["stages"]) for s in doc["nodes"])
             if n_scenes == 0:
                 continue
             c_species += 1

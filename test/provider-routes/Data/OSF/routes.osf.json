@@ -1,0 +1,45 @@
+{
+  "schema": 2,
+  "pack": "Routes",
+  "clipLibrary": [
+    {
+      "file": "Fixture/x.glb"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "route/source",
+      "clip": "Fixture/x.glb"
+    },
+    {
+      "id": "route/generated",
+      "clip": "Fixture/x.glb",
+      "edges": [
+        {
+          "when": "end",
+          "to": "osf.scene-clip/f2df8cf84fd2bb38"
+        }
+      ]
+    },
+    {
+      "id": "route/provider",
+      "clip": "Fixture/x.glb",
+      "edges": [
+        {
+          "when": "end",
+          "to": "provider/destination"
+        }
+      ]
+    },
+    {
+      "id": "route/dependent",
+      "clip": "Fixture/x.glb",
+      "edges": [
+        {
+          "when": "end",
+          "to": "route/provider"
+        }
+      ]
+    }
+  ]
+}

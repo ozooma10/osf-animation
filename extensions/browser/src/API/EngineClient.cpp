@@ -1,5 +1,6 @@
 #include "API/EngineClient.h"
 #include "API/BrowserClipLibrary.h"
+#include "API/BrowserCatalogJson.h"
 #include "Serialization/ClipDurationCache.h"
 #include <algorithm>
 #include <cctype>
@@ -44,32 +45,50 @@ namespace OSF::API::EngineClient
 	std::string ActorSpecies(RE::Actor* actor) { return ActorIdentity(actor).species; }
 	std::string ActorGender(RE::Actor* actor) { return ActorIdentity(actor).gender; }
 	CatalogData& CatalogData::GetSingleton() { static auto* value = new CatalogData(); return *value; }
+	void CatalogData::Initialize(std::function<void(bool)> onChanged, std::function<void()> onDurationsChanged)
+	{
+		if (m_refresh) return;
+		m_onChanged = std::move(onChanged);
+		m_onDurationsChanged = std::move(onDurationsChanged);
+		m_refresh = std::make_unique<CatalogRefreshQueue>([] {
+			std::unique_ptr<Catalog::Snapshot> snapshot;
+			if (!Get().ReadCatalog(BrowserCatalogJson::Read, &snapshot) || !snapshot)
+				return std::unique_ptr<Catalog::Snapshot>{};
+			BrowserClipLibrary::Decorate(*snapshot);
+			return snapshot;
+		}, [this] { Post([this] { PublishPending(); }); });
+	}
+	void CatalogData::PublishPending()
+	{
+		// Publish only in frame commands, never a nested metadata getter: references
+		// returned by Find/FileStats remain valid throughout the current command.
+		if (m_refresh) if (auto completed = m_refresh->Publish(m_snapshot)) {
+			if (completed->success) m_durationDirty.store(true, std::memory_order_release);
+			if (completed->scan) Browser::ClipDurationCache::Scan(m_snapshot->clips, m_onDurationsChanged);
+			Refresh();
+			if (!completed->success) REX::ERROR("[UI] Could not refresh catalog metadata; retaining the previous catalog");
+			if (m_onChanged) m_onChanged(completed->success);
+		}
+	}
 	void CatalogData::Refresh()
 	{
-		const auto revision=m_revision.load(std::memory_order_acquire);
-		if (revision == m_loadedRevision) return;
-		nlohmann::json result;
-		if (!Get().ReadCatalog(ReadJson,&result) || !result.is_object() || result.value("schema",0) != 3) return;
-		m_snapshot=result.get<Catalog::Snapshot>();
-		BrowserClipLibrary::Decorate(m_snapshot);
+		if (!m_durationDirty.exchange(false, std::memory_order_acq_rel)) return;
 		Browser::ClipDurationCache::RefreshDecoded();
-		for (auto& scene : m_snapshot.scenes) for (auto& stage : scene.stages) {
+		for (auto& scene : m_snapshot->nodes) for (auto& stage : scene.stages) {
 			if (!stage.durationKey.empty()) {
-				if (const auto seconds = Browser::ClipDurationCache::Lookup(stage.durationKey)) stage.loopSec = *seconds;
+				stage.loopSec = Browser::ClipDurationCache::Lookup(stage.durationKey).value_or(-1.0f);
 			}
 		}
-		m_loadedRevision=revision;
 	}
-	const Catalog::Scene* CatalogData::Find(std::string_view id)
+	const Catalog::Node* CatalogData::Find(std::string_view id)
 	{
 		Refresh();
 		const auto equal=[](char a,char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); };
-		const auto it=std::ranges::find_if(m_snapshot.scenes,[&](const auto& s) { return std::ranges::equal(s.id,id,equal); });
-		return it == m_snapshot.scenes.end() ? nullptr : &*it;
+		const auto it=std::ranges::find_if(m_snapshot->nodes,[&](const auto& s) { return std::ranges::equal(s.id,id,equal); });
+		return it == m_snapshot->nodes.end() ? nullptr : &*it;
 	}
-	void CatalogData::ForEachDef(const std::function<void(const Catalog::Scene&)>& fn) { Refresh(); for (const auto& scene:m_snapshot.scenes) fn(scene); }
-	const std::vector<Catalog::File>& CatalogData::FileStats() { Refresh(); return m_snapshot.files; }
-	const std::vector<std::string>& CatalogData::LoadErrors() { Refresh(); return m_snapshot.errors; }
-	std::size_t CatalogData::Size() { Refresh(); return m_snapshot.scenes.size(); }
-	std::vector<Catalog::Clip> CatalogData::Clips() { Refresh(); return m_snapshot.clips; }
+	void CatalogData::ForEachDef(const std::function<void(const Catalog::Node&)>& fn) { Refresh(); for (const auto& scene:m_snapshot->nodes) fn(scene); }
+	const std::vector<Catalog::File>& CatalogData::FileStats() { Refresh(); return m_snapshot->files; }
+	const std::vector<std::string>& CatalogData::LoadErrors() { Refresh(); return m_snapshot->errors; }
+	std::size_t CatalogData::Size() { Refresh(); return m_snapshot->nodes.size(); }
 }

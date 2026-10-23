@@ -56,22 +56,22 @@ namespace OSF::Scene::Alignment
 			else API::Health::Clear("alignment.overrides");
 		} catch (...) { Problem("Alignment file could not be loaded; previous overrides retained."); }
 	}
-	std::vector<Delta> Read(std::string_view scene, std::string_view node, const std::vector<std::string>& roles)
+	std::vector<Delta> Read(std::string_view node, const std::vector<std::string>& roles)
 	{
 		std::lock_guard l{ g_lock };
 		std::vector<Delta> result;
-		for (const auto& role : RoleKeys(roles)) result.push_back(Find(g_table, scene, node, role));
+		for (const auto& role : RoleKeys(roles)) result.push_back(Find(g_table, node, role));
 		return result;
 	}
-	bool Save(const std::string& scene, const std::string& node, const std::vector<std::string>& roles, const std::vector<Delta>& values)
+	bool Save(const std::string& node, const std::vector<std::string>& roles, const std::vector<Delta>& values)
 	{
-		if (scene.empty() || node.empty() || roles.size() != values.size() || !std::ranges::all_of(values, Valid)) return false;
+		if (node.empty() || roles.size() != values.size() || !std::ranges::all_of(values, Valid)) return false;
 		std::lock_guard l{ g_lock };
 		if (g_loadFailed) { Problem("Alignment file was not loaded; repair it and reload before saving. Changes remain unsaved."); return false; }
 		try {
 			auto next = g_table;
 			const auto keys = RoleKeys(roles);
-			for (std::size_t i = 0; i < keys.size(); ++i) Put(next, scene, node, keys[i], values[i]);
+			for (std::size_t i = 0; i < keys.size(); ++i) Put(next, node, keys[i], values[i]);
 			const auto doc = Serialize(next);
 			const auto text = doc.dump(2);
 			std::size_t skipped = 0;

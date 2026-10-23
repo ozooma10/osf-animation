@@ -1,8 +1,14 @@
 #requires -Version 7.2
 [CmdletBinding()]
-param([switch] $NoDeploy, [string] $TestReport = '')
+param(
+    [switch] $NoDeploy,
+    [switch] $CleanDependencies,
+    [string] $TestReport = '',
+    [ValidateRange(1,64)][int] $Jobs = 4
+)
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'WorkflowCache.ps1')
 $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $repo 'packaging/ReleaseValidation.ps1')
 & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Test-SdkLock.ps1')
@@ -24,9 +30,9 @@ Push-Location $repo
 try {
     $env:XSE_SF_MODS_PATH = Join-Path $repo ('build/packages/browser-native-' + [guid]::NewGuid().ToString('N'))
     $env:XSE_SF_GAME_PATH = $null
-    & xmake f -y -p windows -a x64 -m releasedbg -o build --animation_smoke=n
+    & xmake f -y -p windows -a x64 -m releasedbg -o build --animation_smoke=n --profiling=n
     if ($LASTEXITCODE) { throw 'Browser native configuration failed.' }
-    & xmake build -y -j4 'OSF Animation Browser'
+    & xmake build -y "-j$Jobs" 'OSF Animation Browser'
     if ($LASTEXITCODE) { throw 'Browser native build failed.' }
 } finally {
     $env:XSE_SF_MODS_PATH = $savedMods
@@ -36,8 +42,28 @@ try {
 
 Push-Location $ui
 try {
-    & npm.cmd ci
-    if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+    # Validate the installed tree as well as the lockfile; missing/edited packages
+    # cannot borrow a successful install. npm configuration is part of the key.
+    $npmConfiguration = (& npm.cmd config list --json | Out-String)
+    if ($LASTEXITCODE) { throw 'Cannot read npm configuration.' }
+    $nodeVersion = (& node --version | Out-String).Trim()
+    $npmVersion = (& npm.cmd --version | Out-String).Trim()
+    $null = Invoke-WorkflowCached -Stamp (Join-Path $repo 'build/workflow-cache/browser-dependencies.json') -Force:$CleanDependencies -Fingerprint {
+        Get-WorkflowFingerprint -Paths @("$ui/package.json", "$ui/package-lock.json", "$ui/.npmrc",
+            "$PSScriptRoot/WorkflowCache.ps1", $PSCommandPath, (Get-Command node).Source, (Get-Command npm.cmd).Source) -Values @($nodeVersion, $npmVersion, $npmConfiguration)
+    } -Outputs {
+        # Vite/Vitest write derived caches here after npm ci. They are not installed
+        # packages; including them would force another install after verification.
+        if (-not (Test-Path -LiteralPath "$ui/node_modules" -PathType Container)) { "$ui/node_modules" }
+        else {
+            $installed = @(Get-ChildItem -LiteralPath "$ui/node_modules" -Force |
+                Where-Object Name -NotIn @('.vite', '.vite-temp', '.cache') | Select-Object -ExpandProperty FullName)
+            @(Get-WorkflowFiles $installed)
+        }
+    } -Action {
+        & npm.cmd ci
+        if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+    }
     if ($TestReport) {
         if (Test-Path -LiteralPath $TestReport) { throw 'Browser test report already exists; use a fresh evidence path.' }
         & npm.cmd test -- --reporter=default --reporter=json "--outputFile=$TestReport"

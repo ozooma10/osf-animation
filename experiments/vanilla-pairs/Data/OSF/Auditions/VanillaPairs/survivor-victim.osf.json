@@ -1,0 +1,751 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla Pairs - Audition - 02 Survivor-Victim",
+  "pack": "OSF Vanilla Pairs - Audition",
+  "folder": "02 Survivor-Victim",
+  "tags": [
+    "osf.audition.vanilla-pairs"
+  ],
+  "unlisted": true,
+  "hideApparel": false,
+  "clearHeldItems": true,
+  "playerInputLock": true,
+  "placement": "anchorAndPin",
+  "camera": "scene_orbit",
+  "fade": false,
+  "scenes": [
+    {
+      "id": "osf.audition.vanilla-pairs.survivor-victim.male-female",
+      "name": "Survivor-Victim | Male / Female takes",
+      "roles": [
+        {
+          "name": "Survivor",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Victim",
+          "gender": "any",
+          "offset": {
+            "x": 0.0821,
+            "y": 1.1867,
+            "z": 0.0,
+            "heading": 90.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Approach and lower - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_start.af",
+              "sec": 8.966666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_start.af",
+              "sec": 8.966666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle - Next for reaction 1",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 1 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction01.af",
+              "sec": 6.333333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction01.af",
+              "sec": 6.333333333333333
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 1 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 2 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction02.af",
+              "sec": 7.666666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction02.af",
+              "sec": 7.666666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 2 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 3 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction03.af",
+              "sec": 10.0
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction03.af",
+              "sec": 10.0
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 3 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 4 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction04.af",
+              "sec": 8.666666666666666
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction04.af",
+              "sec": 8.666666666666666
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 4 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 5 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction05.af",
+              "sec": 3.6666666666666665
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction05.af",
+              "sec": 3.6666666666666665
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 5 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        }
+      ]
+    },
+    {
+      "id": "osf.audition.vanilla-pairs.survivor-victim.female-female",
+      "name": "Survivor-Victim | Female / Female takes",
+      "roles": [
+        {
+          "name": "Survivor",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Victim",
+          "gender": "any",
+          "offset": {
+            "x": 0.0821,
+            "y": 1.1867,
+            "z": 0.0,
+            "heading": 90.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Approach and lower - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_start.af",
+              "sec": 8.966666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_start.af",
+              "sec": 8.966666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle - Next for reaction 1",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 1 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction01.af",
+              "sec": 5.0
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction01.af",
+              "sec": 5.0
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 1 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 2 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction02.af",
+              "sec": 3.3333333333333335
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction02.af",
+              "sec": 3.3333333333333335
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 2 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 3 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction03.af",
+              "sec": 4.666666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction03.af",
+              "sec": 4.666666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 3 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 4 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction04.af",
+              "sec": 12.666666666666666
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction04.af",
+              "sec": 12.666666666666666
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 4 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 5 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction05.af",
+              "sec": 3.6666666666666665
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction05.af",
+              "sec": 3.6666666666666665
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 5 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        }
+      ]
+    },
+    {
+      "id": "osf.audition.vanilla-pairs.survivor-victim.male-male",
+      "name": "Survivor-Victim | Male / Male takes",
+      "roles": [
+        {
+          "name": "Survivor",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Victim",
+          "gender": "any",
+          "offset": {
+            "x": 0.0821,
+            "y": 1.1867,
+            "z": 0.0,
+            "heading": 90.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Approach and lower - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_start.af",
+              "sec": 8.966666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_start.af",
+              "sec": 8.966666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle - Next for reaction 1",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 1 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction01.af",
+              "sec": 6.333333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction01.af",
+              "sec": 6.333333333333333
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 1 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 2 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction02.af",
+              "sec": 6.666666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction02.af",
+              "sec": 6.666666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 2 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 3 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction03.af",
+              "sec": 5.666666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction03.af",
+              "sec": 5.666666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 3 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 4 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction04.af",
+              "sec": 9.666666666666666
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction04.af",
+              "sec": 9.666666666666666
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 4 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 5 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction05.af",
+              "sec": 5.333333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction05.af",
+              "sec": 5.333333333333333
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 5 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        }
+      ]
+    },
+    {
+      "id": "osf.audition.vanilla-pairs.survivor-victim.female-male",
+      "name": "Survivor-Victim | Female / Male takes",
+      "roles": [
+        {
+          "name": "Survivor",
+          "gender": "any",
+          "offset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "name": "Victim",
+          "gender": "any",
+          "offset": {
+            "x": 0.0821,
+            "y": 1.1867,
+            "z": 0.0,
+            "heading": 90.0
+          }
+        }
+      ],
+      "stages": [
+        {
+          "name": "Approach and lower - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_start.af",
+              "sec": 8.966666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_start.af",
+              "sec": 8.966666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle - Next for reaction 1",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 1 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction01.af",
+              "sec": 5.0
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction01.af",
+              "sec": 5.0
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 1 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 2 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction02.af",
+              "sec": 4.666666666666667
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction02.af",
+              "sec": 4.666666666666667
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 2 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 3 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction03.af",
+              "sec": 4.0
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction03.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 3 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        },
+        {
+          "name": "Reaction 4 - once",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction04.af",
+              "sec": 10.0
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction04.af",
+              "sec": 10.0
+            }
+          ]
+        },
+        {
+          "name": "Support idle after reaction 4 - Next or Stop",
+          "clips": [
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833333333333333
+            },
+            {
+              "file": "meshes/actors/human/animations/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833333333333333
+            }
+          ],
+          "loops": 0
+        }
+      ]
+    }
+  ]
+}

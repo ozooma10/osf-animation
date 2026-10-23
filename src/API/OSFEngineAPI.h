@@ -7,8 +7,17 @@
 
 namespace OSF::API
 {
-	// Services 3.15 adds independent node matching and exact-node handoffs.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x0003000F;
+	// Services 4.0 is the complete v2 baseline; future minor versions append fields.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00040000;
+
+	struct OSFTransitionOptions {
+		std::uint32_t size{sizeof(OSFTransitionOptions)};
+		std::int32_t stage{};
+		RE::TESObjectREFR* anchor{}; // null retains the session anchor
+		float headingRad{};
+		bool hasHeading{};
+		bool covered{}; // exclusive fade; bounded preparation and stamped-pose reveal
+	};
 
 	struct AudioChannelOptions {
 		std::uint32_t size{sizeof(AudioChannelOptions)};
@@ -18,9 +27,7 @@ namespace OSF::API
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
-		// Two private 3.13 branches used the same slot for incompatible functions.
-		// Reject that ambiguous request; consumers must rebuild against 3.14.
-		return requested != 0x0003000D && (requested >> 16) == (provided >> 16) &&
+		return (requested >> 16) == (provided >> 16) &&
 			(requested & 0xFFFF) <= (provided & 0xFFFF);
 	}
 	inline constexpr bool EngineTableSupported(std::uint32_t requested, std::uint32_t provided,
@@ -46,7 +53,7 @@ namespace OSF::API
 	enum class EngineEvent : std::uint32_t { WorldReset = 1, CatalogChanged = 2, ScenesChanged = 4, ContentReloaded = 8 };
 	using EngineCallback = void (*)(EngineEvent, void*);
 	using TextCallback = void (*)(const char*, void*);
-	// Receives the immutable base catalog (schema 3), excluding all provider scenes.
+	// Receives immutable base content (schema 4 or compact schema 2, per registration), excluding provider scenes.
 	// Emit exactly one JSON array of OSFClipScene.h records, synchronously. No registry/API reentry.
 	using ClipSceneProvider = void (*)(const char*, TextCallback emit, void* emitContext, void* context);
 	// Invoked exactly once for an accepted post at a later verified frame drain. execute=false means
@@ -68,7 +75,8 @@ namespace OSF::API
 		std::uint64_t (*Subscribe)(EngineCallback, void*);
 		bool (*Unsubscribe)(std::uint64_t);
 		// Unless marked any-thread, the remaining functions require the game thread (normally via Post).
-		// Game thread. JSON schema 3, defined by OSFCatalog.h.
+		// Any thread. Pins an immutable registry snapshot; reads only metadata and
+		// mutex-protected decoded durations. JSON schema 4, defined by OSFCatalog.h.
 		// Catalog includes diagnostics/load errors. Callback runs once, inline, on success.
 		bool (*ReadCatalog)(TextCallback, void*);
 		// Any thread. Memory-only decoded duration snapshot (OSFCatalog.h); caller copies inline.
@@ -77,7 +85,7 @@ namespace OSF::API
 		// Optional previous source identity avoids decoding an unchanged file. No cache writes or workers.
 		bool (*ProbeClipDuration)(const char*, const char*, const ClipProbeResult*, ClipProbeResult*);
 		std::int32_t (*ReloadContent)();
-		// Game thread. JSON array of accepting scene IDs; cast is positional role order.
+		// Game thread. JSON array of accepting global node IDs; cast is positional role order.
 		bool (*MatchCast)(RE::Actor* const*, std::uint32_t, TextCallback, void*);
 		bool (*MatchAnchor)(RE::TESObjectREFR*, TextCallback, void*);
 		// Game thread. JSON array: handle, id, stage, time, duration, speed, participant form IDs.
@@ -104,27 +112,28 @@ namespace OSF::API
 		// pin their publication across replacement/removal. A malformed batch is rejected as a whole.
 		bool (*RegisterClipSceneProvider)(const char* owner, ClipSceneProvider, void*);
 		bool (*UnregisterClipSceneProvider)(const char* owner);
-		// 3.2. Exact role name; delta4 = anchor-local x/y/z and heading in degrees.
+		// Exact role name; delta4 = anchor-local x/y/z and heading in degrees.
 		bool (*SetSceneAlignment)(std::int32_t, const char* role, const float* delta4);
 		bool (*GetSceneAlignment)(std::int32_t, const char* role, float* delta4);
 		bool (*SaveSceneAlignment)(std::int32_t);
 		bool (*ResetSceneAlignment)(std::int32_t, const char* role);
-		// 3.3. Keep handle/cast/ledger/speed. Only startStage and anchorRef are read from options.
-		// Other options are ignored. Null options use the target's entry and retained anchor.
-		bool (*ReplaceScene)(std::int32_t, const char* sceneId, const OSFStartOptions*);
-		// roleNames[i] names the target role for participant i in the current scene's roster.
-		bool (*ReplaceSceneRoles)(std::int32_t, const char* sceneId, const char* const* roleNames, std::uint32_t count);
-		// 3.4. Game thread. Matchmade handoff for the same cast, excluding the current scene and keeping its world
+		// Verified frame. One exact destination operation for seamless and covered boundaries.
+		// roleNames[i] binds the current participant i; zero names keeps positional order.
+		// Null options select stage zero without cover. true accepts an asynchronous attempt;
+		// ReadScenePreparation reports commit or refusal, including cover ownership/deadline failures.
+		bool (*ReplaceNode)(std::int32_t, const char* nodeId, const char* const* roleNames,
+			std::uint32_t count, const OSFTransitionOptions*);
+		// Game thread. Matchmade handoff for the same cast, excluding the current scene and keeping its world
 		// placement mode. query->roles[i] constrains current participant i (GetSceneParticipants order); a non-null
 		// query->anchor replaces the retained anchor reference. False leaves the current scene playing.
 		bool (*ReplaceSceneByQuery)(std::int32_t, const OSFSceneQuery* query);
-		// 3.5. Game thread. Retained across nodes/handoffs, defaults true. False suppresses timer/loop
-		// completion only on nodes with allowManualHold; sampling, marks and explicit navigation continue.
+		// Game thread. Retained across nodes/handoffs, defaults true. False suppresses timer/loop
+		// completion at every boundary; sampling, marks and explicit navigation continue.
 		// Re-enabling starts a fresh completion budget without restarting clips. A held playback that has already completed refuses.
 		bool (*SetSceneAutoAdvance)(std::int32_t, bool);
-		// Live JSON snapshot: sceneId, node, automatic, allowManualHold, speed, edges [{id,label}].
+		// Live JSON snapshot: node, stage, automatic, speed, edges [{id,label}].
 		bool (*ReadSceneControls)(std::int32_t, TextCallback, void*);
-		// 3.6. Any thread. Opaque, process-local channel; 0 on exhaustion (4096 live maximum).
+		// Any thread. Opaque, process-local channel; 0 on exhaustion (4096 live maximum).
 		// Caller owns the handle and closes it at its chosen scope boundary. No scene/actor
 		// policy is inferred. World replacement revokes every channel; IDs are never recycled.
 		std::uint64_t (*CreateAudioChannel)();
@@ -138,12 +147,12 @@ namespace OSF::API
 		// committed first is stopped before return. Other channels and legacy slots survive.
 		// false for invalid/already-closed handles; repeated close is harmless. No disk IO.
 		bool (*CloseAudioChannel)(std::uint64_t);
-		// 3.7. Game context. Route this actor's authored sound-lane/action playback into
+		// Game context. Route this actor's authored sound-lane/action playback into
 		// an owned channel. Bind before authored entry sounds. Refuses another live binding.
 		// Closing the channel removes its binding; world reset clears all bindings.
 		// Actorless sounds and other actors are unaffected. Does not transfer ownership.
 		bool (*BindActorSoundChannel)(RE::Actor*, std::uint64_t);
-		// 3.8. Any thread. Options are immutable for the channel lifetime. Null/invalid options fail.
+		// Any thread. Options are immutable for the channel lifetime. Null/invalid options fail.
 		// Latest-pending also suppresses executing older jobs before preparation/submission.
 		// Once a newer file is admitted, superseded work is never revived if its preparation fails.
 		// Invalid/rejected admissions do not supersede; failed replacements never stop a playing voice.
@@ -151,12 +160,12 @@ namespace OSF::API
 		std::uint64_t (*CreateAudioChannelWithOptions)(const AudioChannelOptions*);
 		// Process-local monotonic nanoseconds; not wall time or animation time. Do not persist.
 		std::uint64_t (*AudioClockNs)();
-		// detectedNs must be nonzero, from AudioClockNs or scene 1.6 OSFSceneEvent.detectedNs,
+		// detectedNs must be nonzero, from AudioClockNs or OSFSceneEvent.detectedNs,
 		// and not in the future. Expiry includes queue/provider delay. Checks before preparation
 		// and immediately before Wwise submission; no completion/audibility deadline is implied.
 		// PlayAudioChannel starts age at call entry. Bindings inherit their channel's options.
 		bool (*PlayAudioChannelAt)(std::uint64_t, const char* spec, std::uint64_t detectedNs);
-		// 3.9. All actor-state calls require game context (use Post from other threads).
+		// All actor-state calls require game context (use Post from other threads).
 		// Do not reenter during backend inventory events; defer those calls with Post.
 		// Persistent requires scene=0. Session requires a live scene and accepts only its cast.
 		// Session scopes survive handoff and close before scene-end observers; persistent scopes
@@ -176,7 +185,7 @@ namespace OSF::API
 		// ReconcileActorState retries when the actor/inventory is available. Invalid handles are harmless.
 		ActorStateStatus (*CloseActorStateScope)(std::uint64_t scope);
 		ActorStateStatus (*ReconcileActorState)(RE::Actor*);
-		// 3.10. Verified-frame context only: call through Post. Structures copied, callback/context
+		// Verified-frame context only: call through Post. Structures copied, callback/context
 		// storage remains caller-owned until unregister and any current callback/finish have returned.
 		// Registrations survive world reset. Attempts are ephemeral; all callbacks run in the frame drain.
 		std::uint64_t (*RegisterScenePreparer)(const ScenePreparer*);
@@ -192,48 +201,28 @@ namespace OSF::API
 		bool (*SetPreparationFailure)(std::uint64_t attempt, std::uint64_t provider, const char* reason);
 		// JSON {scene,status,reason,pending,playing,attempt?}; retains terminal results with ended roster.
 		bool (*ReadScenePreparation)(std::int32_t scene, TextCallback, void*);
-		// 3.11. Verified-frame context only. Reads the same backend as H2, without claims,
+		// Verified-frame context only. Reads the same backend as H2, without claims,
 		// reconciliation or writes. Ok with count=0/worn=0 means absent, not unavailable.
 		// Conflicts exclude this base form and default skins, using H2's slot policy.
 		// Output is written only on Ok. No mesh, exact-instance, or snapshot-version guarantee.
 		ActorStateStatus (*ReadActorEquipment)(RE::Actor*, RE::TESBoundObject*, ActorEquipmentState*);
-		// 3.12. Verified-frame context only. Memory-only reads; no callbacks or inventory scans.
+		// Verified-frame context only. Memory-only reads; no callbacks or inventory scans.
 		// actor is a nonzero world-local form ID; an unseen actor has zero counters in this world.
 		ActorStateStatus (*ReadActorStateRevision)(std::uint32_t actor, ActorStateRevision*);
 		// Start at cursor=0. Each successful read returns the current cursor; unchanged reads are empty.
 		// resnapshot=1 means history was lost or the cursor is ahead: discard cached snapshots.
 		// Reset changes world and emits actor=0. Do not persist cursors/revisions across processes.
 		ActorStateStatus (*ReadActorStateChanges)(std::uint64_t cursor, ActorStateChanges*);
-        // 3.14. Verified-frame context; one guard per provider/attempt, only during Validate.
+        // Verified-frame context; one guard per provider/attempt, only during Validate.
         // Callback/context lifetime extends through release and finish. See OSFPreparation.h.
         bool (*GuardPreparationCommit)(std::uint64_t attempt, std::uint64_t provider, const PreparationCommitGuard*);
-		// 3.14. Verified-frame context only. Opt-in covered handoff with the same role/anchor rules.
-		// false: no handoff accepted; true: asynchronous preparation, not a commit guarantee.
-		// Exclusive fade ownership; refuses an existing OSF fade. Cover preparation and actual stamped
-		// pose blending, independent of clip speed. Five-second deadline cancels; stop/reset unwinds.
-		// ReadScenePreparation.pending includes cover/reveal; optional cover reports phase/token/startedMs.
-		bool (*ReplaceSceneRolesCovered)(std::int32_t, const char* sceneId, const char* const* roles, std::uint32_t count);
-        // 3.15. Verified frame. Positional cast filter; JSON [{"scene":id,"node":id}].
-        // Every available node is considered independently, including unlisted nodes.
-        // Join to ReadCatalog.nodes for tags/ranking; anchor and caller policy remain caller filters.
-        bool (*MatchNodeCast)(RE::Actor* const*, std::uint32_t, TextCallback, void*);
-        // 3.15. Anchor compatibility without the scene-wide clip-availability restriction.
-        bool (*MatchNodeAnchor)(RE::TESObjectREFR*, TextCallback, void*);
-        // 3.15. Verified frame. Exact node handoff; same roles/placement/admission rules as ReplaceSceneRoles.
-        // Strings are copied synchronously. Unknown/empty node refuses. Covered=true uses bounded cover.
-        // Authored graph navigation still uses Navigate/Advance, preserving seamless edges.
-        bool (*ReplaceNodeRoles)(std::int32_t, const char* sceneId, const char* nodeId,
-            const char* const* roles, std::uint32_t count, bool covered);
+		// Same ownership, threading, response and atomic rejection rules as the original
+		// RegisterClipSceneProvider, but input is OSFCatalog.h ClipSourceSnapshot (schema 2).
+		// It includes every base node ID and clip address; no provider output or presentation data.
+		// UnregisterClipSceneProvider removes either registration kind. Owners share one namespace.
+		bool (*RegisterClipSourceProvider)(const char* owner, ClipSceneProvider, void*);
 	};
 
-	// Released 3.0 clients check exact equality. Give that request its original prefix/version.
-	inline OSFEngineAPI LegacyEngineAPI(const OSFEngineAPI& current)
-	{
-		auto legacy = current;
-		legacy.version = 0x00030000;
-		legacy.size = static_cast<std::uint32_t>(offsetof(OSFEngineAPI, UnregisterClipSceneProvider) + sizeof(current.UnregisterClipSceneProvider));
-		return legacy;
-	}
 	inline const OSFEngineAPI* RequestEngineAPI(std::uint32_t version = kOSFEngineAPIVersion) noexcept
 	{
 		const auto mod = REX::W32::GetModuleHandleW(kOSFModuleName);

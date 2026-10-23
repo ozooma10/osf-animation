@@ -98,6 +98,9 @@ namespace OSF::Camera
 		std::atomic<bool> suppressBounce{ false };
 		bool baselineCaptured = false;
 		bool baselineWasFirstPerson = false;
+		bool baselineHasThirdPersonZoom = false;
+		float baselineCurrentZoom = 0.0f;
+		float baselineTargetZoom = 0.0f;
 		std::uint32_t baselineStateIndex = 0xFFFFFFFFu;  // >= kTotal = unknown
 		int  holdCount = 0;
 		int  overrideCount = 0;

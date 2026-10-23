@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Quadrupeda (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/quadrupeda/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/quadrupeda/bleedout",
       "name": "Vanilla · Quadrupeda / Bleedout",

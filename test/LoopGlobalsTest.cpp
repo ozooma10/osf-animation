@@ -11,12 +11,12 @@ namespace
 	using OSF::Test::Check;
 	using namespace OSF::Registry;
 
-	std::optional<OSF::Animation::PlaybackPlan> Plan(const SceneRef& def, std::size_t node = 0, float scale = 1)
+	std::optional<OSF::Animation::PlaybackPlan> Plan(const NodeRef& def, float scale = 1)
 	{
-		if (!Check(def && node < def->nodes.size(), "resolved definition contains requested node")) return {};
-		auto plan = ContentRegistry::GetSingleton().BuildNodePlan(def, def->nodes[node], 1);
+		if (!Check(static_cast<bool>(def), "resolved definition contains requested node")) return {};
+		auto plan = ContentRegistry::GetSingleton().BuildNodePlan(def, 1);
 		if (!Check(plan.has_value(), "resolved definition builds a playback plan")) return {};
-		OSF::Scene::ApplyNodeTiming(*plan, def->nodes[node], scale);
+		OSF::Scene::ApplyNodeTiming(*plan, *def, scale);
 		return plan;
 	}
 }
@@ -35,7 +35,7 @@ void CheckLoopGlobals()
 	nlohmann::json fixture;
 	std::ifstream("Data/OSF/loop-globals.osf.json") >> fixture;
 	std::size_t rejected = 0;
-	for (const auto& scene : fixture.at("scenes")) {
+	for (const auto& scene : fixture.at("nodes")) {
 		const auto id = scene.at("id").get<std::string>();
 		if (id.starts_with("invalid.")) {
 			++rejected;
@@ -59,19 +59,18 @@ void CheckLoopGlobals()
 		return setting;
 	};
 	const auto first = reg.ResolveLoopGlobals(authored, reader);
-	Check(reads == 1, "one global shared by stages and synthetic nodes is read once per start");
-	Check(first.get() != authored.get() && authored->nodes[0].loopCount == 3 && authored->nodes[1].loopCount == 0,
+	Check(reads == 1, "one global shared by timeline stages is read once per admission");
+	Check(first.get() != authored.get() && authored->stages[0].loops == 3 && authored->stages[1].loops == 0,
 		"resolving a start leaves authored defaults and registry definitions unchanged");
 	Check(reg.Find("global.linear").get() == authored.get(), "a resolved definition is never published to the catalog");
 	if (const auto plan = Plan(first)) Check(plan->stages[0].loops == 5, "linear stage receives the global count");
-	if (const auto plan = Plan(first, 1)) {
-		Check(plan->stages[0].loops == 5 && plan->stages[0].timer == 20,
+	if (const auto plan = Plan(first)) {
+		Check(plan->stages.size() == 3 && plan->stages[1].loops == 5 && plan->stages[1].timer == 20,
 			"a zero fallback still supports a positive runtime count alongside its timer");
-		Check(std::ranges::any_of(first->nodes[1].edges, [](const auto& edge) { return edge.when == EdgeWhen::kLoops; }),
-			"linear desugaring retains a loop-completion edge even when the fallback is zero");
+		Check(first->edges.empty(), "a multi-stage shorthand needs no synthetic registry nodes or edges");
 	}
 	setting = 2;
-	if (const auto plan = Plan(first, 1)) Check(plan->stages[0].loops == 5, "later stages retain the scene-start value");
+	if (const auto plan = Plan(first)) Check(plan->stages[1].loops == 5, "later stages retain the scene-start value");
 	const auto second = reg.ResolveLoopGlobals(authored, reader);
 	if (const auto plan = Plan(second)) Check(plan->stages[0].loops == 2, "a new start reads the changed global without reload");
 	Check(reads == 2, "node revisits and playback-plan builds never reread globals");
@@ -92,13 +91,13 @@ void CheckLoopGlobals()
 		});
 		Check(missingReads == 1, "missing or invalid global results are also captured once");
 		if (const auto plan = Plan(fallback)) Check(plan->stages[0].loops == 3, "missing/invalid global uses the field's fallback");
-		if (const auto plan = Plan(fallback, 1)) Check(plan->stages[0].loops == 0 && plan->stages[0].timer == 20,
+		if (const auto plan = Plan(fallback)) Check(plan->stages[1].loops == 0 && plan->stages[1].timer == 20,
 			"the same unavailable global can have different defaults on different stages");
 	}
 
 	const auto zero = reg.ResolveLoopGlobals(authored, [](const std::string&) { return 0.0f; });
-	if (const auto plan = Plan(zero, 0, 2)) {
-		Check(plan->stages[0].loops == 0 && zero->nodes[0].loopMode == LoopMode::kHold,
+	if (const auto plan = Plan(zero, 2)) {
+		Check(plan->stages[0].loops == 0 && zero->stages[0].loops == 0,
 			"zero is an intentional hold and is not multiplied into a finite count");
 		OSF::Animation::PlaybackSession session;
 		OSF::Animation::PlaybackSession::SegmentData stage;
@@ -109,7 +108,7 @@ void CheckLoopGlobals()
 		(void)session.Advance(&owner, 10);
 		Check(!session.ended, "a global-backed zero count holds across repeated animation wraps");
 	}
-	if (const auto plan = Plan(first, 0, 2)) {
+	if (const auto plan = Plan(first, 2)) {
 		Check(plan->stages[0].loops == 10, "LoopScale multiplies the captured count");
 		OSF::Animation::PlaybackSession session;
 		OSF::Animation::PlaybackSession::SegmentData stage;
@@ -123,43 +122,47 @@ void CheckLoopGlobals()
 		Check(session.ended && session.endReason == OSF::Animation::PlaybackEndReason::kLoopComplete,
 			"resolved/scaled playback completes at the requested count");
 	}
-	if (const auto plan = Plan(first, 0, 0.5f)) Check(plan->stages[0].loops == 3, "fractional LoopScale rounds the resolved count");
-	if (const auto plan = Plan(first, 0, 0.01f)) Check(plan->stages[0].loops == 1, "a positive count is floored at one after scaling");
+	if (const auto plan = Plan(first, 0.5f)) Check(plan->stages[0].loops == 3, "fractional LoopScale rounds the resolved count");
+	if (const auto plan = Plan(first, 0.01f)) Check(plan->stages[0].loops == 1, "a positive count is floored at one after scaling");
 	const auto large = reg.ResolveLoopGlobals(authored, [](const std::string&) { return 2147483520.0f; });
-	if (const auto plan = Plan(large, 0, 20)) Check(plan->stages[0].loops == std::numeric_limits<std::int32_t>::max(),
+	if (const auto plan = Plan(large, 20)) Check(plan->stages[0].loops == std::numeric_limits<std::int32_t>::max(),
 		"scaling a large valid global saturates without integer overflow");
 
-	for (const auto id : { "global.graph", "global.inline" }) {
+	for (const auto id : { "global.graph/activity", "global.inline/activity" }) {
 		std::vector<std::string> queried;
 		const auto resolved = reg.ResolveLoopGlobals(reg.Find(id), [&](const std::string& ref) -> std::optional<float> {
 			queried.push_back(ref);
 			return ref.ends_with("1235") ? 4.0f : 7.0f;
 		});
-		Check(queried.size() == 2, "graph and referenced inline-stage globals are captured once each");
-		if (const auto plan = Plan(resolved, 0, 2)) {
+		Check(queried.size() == 2, "terminal node and internal stage globals are captured once each");
+		if (const auto plan = Plan(resolved, 2)) {
 			Check(plan->stages.size() == 2 && plan->stages[0].loops == 8 && plan->stages[1].loops == 14,
 				"graph node count controls its terminal stage; earlier stages use their own globals");
 		}
 	}
-	const auto graphZero = reg.Find("global.zero");
-	Check(graphZero && graphZero->nodes[0].loopMode == LoopMode::kHold, "global-backed graph accepts a loops edge and retains its zero default for catalog reads");
+	const auto graphZero = reg.Find("global.zero/activity");
+	Check(graphZero && graphZero->loopMode == LoopMode::kHold, "global-backed graph accepts a loops edge and retains its zero default for catalog reads");
 	const auto graphPositive = reg.ResolveLoopGlobals(graphZero, [](const std::string&) { return 6.0f; });
-	if (const auto plan = Plan(graphPositive)) Check(plan->stages[0].loops == 6 && graphPositive->nodes[0].loopMode == LoopMode::kCount,
+	if (const auto plan = Plan(graphPositive)) Check(plan->stages[0].loops == 6 && graphPositive->loopMode == LoopMode::kCount,
 		"global-backed graph retains counted-loop routing for a positive value");
 	const auto graphFallback = reg.ResolveLoopGlobals(graphZero, [](const std::string&) { return std::optional<float>{}; });
-	if (const auto plan = Plan(graphFallback)) Check(plan->stages[0].loops == 0 && graphFallback->nodes[0].loopMode == LoopMode::kHold,
+	if (const auto plan = Plan(graphFallback)) Check(plan->stages[0].loops == 0 && graphFallback->loopMode == LoopMode::kHold,
 		"global-backed graph defaults to hold when its global is unavailable");
 
 	const auto literal = reg.Find("global.literal");
 	if (const auto plan = Plan(literal)) Check(plan->stages[0].loops == 3, "literal integer loops are unchanged");
-	if (const auto plan = Plan(literal, 1)) Check(plan->stages[0].loops == 0, "literal zero holds are unchanged");
-	if (const auto plan = Plan(literal, 2, 2)) Check(plan->stages[0].loops == 0 && plan->stages[0].timer == 2,
+	if (const auto plan = Plan(literal)) Check(plan->stages[1].loops == 0, "literal zero holds are unchanged");
+	if (const auto plan = Plan(literal, 2)) Check(plan->stages[2].loops == 0 && plan->stages[2].timer == 2,
 		"timer-only stages remain unaffected by LoopScale");
 
-	// Reload replaces the publication, while old starts and their `use` dependencies stay pinned.
-	const auto pinnedGraph = reg.ResolveLoopGlobals(reg.Find("global.graph"), reader);
+	// Reload replaces the publication, while route destinations and resolved timing stay pinned.
+	const auto pinnedGraph = reg.ResolveLoopGlobals(reg.Find("global.graph/activity"), reader);
+	const auto pinnedDestination = reg.Find("global.literal", pinnedGraph);
 	reg.LoadAll();
+	Check(reg.Find("global.literal", pinnedGraph).get() == pinnedDestination.get() &&
+		reg.Find("global.literal").get() != pinnedDestination.get(),
+		"a privately resolved node retains the original publication for later edge destinations");
 	if (const auto plan = Plan(pinnedGraph)) Check(plan->stages[0].loops == 2 && plan->stages[1].loops == 2,
-		"a reload cannot invalidate a captured scene or its referenced stages");
+		"a reload cannot invalidate captured node timing");
 	if (const auto plan = Plan(first)) Check(plan->stages[0].loops == 5, "old starts retain their values across reload");
 }

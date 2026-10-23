@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Photomode (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/human/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/photomode",
       "name": "Vanilla · Photomode",

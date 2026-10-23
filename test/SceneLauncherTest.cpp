@@ -22,7 +22,8 @@ namespace
 	struct Calls
 	{
 		std::vector<std::string> order;
-		std::string id, entry, path;
+		std::string id, path;
+		std::int32_t stage{};
 		std::vector<RE::Actor*> actors;
 		std::vector<std::string> roles, hud;
 		SceneRuntime::AnchorOverride anchor;
@@ -39,41 +40,35 @@ namespace
 		OSF::Matchmaking::RoleConstraints constraints;
 	} calls;
 
-	void Reset(bool a_linear = true, bool a_furniture = false)
+	void Reset(bool a_twoStages = true, bool a_furniture = false)
 	{
 		calls = {};
 		registry = std::make_shared<OSF::Registry::ContentRegistrySnapshot>();
-		OSF::Registry::SceneDef def;
+		OSF::Registry::NodeDef def;
 		def.id = "demo";
-		def.entry = "authored-entry";
-        def.nodes = {{.id="authored-entry"}, {.id="stage-zero"}, {.id="stage-one"}};
-		if (a_linear) def.linearStages = { "stage-zero", "stage-one" };
+		def.stages.resize(a_twoStages ? 2 : 1);
 		if (a_furniture) def.anchorBaseForms.push_back(123);
-		registry->scenes.emplace(def.id, std::move(def));
+		registry->nodes.emplace(def.id, std::move(def));
 	}
 
 	std::int32_t Started(std::string_view a_path, std::string_view a_id,
 		const std::vector<RE::Actor*>& a_actors, const SceneRuntime::AnchorOverride& a_anchor,
-		const SceneRuntime::StartOverrides& a_over, std::string_view a_entry)
+		const SceneRuntime::StartOverrides& a_over, std::int32_t a_stage)
 	{
 		calls.order.emplace_back("start");
 		calls.path = a_path; calls.id = a_id; calls.actors = a_actors;
-		calls.anchor = a_anchor; calls.overrides = a_over; calls.entry = a_entry;
+		calls.anchor = a_anchor; calls.overrides = a_over; calls.stage = a_stage;
 		return calls.handle;
 	}
 }
 
 namespace OSF::Registry
 {
-    const SceneNode* SceneDef::FindNode(std::string_view id) const {
-        for (const auto& node : nodes) if (node.id == id) return &node;
-        return nullptr;
-    }
 	ContentRegistry& ContentRegistry::GetSingleton() { static ContentRegistry instance; return instance; }
-	SceneRef ContentRegistry::Find(std::string_view a_id) const
+	NodeRef ContentRegistry::Find(std::string_view a_id, const NodeRef&) const
 	{
-		SceneRef ref;
-		if (const auto it = registry->scenes.find(std::string(a_id)); it != registry->scenes.end()) {
+		NodeRef ref;
+		if (const auto it = registry->nodes.find(std::string(a_id)); it != registry->nodes.end()) {
 			ref.owner = registry;
 			ref.value = &it->second;
 		}
@@ -85,21 +80,21 @@ namespace OSF::Scene
 {
 	SceneRuntime& SceneRuntime::GetSingleton() { static SceneRuntime instance; return instance; }
 	std::int32_t SceneRuntime::StartFromDef(std::string_view a_id, const std::vector<RE::Actor*>& a_actors,
-		const StartOverrides& a_over, std::string_view a_entry)
+		const StartOverrides& a_over, std::int32_t a_stage)
 	{
-		return Started("positional", a_id, a_actors, {}, a_over, a_entry);
+		return Started("positional", a_id, a_actors, {}, a_over, a_stage);
 	}
 	std::int32_t SceneRuntime::StartFromDefAt(std::string_view a_id, const std::vector<RE::Actor*>& a_actors,
-		RE::NiPoint3 a_pos, float a_heading, const StartOverrides& a_over, std::string_view a_entry)
+		RE::NiPoint3 a_pos, float a_heading, const StartOverrides& a_over, std::int32_t a_stage)
 	{
-		return Started("anchored", a_id, a_actors, { true, a_pos, a_heading }, a_over, a_entry);
+		return Started("anchored", a_id, a_actors, { true, a_pos, a_heading }, a_over, a_stage);
 	}
 	std::int32_t SceneRuntime::StartFromDefRoles(std::string_view a_id, const std::vector<RE::Actor*>& a_actors,
 		const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor,
-		const StartOverrides& a_over, std::string_view a_entry)
+		const StartOverrides& a_over, std::int32_t a_stage)
 	{
 		calls.roles = a_roles;
-		return Started("roles", a_id, a_actors, a_anchor, a_over, a_entry);
+		return Started("roles", a_id, a_actors, a_anchor, a_over, a_stage);
 	}
 	SceneRuntime::AnchorOverride MakeAnchorAt(RE::TESObjectREFR* ref, std::optional<float> heading)
 	{
@@ -150,13 +145,13 @@ int main()
 	Check(LaunchDef("demo", {}, {}, tag) == 0 && calls.order.empty(), "empty casts never start");
 	Check(LaunchDef("demo", { actorA, nullptr }, {}, tag) == 0 && calls.order.empty(), "null actors never reach the runtime");
 
-	for (const auto stage : { -1, 0, 1 }) {
+	for (const auto stage : { 0, 1 }) {
 		Reset();
 		DefLaunchOptions opts;
 		opts.stage = stage;
 		Check(LaunchDef("demo", cast, opts, tag) == 42 && calls.path == "positional" && calls.actors == cast,
 			"positional launch preserves cast order and handle");
-		Check(calls.entry == (stage == 1 ? "stage-one" : ""), "stage selection happens before start; zero preserves authored entry");
+		Check(calls.stage == stage, "stage selection happens before start; zero selects the first timeline segment");
 	}
 	Reset();
 	DefLaunchOptions opts;
@@ -166,12 +161,12 @@ int main()
 	Reset();
 	opts.invalidStage = InvalidStagePolicy::kUseEntry;
 	opts.emitHud = false;
-	Check(LaunchDef("demo", cast, opts, tag) == 42 && calls.entry.empty() && calls.hud.empty(),
+	Check(LaunchDef("demo", cast, opts, tag) == 42 && calls.stage == 0 && calls.hud.empty(),
 		"native out-of-range stage preserves entry fallback without a HUD popup");
 	for (const auto policy : { InvalidStagePolicy::kReject, InvalidStagePolicy::kUseEntry }) {
 		Reset(false);
 		opts.invalidStage = policy;
-		Check(LaunchDef("demo", cast, opts, tag) == 42 && calls.entry.empty(), "both adapters ignore stage on non-linear scenes");
+		Check(LaunchDef("demo", cast, opts, tag) == (policy == InvalidStagePolicy::kUseEntry ? 42 : 0), "single-stage nodes use the same bounds policy as longer timelines");
 	}
 
 	Reset();
@@ -205,7 +200,7 @@ int main()
 	opts.overrides.camera = "none";
 	const std::vector<std::string> roles{ "second", "first" };
 	Check(LaunchDef("demo", cast, opts, tag, &roles) == 42 && calls.path == "roles" && calls.roles == roles &&
-		calls.actors == cast && calls.entry == "stage-one" && calls.overrides.hideApparel == false && calls.overrides.camera == "none",
+		calls.actors == cast && calls.stage == 1 && calls.overrides.hideApparel == false && calls.overrides.camera == "none",
 		"named launch forwards names, cast, stage and overrides to the runtime's role binder");
 	Check(calls.order == std::vector<std::string>{ "start" } && calls.overrides.speed == 1.5f,
 		"native speed seeds the scene before entry playback and callbacks");
@@ -225,7 +220,7 @@ int main()
 	papyrus.hideApparelMode = 0; papyrus.playerInputLockMode = 1; papyrus.sceneControlsMode = 0;
 	papyrus.fadeMode = 1; papyrus.followActorMode = 1; papyrus.camera = "none"; papyrus.loopScale = 2;
 	const auto launch = MakeDefLaunchOptions(papyrus);
-	Check(LaunchDef("demo", cast, launch, tag) == 42 && calls.entry == "stage-one" &&
+	Check(LaunchDef("demo", cast, launch, tag) == 42 && calls.stage == 1 &&
 		calls.order == std::vector<std::string>{ "anchor", "start" } && calls.overrides.speed == 2,
 		"Papyrus registered starts honor speed and the requested stage");
 	Check(calls.heading && std::abs(*calls.heading - 90 * OSF::Util::kDegToRadF) < 0.0001f && calls.anchorHud &&
@@ -241,7 +236,7 @@ int main()
 	calls.pick = OSF::Matchmaking::Candidate{ "demo", 0, 1, { 1, 0 } };
 	OSF::Matchmaking::TagQuery query{ { "all" }, { "any" }, { "none" } };
 	Check(LaunchMatched(cast, query, papyrus, tag, OSF::Matchmaking::AnchorMode::kRequire) == 42 &&
-		calls.actors == std::vector<RE::Actor*>{ actorB, actorA } && calls.entry.empty() &&
+		calls.actors == std::vector<RE::Actor*>{ actorB, actorA } && calls.stage == 0 &&
 		calls.order == std::vector<std::string>{ "match", "anchor", "start" } && calls.overrides.speed == 2,
 		"matchmade starts preserve picked cast order and authored entry and honor launch speed");
 	Check(calls.matchMode == OSF::Matchmaking::AnchorMode::kRequire && calls.anchorRef == furniture &&
@@ -258,7 +253,7 @@ int main()
 	const OSF::Matchmaking::RoleConstraints constraints{ "", "top" };
 	Check(LaunchMatched(cast, query, constraints, native, tag) == 42 && calls.constraints == constraints &&
 		calls.anchorRef == furniture && calls.matchMode == OSF::Matchmaking::AnchorMode::kAllow &&
-		calls.actors == std::vector<RE::Actor*>{ actorB, actorA } && calls.entry.empty() && !calls.anchorHud,
+		calls.actors == std::vector<RE::Actor*>{ actorB, actorA } && calls.stage == 0 && !calls.anchorHud,
 		"query starts forward role constraints and the anchor, keep the authored entry and follow the HUD policy");
 	Reset();
 	Check(LaunchMatched(cast, query, constraints, native, tag) == 0 && calls.hud.empty(),
@@ -294,7 +289,7 @@ int main()
 		OSFSceneMatch out;
 		out.roleIndex[5] = 9;
 		Check(WriteSceneMatch({ "pack.scene", 0, 1, { 1, 0 } }, { "bottom", "top" }, out, error) &&
-			out.size == sizeof(OSFSceneMatch) && out.actorCount == 2 && std::string(out.sceneId) == "pack.scene" &&
+			out.size == sizeof(OSFSceneMatch) && out.actorCount == 2 && std::string(out.nodeId) == "pack.scene" &&
 			out.roleIndex[0] == 1 && out.roleIndex[1] == 0 && std::string(out.roles[0]) == "top" &&
 			std::string(out.roles[1]) == "bottom" && out.roleIndex[5] == 0,
 			"matches report each caller actor's role index and name, clearing stale slots");
@@ -303,14 +298,14 @@ int main()
 			!WriteSceneMatch({ "s", 0, 1, { 0 } }, { std::string(64, 'r') }, out, error),
 			"unrepresentable ids, bindings or role names fail instead of truncating");
 	}
-    Reset(false);
-    OSF::Scene::DefLaunchOptions direct;
-    direct.node = "stage-one";
-    Check(OSF::Scene::LaunchDef("demo",cast,direct,"[Test]") == 42 && calls.entry == "stage-one" && calls.id == "demo",
-        "nonlinear nodes start directly while retaining the containing route");
-    direct.node = "missing"; calls.order.clear();
-    Check(!OSF::Scene::LaunchDef("demo",cast,direct,"[Test]") && calls.order.empty(), "unknown direct node never falls back or dispatches playback");
-    direct.node = "stage-one"; direct.stage = 1;
-    Check(!OSF::Scene::LaunchDef("demo",cast,direct,"[Test]"), "conflicting node and stage targets refuse");
+	Reset();
+	DefLaunchOptions direct;
+	direct.stage = -1;
+	Check(!LaunchDef("demo", cast, direct, tag) && calls.order.empty(), "negative stage is rejected before dispatch");
+	direct.stage = 1;
+	Check(LaunchDef("demo", cast, direct, tag) == 42 && calls.stage == 1 && calls.id == "demo",
+		"the global node address and local timeline segment are forwarded independently");
+	calls.order.clear();
+	Check(!LaunchDef("missing", cast, direct, tag) && calls.order.empty(), "unknown global node never falls back");
 	return OSF::Test::Finish("scene launcher");
 }

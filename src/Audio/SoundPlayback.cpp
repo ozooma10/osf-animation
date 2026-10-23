@@ -1,4 +1,5 @@
 #include "Audio/SoundPlayback.h"
+#include "Profiling/Profile.h"
 
 #include "Audio/SoundService.h"
 #include "Testing/D3AudioProbe.h"
@@ -13,6 +14,7 @@ namespace OSF::Audio::SoundPlayback
 	void Play(RE::Actor* a_actor, std::uint64_t a_fallbackChannel, std::string_view a_spec,
 		Registry::SoundEmitter a_emitter, std::string_view a_diagnosticOwner)
 	{
+		OSF_PROFILE_SCOPE("Audio.Play");
 #ifdef OSF_ANIMATION_SMOKE
 		if (Testing::D3AudioProbe::TryScopedSound(a_spec)) return;
 #endif

@@ -5,6 +5,7 @@
 //   - rest-relative -> absolute:     OSF RE docs/af_animation_skeleton_spec.md §8 (local = bind ∘ track)
 
 #include "AFImport.h"
+#include "Profiling/Profile.h"
 
 // This TU stays CLSF-free; Gzip.h is only for kMaxClipBytes.
 #include "Util/Gzip.h"
@@ -155,6 +156,7 @@ namespace OSF::Serialization
 		// skeleton.rig: 80-byte header, 96-byte bone stride.
 		bool ParseRig(const std::vector<unsigned char>& a_buf, RigData& a_out, std::string& a_detail)
 		{
+			OSF_PROFILE_SCOPE("Import.AF.ParseRig");
 			Cur c{ a_buf.data(), a_buf.size(), 0, true };
 			c.readPod<int32_t>(1);                       // version
 			c.readPod<uint32_t>(1);                      // fileSize
@@ -218,6 +220,7 @@ namespace OSF::Serialization
 
 		std::shared_ptr<Animation::OzzSkeleton> BuildSkeleton(const RigData& a_rig)
 		{
+			OSF_PROFILE_SCOPE("Import.AF.Skeleton");
 			using RawSkeleton = ozz::animation::offline::RawSkeleton;
 			RawSkeleton raw;
 
@@ -453,6 +456,7 @@ namespace OSF::Serialization
 
 		bool ParseAf(const std::vector<unsigned char>& a_buf, AfClip& a_out, std::string& a_detail)
 		{
+			OSF_PROFILE_SCOPE("Import.AF.Parse");
 			Cur c{ a_buf.data(), a_buf.size(), 0, true };
 			c.i += 8;                          // magic
 			c.i += 16;                         // header rotation (W,X,Y,Z), identity in vanilla
@@ -544,6 +548,7 @@ namespace OSF::Serialization
 		std::shared_ptr<Animation::OzzAnimation> BuildAnimation(const AfClip& a_clip, const RigData& a_rig,
 			const ozz::animation::Skeleton& a_skeleton)
 		{
+			OSF_PROFILE_SCOPE("Import.AF.Build");
 			// SkeletonBuilder reorders joints, so map by name.
 			std::unordered_map<std::string, int> jointByName;
 			auto names = a_skeleton.joint_names();

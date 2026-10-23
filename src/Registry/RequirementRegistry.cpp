@@ -1,4 +1,5 @@
 #include "Registry/RequirementRegistry.h"
+#include "Profiling/Profile.h"
 
 #include "API/MinimumVersion.h"
 #include "Util/RegistryFiles.h"
@@ -114,6 +115,7 @@ namespace OSF::Registry::RequirementRegistry
 
 	void LoadAll()
 	{
+		OSF_PROFILE_SCOPE("Registry.Requirement.LoadAll");
 		std::map<std::string, Requirement> requirements;
 		std::size_t problems = 0;
 

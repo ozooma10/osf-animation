@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "compiled route contract fixture",
   "unlisted": true,
   "camera": "none",
@@ -9,108 +9,233 @@
   "sceneControls": false,
   "priority": 3,
   "weight": 7,
-  "tags": ["route", "fixture"],
-  "roles": [
-    { "name": "player", "mask": "upperBody" }
+  "tags": [
+    "route",
+    "fixture"
   ],
-  "scenes": [
+  "roles": [
+    {
+      "name": "player",
+      "mask": "upperBody"
+    }
+  ],
+  "nodes": [
     {
       "id": "test.route.compiled.single",
+      "cue": [
+        {
+          "at": 0.0,
+          "id": "route.start"
+        },
+        {
+          "at": 0.375,
+          "id": "route.source.hidden",
+          "delivery": "native"
+        },
+        {
+          "at": "end",
+          "id": "route.end"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.25,
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": {
+            "equippedArmor": {
+              "keyword": [
+                "ArmorTypeSpacesuitHelmet",
+                "ArmorTypeHelmet"
+              ]
+            }
+          },
+          "attachmentNode": "R_AnimObject1",
+          "position": [
+            1.25,
+            -2.5,
+            3.75
+          ],
+          "rotation": [
+            10,
+            -20,
+            30
+          ],
+          "scale": 0.875
+        },
+        {
+          "at": 0.75,
+          "type": "osf.prop.destroy",
+          "prop": "helmet"
+        }
+      ],
       "stages": [
         {
           "loops": 1,
-          "clips": ["Fixture/Route/single.glb"],
-          "cue": [
-            { "at": 0.0, "id": "route.start" },
-            { "at": 0.375, "id": "route.source.hidden", "delivery": "native" },
-            { "at": "end", "id": "route.end" }
-          ],
-          "action": [
-            {
-              "at": 0.25,
-              "type": "osf.prop.attach",
-              "role": "player",
-              "prop": "helmet",
-              "source": {
-                "equippedArmor": {
-                  "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"]
-                }
-              },
-              "attachmentNode": "R_AnimObject1",
-              "position": [1.25, -2.5, 3.75],
-              "rotation": [10, -20, 30],
-              "scale": 0.875
-            },
-            { "at": 0.75, "type": "osf.prop.destroy", "prop": "helmet" }
+          "clips": [
+            "Fixture/Route/single.glb"
           ]
         }
       ]
     },
     {
       "id": "test.route.compiled.two-stage",
-      "sceneControls": { "enabled": true, "disable": ["speed"] },
+      "sceneControls": {
+        "enabled": true,
+        "disable": [
+          "speed"
+        ]
+      },
       "priority": 9,
-      "tags": ["Fixture", "two-stage"],
+      "tags": [
+        "Fixture",
+        "two-stage"
+      ],
+      "cue": [
+        {
+          "at": 0.5,
+          "id": "route.handoff.begin"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.25,
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": {
+            "equippedArmor": {
+              "keyword": "ArmorTypeSpacesuitHelmet"
+            }
+          },
+          "attachmentNode": "R_AnimObject1",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1
+        }
+      ],
       "stages": [
         {
           "loops": 1,
-          "clips": ["Fixture/Route/handoff.glb"],
-          "cue": [
-            { "at": 0.5, "id": "route.handoff.begin" }
-          ],
-          "action": [
-            {
-              "at": 0.25,
-              "type": "osf.prop.attach",
-              "role": "player",
-              "prop": "helmet",
-              "source": {
-                "equippedArmor": { "keyword": "ArmorTypeSpacesuitHelmet" }
-              },
-              "node": "R_AnimObject1",
-              "position": [0, 0, 0],
-              "rotation": [0, 0, 0],
-              "scale": 1
-            }
+          "clips": [
+            "Fixture/Route/handoff.glb"
           ]
+        }
+      ],
+      "edges": [
+        {
+          "when": "end",
+          "to": "test.route.compiled.two-stage/stage-1"
         },
         {
-          "loops": 1,
-          "clips": [
-            { "file": "Fixture/Route/hold.glb", "mask": "rightArm" }
-          ],
-          "cue": [
-            { "at": "enter", "id": "route.station.entered" }
-          ],
-          "action": [
-            {
-              "at": 0.0,
-              "type": "osf.prop.attach",
-              "role": "player",
-              "prop": "helmet",
-              "source": {
-                "equippedArmor": { "keyword": "ArmorTypeSpacesuitHelmet" }
-              },
-              "node": "R_AnimObject1",
-              "position": [0, 0, 0],
-              "rotation": [0, 0, 0],
-              "scale": 1
-            },
-            { "at": 0.75, "type": "osf.prop.destroy", "prop": "helmet" }
-          ]
+          "id": "advance",
+          "label": "Next",
+          "when": "advance",
+          "default": true,
+          "to": "test.route.compiled.two-stage/stage-1"
         }
       ]
     },
     {
-      "id": "test.route.compiled.legacy-vocabulary",
-      "lockPlayer": true,
-      "stripActors": true,
-      "inPlace": false,
-      "playerControl": { "enabled": true, "disable": ["speed"] },
+      "id": "test.route.compiled.two-stage/stage-1",
+      "sceneControls": {
+        "enabled": true,
+        "disable": [
+          "speed"
+        ]
+      },
+      "priority": 9,
+      "tags": [
+        "Fixture",
+        "two-stage"
+      ],
+      "cue": [
+        {
+          "at": "enter",
+          "id": "route.station.entered"
+        }
+      ],
+      "action": [
+        {
+          "at": 0.0,
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": {
+            "equippedArmor": {
+              "keyword": "ArmorTypeSpacesuitHelmet"
+            }
+          },
+          "attachmentNode": "R_AnimObject1",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1
+        },
+        {
+          "at": 0.75,
+          "type": "osf.prop.destroy",
+          "prop": "helmet"
+        }
+      ],
       "stages": [
         {
           "loops": 1,
-          "clips": ["Fixture/Route/legacy-vocabulary.glb"]
+          "clips": [
+            {
+              "file": "Fixture/Route/hold.glb",
+              "mask": "rightArm"
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "when": "end",
+          "to": "$end"
+        },
+        {
+          "id": "advance",
+          "label": "Next",
+          "when": "advance",
+          "default": true,
+          "to": "$end"
+        }
+      ]
+    },
+    {
+      "id": "test.route.compiled.canonical-vocabulary",
+      "playerInputLock": true,
+      "hideApparel": true,
+      "placement": "anchorAndPin",
+      "sceneControls": {
+        "enabled": true,
+        "disable": [
+          "speed"
+        ]
+      },
+      "stages": [
+        {
+          "loops": 1,
+          "clips": [
+            "Fixture/Route/legacy-vocabulary.glb"
+          ]
         }
       ]
     }

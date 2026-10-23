@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Animation start-policy acceptance fixtures",
   "unlisted": true,
   "camera": "none",
@@ -8,7 +8,7 @@
   "fade": false,
   "sceneControls": false,
   "roles": [{ "name": "player" }],
-  "scenes": [
+  "nodes": [
     {
       "id": "osf.smoke.defaults",
       "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }]

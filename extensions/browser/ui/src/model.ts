@@ -177,7 +177,6 @@ export interface ImportProblem {
   code: string;
   message: string;
   hint: string;
-  scene: string;
   node: string;
   role: string;
   clip: string;
@@ -193,10 +192,9 @@ export interface ImportFile {
   schema: number;
   bytes: number;
   parseMs: number;
-  scenes: number;
-  declaredScenes: number;
+  declaredNodes: number;
   hidden: number;
-  rejectedScenes: number;
+  rejectedNodes: number;
   unlisted: number;
   anchored: number;
   nodes: number;
@@ -223,9 +221,9 @@ export interface ImportFile {
 export interface ImportTotals {
   files: number;
   rejectedFiles: number;
-  scenes: number;
-  declaredScenes: number;
-  rejectedScenes: number;
+  nodes: number;
+  declaredNodes: number;
+  rejectedNodes: number;
   /** Registry's own count; may drift from the per-file sum. */
   registered: number;
   clipEntries: number;
@@ -245,9 +243,9 @@ export interface ImportReport {
 export const EMPTY_IMPORT_TOTALS: ImportTotals = {
   files: 0,
   rejectedFiles: 0,
-  scenes: 0,
-  declaredScenes: 0,
-  rejectedScenes: 0,
+  nodes: 0,
+  declaredNodes: 0,
+  rejectedNodes: 0,
   registered: 0,
   clipEntries: 0,
   hidden: 0,
@@ -269,7 +267,7 @@ function normalizeImportProblem(value: unknown): ImportProblem {
     severity: problem.severity === "warn" ? "warn" : "error",
     code: String(problem.code || "load-problem"),
     message: String(problem.message || "Unknown import problem.").replace(/^\[(?:warn|error)\]\s*/, ""),
-    hint: String(problem.hint || ""), scene: String(problem.scene || ""),
+    hint: String(problem.hint || ""),
     node: String(problem.node || ""), role: String(problem.role || ""), clip: String(problem.clip || ""),
   };
 }
@@ -290,10 +288,9 @@ export function normalizeImportReport(payload: unknown): ImportReport {
         schema: count(entry.schema),
         bytes: count(entry.bytes),
         parseMs: Number.isFinite(Number(entry.parseMs)) ? Math.max(0, Number(entry.parseMs)) : 0,
-        scenes: count(entry.scenes),
-        declaredScenes: count(entry.declaredScenes),
+        declaredNodes: count(entry.declaredNodes),
         hidden: count(entry.hidden),
-        rejectedScenes: count(entry.rejectedScenes),
+        rejectedNodes: count(entry.rejectedNodes),
         unlisted: count(entry.unlisted),
         anchored: count(entry.anchored),
         nodes: count(entry.nodes),
@@ -319,9 +316,9 @@ export function normalizeImportReport(payload: unknown): ImportReport {
     totals: {
       files: count(totals.files),
       rejectedFiles: count(totals.rejectedFiles),
-      declaredScenes: count(totals.declaredScenes),
-      rejectedScenes: count(totals.rejectedScenes),
-      scenes: count(totals.scenes),
+      declaredNodes: count(totals.declaredNodes),
+      rejectedNodes: count(totals.rejectedNodes),
+      nodes: count(totals.nodes),
       registered: count(totals.registered),
       clipEntries: count(totals.clipEntries),
       hidden: count(totals.hidden),
@@ -367,7 +364,7 @@ function problemRefs(files: readonly ImportFile[]): Map<string, ImportProblemRef
 
 function importFileFingerprint(file: ImportFile): string {
   return [
-    file.declaredScenes, file.scenes, file.rejectedScenes, file.hidden, file.missingClips,
+    file.declaredNodes, file.nodes, file.rejectedNodes, file.hidden, file.missingClips,
     file.clipEntries, file.errors, file.warnings, file.problemCount,
   ].join(":");
 }

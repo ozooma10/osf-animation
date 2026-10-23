@@ -1,4 +1,5 @@
 #include "Equipment/GearRegistry.h"
+#include "Profiling/Profile.h"
 
 #include "Util/FormRef.h"
 #include "Util/RegistryFiles.h"
@@ -261,6 +262,7 @@ namespace OSF::Equipment::Gear
 
 	void LoadAll()
 	{
+		OSF_PROFILE_SCOPE("Registry.Gear.LoadAll");
 		std::vector<Entry>                           items;
 		std::vector<OverrideRow>                     overrides;
 		std::unordered_map<std::string, std::string> seen;  // lowercased ref -> source

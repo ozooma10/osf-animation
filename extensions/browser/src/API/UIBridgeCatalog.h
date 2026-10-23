@@ -9,12 +9,12 @@
 
 namespace OSF::Catalog
 {
-	struct Scene;
+	struct Node;
 }
 
 namespace OSF::API::UIBridgeCatalog
 {
-	bool IsWheelEntryEligible(const Catalog::Scene& a_def, std::int32_t a_stage);
+	bool IsWheelEntryEligible(const Catalog::Node& a_def, std::int32_t a_stage);
 	nlohmann::json BuildWheelData(std::string_view a_tagPrefix);
 	nlohmann::json BuildCatalog(bool a_library);
 	nlohmann::json BuildFileReport();

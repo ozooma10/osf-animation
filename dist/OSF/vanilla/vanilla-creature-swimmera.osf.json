@@ -1,10 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "name": "OSF Vanilla — Swimmera (generated, do not hand-edit)",
   "section": "library",
   "unlisted": true,
   "clipRoot": "meshes/actors/swimmera/animations",
-  "scenes": [
+  "nodes": [
     {
       "id": "vanilla/creature/swimmera",
       "name": "Vanilla · Swimmera",

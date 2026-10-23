@@ -1,4 +1,5 @@
 #include "Packs/PackReload.h"
+#include "Profiling/Profile.h"
 
 #include "API/Health.h"
 #include "API/EngineServices.h"
@@ -13,6 +14,7 @@ namespace OSF::Content
 {
 	std::int32_t ReloadAll()
 	{
+		OSF_PROFILE_SCOPE("Registry.ReloadAll");
 		Serialization::GLTFImport::ClearCache();
 		Serialization::AFImport::ClearCache();
 		REX::DEBUG("[Registry] content reload: clip caches cleared");

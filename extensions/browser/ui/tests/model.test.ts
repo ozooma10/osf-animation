@@ -50,6 +50,7 @@ describe("scene normalization", () => {
       sourceKind: "curatedAnimation",
     })).toMatchObject({ sourceKind: "curatedAnimation" });
     expect(normalizeScene({ id: "osf.scene-clip/curated", curated: true }).sourceKind).toBe("authoredScene");
+    expect(normalizeScene({ sourceKind: "curatedAnimation" })).not.toHaveProperty("curated");
     expect(normalizeScene({ id: "osf.scene-clip/harvested" }).sourceKind).toBe("authoredScene");
     expect(normalizeScene({ id: "pack.scene" }).sourceKind).toBe("authoredScene");
     expect(normalizeCatalog([
@@ -135,30 +136,29 @@ describe("scene readiness", () => {
 describe("import report normalization", () => {
   it("fills every field from a sparse native payload", () => {
     const report = normalizeImportReport({
-      files: [{ path: "GE/chair.osf.json", file: "chair.osf.json", scenes: 3 }],
-	  totals: { files: 1, scenes: 3 },
+      files: [{ path: "GE/chair.osf.json", file: "chair.osf.json", nodes: 3 }],
+	  totals: { files: 1, nodes: 3 },
     });
     expect(report.files[0]).toMatchObject({
       path: "GE/chair.osf.json",
       file: "chair.osf.json",
       pack: "",
       library: false,
-      scenes: 3,
-      nodes: 0,
+      nodes: 3,
       species: [],
       problems: [],
       problemCount: 0,
       rejected: false,
     });
-	expect(report.totals).toMatchObject({ files: 1, scenes: 3, errors: 0, parseMs: 0 });
+	expect(report.totals).toMatchObject({ files: 1, nodes: 3, errors: 0, parseMs: 0 });
   });
 
   it("survives a malformed payload instead of throwing at the panel", () => {
     expect(normalizeImportReport(null)).toEqual({ files: [], totals: expect.objectContaining({ files: 0 }) });
     expect(normalizeImportReport({ files: "nope" }).files).toEqual([]);
-    const junk = normalizeImportReport({ files: [null, { scenes: -4, parseMs: "x", species: 7 }] });
+    const junk = normalizeImportReport({ files: [null, { nodes: -4, parseMs: "x", species: 7 }] });
     expect(junk.files).toHaveLength(2);
-    expect(junk.files[1]).toMatchObject({ scenes: 0, parseMs: 0, species: [] });
+    expect(junk.files[1]).toMatchObject({ nodes: 0, parseMs: 0, species: [] });
   });
 
   it("never reports fewer problems than actually arrived", () => {
@@ -174,24 +174,23 @@ describe("import report normalization", () => {
     const before = normalizeImportReport({ files: [{
       path: "Pack/scenes.osf.json",
       file: "scenes.osf.json",
-      declaredScenes: 2,
-      scenes: 1,
-      rejectedScenes: 1,
+      declaredNodes: 2,
+      nodes: 1,
+      rejectedNodes: 1,
       errors: 1,
-      problems: [{ severity: "error", code: "scene-invalid", message: "Bad role.", hint: "Fix the role.", scene: "pack.bad", role: "lead" }],
+      problems: [{ severity: "error", code: "scene-invalid", message: "Bad role.", hint: "Fix the role.", node: "pack.bad", role: "lead" }],
     }] });
     expect(before.files[0].problems[0]).toEqual({
       severity: "error",
       code: "scene-invalid",
       message: "Bad role.",
       hint: "Fix the role.",
-      scene: "pack.bad",
-      node: "",
+      node: "pack.bad",
       role: "lead",
       clip: "",
     });
 
-    const after = normalizeImportReport({ files: [{ path: "Pack/scenes.osf.json", file: "scenes.osf.json", declaredScenes: 2, scenes: 2 }] });
+    const after = normalizeImportReport({ files: [{ path: "Pack/scenes.osf.json", file: "scenes.osf.json", declaredNodes: 2, nodes: 2 }] });
     expect(diffImportReports(before.files, after.files)).toMatchObject({
       newProblems: [], resolvedProblems: [{ code: "scene-invalid" }], changedFiles: 1, addedFiles: 0, removedFiles: 0,
     });

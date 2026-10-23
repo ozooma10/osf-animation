@@ -1,4 +1,5 @@
 #include "Util/NativeMainThreadQueue.h"
+#include "Profiling/Profile.h"
 #include "Input/InputService.h"
 #include "Input/SceneKeymap.h"
 #include "API/OSFEngineAPI.h"
@@ -145,6 +146,7 @@ namespace OSF::Input
 				return;
 			}
 
+			OSF_PROFILE_SCOPE("Input.Dispatch");
 			Grant                                   grant;
 			std::function<void(Verb, const Grant&)> handler;
 			{
@@ -187,6 +189,7 @@ namespace OSF::Input
 			const bool engaged = active || capture || routing;
 			const bool menuOwns = engaged && MenuOwnsInput();
 			if (engaged && !menuOwns) {
+				OSF_PROFILE_SCOPE("Input.Engaged");
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
 					if (capture && et == RE::InputEvent::EventType::kDeviceConnect) {
