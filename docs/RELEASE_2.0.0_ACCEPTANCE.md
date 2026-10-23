@@ -73,3 +73,37 @@ Release packaging and the disposable install matrix require a fresh
 each installer combination. The dated gate result above supplies that evidence for its recorded source. Actual MO2
 installation/upgrade, binary distribution and third-party consumer acceptance remain separate. Old alignment files are preserved but refused by the v2 reader; users must review
 and reauthor global-node alignment entries. Multi-layer runtime playback remains deferred.
+
+## Live camera regression, 2026-10-22
+
+The disposable Intimacy qualification reproduced third-person zoom loss with a
+stable wheel-selected baseline of 1.0: scene free-camera entry changed it to 0.0,
+and cleanup restored camera mode 20 but left zoom at 0.0. The failure is retained
+as `q3-h4-zoom-01` / `20261023-010355-849-H4-Active` in the
+[Intimacy execution record](../../OSF%20Intimacy/docs/ANIMATION_2_LIVE_QUALIFICATION.md).
+The measured gameplay interval contained only the recorded setup wheel input;
+previous unrelated injected events occurred before gameplay.
+
+Commit `f08840c` captures current and target third-person zoom with the shared
+camera baseline, restores them after final mode handback, and drops that baseline
+on world replacement. It does not change Graph, StampPose or layer composition.
+The one-job private preparation gate in `build/smoke/v2-prepared-20261023-01`
+passed 16 native suites, 166 Browser assertions, both package checks and all five
+repeated installer combinations. It produced these DLL identities:
+
+| Build | SHA-256 |
+| --- | --- |
+| Production engine | `9D5986F4E10C46473B0CAB60982A67C145D931F7E9DD69989BE743D4C9FF80DE` |
+| Instrumented engine | `4A227D7D48D395155C8BE391C136C7A6B112966A80DC4ECE8A3041134CAD9948` |
+
+That preparation preceded the fix commit; its source receipt records the exact
+pre-commit revision and files. The foundation runner includes HEAD and documentation
+in its source identity, so a fresh post-commit preparation is required before its
+next full runtime gate. Never rewrite the earlier receipt to imply it was built
+from a later checkout.
+
+Live regression on the fixed pair is in progress. The execution record above owns
+the evolving results and failures; earlier passing runs apply only to their recorded
+binary pair. The separate historical intermittent first-person mode failure is
+still unexplained. Physical controller and listening review are unavailable, and
+full live release acceptance remains open. Ordinary mods and saves are preserved.
