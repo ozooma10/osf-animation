@@ -1,12 +1,13 @@
 # Layer contract (2.0)
 
-Status: design, not started. Written 2026-10-22. Scope decision and rationale live in
-[V2_SCOPE.md](V2_SCOPE.md) §2; this document is the contract that section requires.
+Status: contract plus engine-free depth-1 composer/tests implemented for the unpublished 2.0
+candidate. Originally written 2026-10-22. Scope and rationale live in [V2_SCOPE.md](V2_SCOPE.md) §2.
+The general stack rules and illustrative fixtures below describe the intended contract, not a
+runtime layer API. Runtime hookup and simultaneous layers remain deferred to later 2.x work.
 
-2.0 specifies an ordered per-actor **layer stack** and implements depth 1. Depth 1 is
-behaviourally today's single slot, so nothing in the shipped runtime changes; what changes is that
-the general rule is written down and asserted, which is what lets the multi-layer implementation
-land later as an additive 2.x instead of a second break.
+2.0 specifies an ordered per-actor **layer stack** and tests depth 1 against the existing pose
+helpers. The layer work does not change runtime stamping or live-base capture; other 2.0 playback
+fixes are independent. See [candidate acceptance](RELEASE_2.0.0_ACCEPTANCE.md) for the tested boundary.
 
 The contract is stated against the current code so each point is checkable:
 `src/Animation/Graph.cpp` (`Sample`, `StampPose`), `src/Animation/PoseMath.h`

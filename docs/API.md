@@ -1,7 +1,9 @@
 # OSF APIs
 
 Animation **2.0.0** uses scene ABI **2.0** and engine-services ABI **4.0**. Rebuild consumers and
-update their scripts/content together. Earlier majors and short pre-v2 option structs are rejected.
+update their scripts/content together. Unpublished earlier contracts are rejected.
+The [published 1.4 adapter](COMPATIBILITY_1.4.md) separately serves scene ABI 1.0-1.2 and legacy
+Papyrus options; legacy content retains container stage mappings and local Papyrus event nodes.
 New fields/methods may append within these majors; callers check version and table/struct size.
 The [persistence C ABI](PERSISTENCE_API.md) is unchanged.
 
@@ -37,9 +39,11 @@ Events carry the global `node`, with no separate `sceneId`. `SCENE_END.cause` is
 cancelled (1), or interrupted (2); other events use -1. World replacement deliberately emits no
 old-world callbacks. Native events are borrowed synchronously; Papyrus events are copied and async.
 
-Scene keyboard controls use key settings under OSF Animation > Controls - Playback / Alignment.
-They are dispatched only while the active scene grants their capability. Rebinding replaces
-the default key, and unbinding disables it. The input hook continues to pass keys to the game.
+Scene keyboard controls use OSF Animation's playback page (`osf.animation.engine`) and a
+separate alignment page (`osf.animation.align`). They dispatch only while the active scene grants
+the capability. Rebinding replaces the default key; unbinding disables that binding. Top-row
+`=` / `-` remain fixed speed aliases, with explicit bindings taking precedence. The input hook
+continues to pass keys to the game.
 
 Speed is session-owned and retained across transitions. Values clamp to 0..100; zero pauses,
 negative engine-service requests are refused, and invalid queries return -1. Timers/loops use
@@ -366,7 +370,7 @@ fixed number of times; "loop until advance" (hold) and timer-only stages are unt
 the felt effect is uneven. Sanitized: `≤ 0` / NaN → `1.0` (no scaling); clamped to a ceiling so a runaway
 value can't mint a stage that never auto-advances. Re-applied on every flow-node entry (never compounded).
 Scene JSON can also [read loop counts directly from a game global](SCENE_SCHEMA.md)
-using `"loops": { "global": "Plugin.esm|0x1234", "default": 3 }` (1.5.0).
+using `"loops": { "global": "Plugin.esm|0x1234", "default": 3 }`.
 Those counts are captured at each node admission, then multiplied by `LoopScale`; zero remains a hold.
 The final scaled count saturates at the signed 32-bit maximum.
 
@@ -458,7 +462,7 @@ Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
         Actor a = akEvent.actorRef
         ; akEvent fields: sceneHandle, eventType, node, edge, cue, actionType,
         ;                 actorRef, role, loopIndex, time, anchor, result, cause
-        ; `node`/`edge` identify a flow node and scene edge. `anchor` is the legacy
+        ; `node`/`edge` identify a global node and its authored edge. `anchor` is the legacy
         ; ABI name for a named track position, not a world anchor.
     EndIf
 EndFunction

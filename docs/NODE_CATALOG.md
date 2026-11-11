@@ -3,7 +3,8 @@
 Animation 2.0 publishes catalog schema **4** with one `nodes` array. Each globally unique,
 case-insensitive ID owns its name, tags, priority, weight, visibility, cast, placement, anchor,
 source provenance and ordered `stages`. A stage is an actual playback segment, never another node.
-No scene container or synthetic linear ID is published. File defaults resolve during loading;
+Schema-2 authoring publishes no container or synthetic linear ID. The
+[1.4 adapter](COMPATIBILITY_1.4.md) publishes unlisted interior nodes and retains legacy stage mappings. File defaults resolve during loading;
 tags union case-insensitively and node scalar/role declarations replace defaults.
 
 `clipsAvailable` checks the complete node timeline. Matching ranks the resulting node metadata.
@@ -26,10 +27,10 @@ provider nodes, rejects missing targets and dependent routes, and preserves vali
 Provider registration/removal can restore/reject these routes without reparsing files. Existing
 NodeRefs remain valid. A provider receives base candidates, never its previous output.
 
-Full catalog source clips use global `node`, `stage`, `clip` offsets. Compact provider input schema
+Full catalog source clips use `source` (global node ID), `stage` and `clip` indices. Compact provider input schema
 **2** carries the same source addresses and node metadata. Catalog reads and provider callbacks use
 cached clip availability and do no resource IO. The Browser's typed/streamed parsers use these new
 schemas; the `activeLaunches` web event carries current global node IDs.
 
-Native clients must rebuild against scene 2.0/services 4.0; previous majors and old prefix layouts
-are rejected. The persistence C ABI remains unchanged.
+New native clients use scene 2.0/services 4.0. The separate published scene-1.2 adapter accepts
+its older prefixes; unpublished intermediate contracts are rejected. The persistence C ABI remains unchanged.

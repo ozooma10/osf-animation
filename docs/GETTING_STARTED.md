@@ -8,9 +8,11 @@ Two kinds of mods build on OSF:
 The split is deliberate: OSF is content-neutral, so animation **data** lives in JSON and gameplay
 **policy** lives in your mod.
 
-Terms in this guide follow [OSF domain vocabulary](VOCABULARY.md). Prefer the canonical JSON keys
-`hideApparel`, `playerInputLock`, and `sceneControls`; legacy `stripActors`, `lockPlayer`, and
-`playerControl` spellings remain accepted for existing content.
+Terms in this guide follow [OSF domain vocabulary](VOCABULARY.md). New Animation 2.0 content uses schema 2
+and the canonical JSON keys `hideApparel`, `playerInputLock`, and `sceneControls`. Retired
+`stripActors`, `lockPlayer`, and `playerControl` spellings are rejected in schema 2. Published schema-1 packs can use the
+[1.4 compatibility adapter](COMPATIBILITY_1.4.md).
+See [migration](V2_MIGRATION.md) before converting existing content.
 
 ---
 

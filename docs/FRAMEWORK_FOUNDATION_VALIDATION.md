@@ -1,5 +1,9 @@
 # Framework foundation implementation and validation
 
+Historical pre-2.0 evidence. The 1.5 baseline was never published, and its API-prefix compatibility
+goals below were superseded by the 2.0 major break. Do not use this record to qualify current
+binaries; use [2.0 acceptance](RELEASE_2.0.0_ACCEPTANCE.md).
+
 Implementation completed on 2026-10-15, source revision `c96d474` on `dev`.
 Sections 0 through 4 of [the design](FRAMEWORK_FOUNDATION_DESIGN.md) are implemented.
 The API contract and usage details are in [API.md](API.md).
@@ -51,7 +55,7 @@ These automated checks do not establish the design's live behavior/visual accept
 - Live alignment save/restart, authored-offset reload, unsaved revisits, and disabled alignment controls.
 - Handoff pose blend/accepted position snap, apparel and control continuity, authored exit-action precedence,
   locked/disabled replacement input, furniture rejection/offset recomposition, and failed-playback cleanup.
-- Connection and existing calls from the actual released 1.5.0 Browser DLL to the newer engine. The
+- Connection and existing calls from the then-planned 1.5.0 Browser DLL to the newer engine. The
   legacy 3.0 prefix and negotiation predicates are tested offline; this binary combination needs a game run.
 
 No release or live-game acceptance is claimed by this record.

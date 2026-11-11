@@ -1,9 +1,14 @@
 # Animation 2.0 migration
 
-Implemented for the unpublished 2.0 candidate. The registry, runtime transitions, public adapters,
-Browser, Intimacy and Seduce consumers use global node IDs. Production and private probe builds
-and the offline suites pass; live qualification remains open. This records the choices for
+Implemented for the unpublished 2.0 candidate. The registry, runtime transitions, public adapters
+and Browser use global node IDs. Installed consumer migration is incomplete; the November audit
+in the linked acceptance record supersedes earlier assumptions about Intimacy and Seduce readiness. Production and private
+probe builds and the offline suites pass; live qualification remains open. This records the choices for
 V2_SCOPE A-C. See [verification and acceptance](RELEASE_2.0.0_ACCEPTANCE.md).
+
+Published 1.4 clients have a [bounded compatibility adapter](COMPATIBILITY_1.4.md).
+The rules below describe canonical schema-2 content and current APIs. Legacy imports
+retain container stage mappings and Papyrus local callback names; no second runtime is used.
 
 ## Registry and addresses
 
@@ -67,11 +72,12 @@ that happen before a new preparation attempt has acquired any provisional reserv
 ## ABI and spelling changes
 
 Scene ABI 2.0 and services ABI 4.0 each expose one baseline table. Clients and hosts reject the
-previous majors; the special services-3.13 negotiation branch and old prefix table are removed.
+unpublished previous majors. A separate published scene-1.2 adapter accepts its 1.0/1.1 prefixes;
+the services-3.13 negotiation branch remains removed.
 Fields and methods may still append within the new majors under the existing stability policy.
 
 Authoring uses `playerInputLock`, `hideApparel`, `placement`, `sceneControls` and `attachmentNode`.
-Their retired aliases produce migration diagnostics. Browser records use `sourceKind`; the active
+Their retired aliases produce migration diagnostics in schema 2. Schema 1 translates published policy aliases. Browser records use `sourceKind`; the active
 launch event is `osf.animation.activeLaunches`. The `Stage`/`StageData` C++ compatibility aliases
 are removed; playback types use `Segment`/`SegmentData`.
 
@@ -85,5 +91,6 @@ The engine-free depth-1 composer delegates to the existing pose helpers and refu
 without writing. Its suite compares exact bytes, including additive pads and scale. The runtime
 stamp hook and live-base capture remain unchanged; multiple simultaneous layers are a later 2.x task.
 
-Acceptance for this change is builds and the pure suites. No MO2 deployment, game launch, visual
-acceptance, audio/controller acceptance, or fresh save/load qualification is implied by those checks.
+Builds and pure suites establish the offline implementation boundary. Subsequent live runs are
+recorded separately in [candidate acceptance](RELEASE_2.0.0_ACCEPTANCE.md) and qualify only their
+recorded binaries. Visual, audio/controller, upgrade and current-candidate live gates remain open.

@@ -2,7 +2,13 @@
 
 SFSE plugin - the **engine** of **OSF**, a scene framework for Starfield (NAFSF playback lineage). It hosts native playback, sync, the shared clock, anchoring, a clip/pack registry, and the **scene runtime** (graphs of nodes with cues/actions/callbacks/navigation). The engine stays
 **content-neutral**: it provides policy *mechanisms* (control/camera lock, fade, equipment-strip,
-voice/sound, camera hold);
+voice/sound, camera hold).
+
+The current candidate is **2.0.0 (unreleased)**: schema-2 global nodes, scene ABI 2.0,
+services ABI 4.0, catalog schema 4 and compact provider input 2. The unpublished 1.5 baseline
+was superseded. Published 1.4 content and clients have a bounded boundary adapter; see
+`docs/COMPATIBILITY_1.4.md` (asynchronous admission remains, live compatibility is unqualified). Use `docs/V2_MIGRATION.md` and `docs/RELEASE_2.0.0_ACCEPTANCE.md` for the
+implemented contract and candidate-specific evidence; dated design/profiling records are historical.
 
 ## Build
 
@@ -94,7 +100,7 @@ Each entry: **system** (`path`) — role.
 - **Player/Camera locks** (`src/Player/PlayerInputLockService.*`, `src/Camera/CameraService.*`) —
   standalone locks (input-disable + AI-driven + third-person hold).
   Engaged **by default at scene start when the player is a participant** (the runtime calls
-  `EngageDefaultPlayerInputLock`; a scene opts out with `lockPlayer:false`), and also by the explicit
+  `EngageDefaultPlayerInputLock`; a scene opts out with `playerInputLock:false`), and also by the explicit
   `osf.control.lock` action. Ref-counted per scene, ledger-tracked so it auto-releases on any end.
 - **Papyrus** (`src/Papyrus/OSFScript.*`) — natives bound via GameVM at kPostDataLoad, re-bound every
   load (VM is rebuilt).
@@ -114,8 +120,8 @@ Each entry: **system** (`path`) — role.
 - **SceneLauncher** (`src/Scene/SceneLauncher.*`) — shared registered-scene launch path for Papyrus,
   native API, and matchmaking: cast validation, stage selection, anchor resolution, runtime dispatch,
   and optional post-start speed. Adapters retain compatibility choices: Papyrus rejects out-of-range
-  linear stages and keeps authored speed; native starts fall back to entry and may override speed.
-  Matchmade starts use the picked cast order and authored entry/speed. Runtime retains role binding,
+  segment indices and keeps authored speed; native starts fall back to segment zero and may override speed.
+  Matchmade starts use the picked cast order, segment zero and authored speed. Runtime retains role binding,
   role filters, admission, playback, and lifecycle ownership. Ad-hoc plans still use `StartFromPlan`.
 - **ContentRegistry** (`src/Registry/ContentRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
@@ -124,9 +130,9 @@ Each entry: **system** (`path`) — role.
   and the load problems attributed to it (`ProblemSink` pairs every problem line with its owning file, so
   attribution never depends on parsing the message text). `LoadErrors()` is unchanged. The browser's
   IMPORTS panel is the consumer, over `osf.animation.imports.get`. Also
-  carries the `stripActors`/`lockPlayer` default-mechanism opt-outs (top-level → per-role). A multi-scene
-  file's top-level `roles` is read by JSON type: an ARRAY is a default cast inherited by scenes omitting
-  `roles`; an OBJECT is a file-local registry of reusable role TEMPLATES that scene `roles` entries
+  carries the `hideApparel`/`playerInputLock` default-mechanism opt-outs (top-level → per-role). A multi-node
+  file's top-level `roles` is read by JSON type: an ARRAY is a default cast inherited by nodes omitting
+  `roles`; an OBJECT is a file-local registry of reusable role TEMPLATES that node `roles` entries
   reference by exact id — either a bare string (copy as-is) or an `{ "id", ...overrides }` object
   (JSON-merge-patch over the template: scalars replace, filters/offset/equip merge by key, arrays
   replace, null removes; `gender`/`filters.gender` aliased so one override drops the other path),
@@ -150,14 +156,14 @@ Each entry: **system** (`path`) — role.
 - **SceneRuntime** (`src/Scene/SceneRuntime.*`) - generational handle table, lifecycle (`Fire`), navigation, timed-mark decode (`OnTimedMarks`, lane-ordered action→camera→sound→cue)
   `osf.*` action dispatch (`RunAction`), and the **per-handle undo ledger** (reverses every reversible
   mechanism in reverse order, once, idempotently, on ANY termination). Talks to Layer A only via its public surface, to Layer C via services.
-  **Scene-start defaults**: input lock applies after admission (opt out `lockPlayer:false`).
+  **Scene-start defaults**: input lock applies after admission (opt out `playerInputLock:false`).
   Apparel/held-item clearing, gear and authored equipment are prepared before playback (opt out
-  `stripActors:false`); H2 scopes and the ledger reverse only owned demands on end.
-  The caller resolves each opt-out — from the `SceneDef` for a def scene, the `PackPolicy` for a pack — and
-  passes the booleans in; a files scene has no field, so both stay on.
+  `hideApparel:false`); H2 scopes and the ledger reverse only owned demands on end.
+  Registered nodes resolve file/node defaults and per-start overrides through the shared launch path;
+  ad-hoc file starts use their supplied options. Global-node transitions retain session ownership.
 - **SceneEventRelay** (`src/Scene/SceneEventRelay.*`) - synchronous native API callback dispatch at
   the authored runtime mark, followed by the existing token registry + async C++->Papyrus dispatch
-  of the `OSFEvent:SceneEvent` struct. Native registrations live in
+  of the `OSFTypes:SceneEvent` struct. Native registrations live in
   `src/API/NativeSceneEventRegistry.*` and survive world replacement.
 - **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `ContentRegistry` defs;
   deterministic role-binding; `roles[].filters` gender/keyword/race with
@@ -165,8 +171,8 @@ Each entry: **system** (`path`) — role.
 
 ### Layer-C - services 
 - **Browser addon** (`extensions/browser/src/API/BrowserSession.*`, `BrowserSessionQueue.h`) — separate optional
-  `OSF Animation Browser.dll`, built without private engine implementation. It consumes scene ABI 1.3
-  and engine services ABI 3.0 (`src/API/OSFEngineAPI.h`). Owns browser/wheel presentation, picking, pins,
+  `OSF Animation Browser.dll`, built without private engine implementation. It consumes scene ABI 2.0
+  and engine services ABI 4.0 (`src/API/OSFEngineAPI.h`). Owns browser/wheel presentation, picking, pins,
   preferences and hotkeys; see `docs/BROWSER_ADDON.md`. It is an
   OSF UI consumer. Native shown/hidden callbacks own browser lifetime; copied commands and
   pointer input drain on the frame queue with a generation check. Hide/world replacement
@@ -178,17 +184,17 @@ Each entry: **system** (`path`) — role.
   public `OSFClipScene.h`). Providers rebuild on registration/reload against base content, publish
   atomically, and never replace authored IDs. Old runtime refs remain pinned. Browser also owns
   front-of-view placement policy (`BrowserPlacement.*`); core exposes world/navmesh queries.
-- **Shared actor state** (`src/ActorState/{Store,Service}.*`, services ABI 3.9) — one ownership store for
+- **Shared actor state** (`src/ActorState/{Store,Service}.*`, services ABI 4.0) — one ownership store for
   persistent/session equipment claims, selective cleanup, save suspension and world-reset revocation.
   Scene apparel/held/authored/gear groups use this store; `EquipmentService` is only its inventory
   backend. Base-form/count provenance is conservative, not exact-instance ownership. Native failure
   tests cover the production core. See `docs/ACTOR_STATE.md`; pose layers remain future work.
-- **Shared preparation** (`src/Preparation/Coordinator.*`, `SceneRuntime_Preparation.cpp`, services ABI 3.10) —
+- **Shared preparation** (`src/Preparation/Coordinator.*`, `SceneRuntime_Preparation.cpp`, services ABI 4.0) —
   reserved starts and all scene-owned handoff/node/segment changes use Plan/Apply/Ready/Validate
   on the verified frame drain. H2 scope edits, exact resource leases, bounded polling and cancellation
   precede dependent playback; sampling hooks only request stages. Callbacks run outside locks with
   generation checks. See `docs/PREPARATION.md` for async admission, provider lifetime and readiness limits.
-- **Owned audio** (`SoundService`, services ABI 3.6) — independent opaque channels, closed by the
+- **Owned audio** (`SoundService`, services ABI 4.0) — independent opaque channels, closed by the
   consumer at its scope boundary and revoked on world replacement. Media preparation is separate
   from the synchronized validity-check/post/publication commit. Channel close cannot race a late
   submission; legacy authored tails retain their scene-stop policy. The sound-registry native
@@ -197,7 +203,8 @@ Each entry: **system** (`path`) — role.
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no
   user-settings feature toggle; engine settings (scene bindings, `logLevel`, scene gear) live in OSF Settings's
-  in-game menu (`src/API/EngineSettings.cpp` subscribes to `osf.animation.engine`; Browser owns the
+  in-game menu (`src/API/EngineSettings.cpp` subscribes to `osf.animation.engine` and the separate
+  `osf.animation.align` page; Browser owns the
   `osf.animation.browser` hotkey-only schema. Browser preferences live in the SFSE-log-parent
   `OSF/browser-preferences.json`, with defaults when the file is absent.
   Engine values load and save through OSF Settings, using schema defaults when unsaved;

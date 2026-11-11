@@ -4,214 +4,132 @@ All notable changes to OSF Animation are documented here.
 
 ## [2.0.0] - Unreleased
 
-- Global registry nodes with one clip timeline, resolved file defaults and cross-file/pack edges.
-- One transition admission/preparation path for authored edges and exact requests; optional cover
-  is selected per boundary. Providers participate in final-publication route validation.
-- Scene ABI 2.0, services 4.0, catalog schema 4 and compact provider input 2; workspace consumers
-  and Papyrus callers migrated together. Retired aliases, node splice and linear mapping removed.
-- Caller-owned automatic progression for every node, without a content hold grant.
-- Engine-free depth-1 layer composition with byte-equality tests and deeper-stack refusal.
-  Runtime stamping is unchanged; multiple simultaneous layers are deferred.
-- See [migration](docs/V2_MIGRATION.md) and [acceptance](docs/RELEASE_2.0.0_ACCEPTANCE.md).
+This release includes the work previously planned as 1.5.0, which was superseded before
+publication. The previous published release is 1.4.0. See [upgrading](docs/UPGRADING.md),
+[content/API migration](docs/V2_MIGRATION.md), and [release acceptance](docs/RELEASE_2.0.0_ACCEPTANCE.md).
+Offline and historical live passes do not imply acceptance of the final candidate.
 
-## [1.5.0] - Prior development baseline (superseded before publication)
+### Published 1.4 compatibility
 
-Prepared for release; not yet published. See [Upgrading to 1.5.0](docs/UPGRADING.md)
-for installation, saved preferences, and hotkey changes.
+- Added a [bounded compatibility layer](docs/COMPATIBILITY_1.4.md): schema-1 import,
+  original scene launch IDs and stage mappings, local Papyrus callback node names,
+  legacy SceneOptions members, and a frozen native scene ABI-1.2 adapter (including
+  its older request/prefix support). All paths use the current runtime.
+- Starts and transitions retain asynchronous preparation. Existing compiled mods
+  still require in-game qualification. Unpublished 1.5 APIs and old settings/alignment
+  persistence are outside this layer. The breaking changes below describe canonical 2.0.
 
-### Upgrade requirements
+### Upgrade requirements and breaking changes
 
-- OSF Animation and the optional **OSF Animation Browser** now ship as separate
-  archives. Install both at version **1.5.0** to use the browser or emote wheel.
-  The Browser installer owns the optional vanilla/creature library and emote pack.
-- **OSF Settings 1.0.0+** owns engine settings, hotkeys, launchers, and Mod Issues.
-  **OSF UI 2.0.0+** is required for the optional Browser. Gameplay consumers can
-  use the engine and native/Papyrus APIs without Browser or OSF UI.
-- Replace the previous Animation installation instead of merging old files into
-  the new packages. Preserve custom content and saved user data. The obsolete
-  combined `osf.animation.json` **schema** must no longer be active.
-- Engine settings and Browser hotkeys use `osf.animation.engine` and `osf.animation.browser`.
-  Engine values load and save normally through OSF Settings, using schema defaults when unsaved.
-  Browser preferences are saved separately and edited inside the Browser. Old combined settings
-  are not imported. **Rebind both browser hotkeys.**
-  Wheel pins, scene IDs, and the browser view ID are unchanged.
+- Install **OSF Animation 2.0.0** for the engine and, optionally, the separate
+  **OSF Animation Browser 2.0.0** archive for the Browser and emote wheel. The Browser installer
+  owns optional vanilla/creature library and emote content. Replace old payloads rather than
+  merging incompatible files; preserve custom content, saves and user data.
+- **OSF Settings 1.0.0+** owns engine settings, hotkeys, launchers and Mod Issues.
+  The optional Browser additionally requires **OSF UI 2.0.0+**. Engine playback and native/Papyrus
+  consumers do not require Browser or UI. Rebind the two Browser hotkeys after leaving the combined
+  settings provider; old combined settings are not imported.
+- **Schema 2:** each registry entry is one globally named node with one clip timeline.
+  File defaults resolve onto each node, and edges can connect nodes across files and packs.
+  The running scene handle retains cast, preparation and cleanup ownership across transitions.
+- The nested scene/node address, `entry`, `linearStages`, node `use` splice and synthetic `#s`
+  addresses are retired. A single-node `id` plus `clip`/`stages` shorthand remains. Prop-template
+  `use` remains supported. Stage indices address actual playback segments inside a node.
+- **Scene ABI 2.0, services ABI 4.0, catalog schema 4 and compact provider input schema 2** replace
+  the previous baselines. Development native consumers must rebuild; update Papyrus and authored content
+  together. The persistence C ABI is unchanged. Browser, Intimacy, Seduce and workspace examples
+  have been migrated; downstream consumer acceptance remains separate.
+- Use `playerInputLock`, `hideApparel`, `placement`, `sceneControls` and `attachmentNode`.
+  Retired policy/placement/prop aliases produce migration diagnostics. Runtime C++ playback
+  aliases `Stage`/`StageData` are replaced by `Segment`/`SegmentData`.
+- Manual progression is caller policy for every node: `SetSceneAutoAdvance(false)` suppresses
+  automatic boundaries while animation and cues continue. The `allowManualHold` content grant
+  is removed. Events carry global node identity; bit 64 is `EVENT_NODE_TRANSITION`.
+- Alignment storage uses **formatVersion 2**, keyed by global node/role. Old files are preserved
+  and diagnosed but refused by the reader and blocked from saving until migrated. Review pins
+  and saved content choices whose IDs changed.
+- Validation rejects invalid default/track/template values and non-integer or out-of-range loop
+  counts. `loops` and `loops.default` must be JSON integers in `[0, 2147483647]`.
 
 ### Added
 
-- Developer profiling: a separate, development-only profiler override build
-  (`tools/profiling/Build-ProfilingOverride.ps1`) records named scopes, lock waits, allocations,
-  counters and per-frame OSF cost on every thread, and writes stats JSON and Perfetto/Chrome
-  trace files under `SFSE/OSF/profiles`. The released DLL contains no profiler code; packaging
-  rejects profiling builds. See [the profiling guide](docs/PROFILING.md).
-
-- Shared preparation through engine services 3.10: versioned preparers, equipment plans,
-  exact resource reservations, bounded readiness and rollback before scene starts, handoffs,
-  node changes and internal playback stages. Starts now return reserved handles; lifecycle
-  success follows committed admission. Required attachment readiness is supplied by preparers.
-  See [the contract and remaining live gates](docs/PREPARATION.md).
-
-- Shared actor-state ownership through engine services 3.9: persistent/session scopes,
-  equipment/preservation/hide claims, selective release, save suspension, and stale-token
-  revocation on world replacement. Authored equipment, automatic gear, apparel stripping
-  and held-item clearing share the service. See [the contract and provenance limits](docs/ACTOR_STATE.md).
-
-- Manual progression through engine services 3.5: `SetSceneAutoAdvance` keeps
-  eligible `allowManualHold` nodes playing past their timer/loop budget, while
-  `ReadSceneControls` exposes their live navigation choices. Speed, pause and
-  the automatic preference survive node changes and same-cast handoffs.
-- A [compiled Papyrus author example](docs/examples/query-handoff/README.md)
-  demonstrates query launch, temporary alignment, role-swapping handoff and stop.
-
-- Scene `loops` accepts `{ "global": "Plugin.esm|0xLocalID", "default": N }` on linear stages and
-  graph nodes/inline stages. Globals are captured per start or scene handoff; missing or invalid
-  values use the authored default. Existing `LoopScale` applies afterward, with overflow-safe counts.
-- Framework foundation: scene anchors remain fixed across node transitions; explicit-anchor
-  scenes restore the original transform by actor identity, including after role reordering.
-- Scene-owned speed and per-scene pause memory survive node transitions. Papyrus adds
-  `SetSceneSpeed` / `GetSceneSpeed`; registered starts now honor `SceneOptions.Speed`.
-- Scene events append definition identity and completed/cancelled/interrupted termination cause
-  (native scene ABI 1.4), preserving the original event prefix and Papyrus fields.
-- Engine services 3.1 negotiates compatible minor versions and preserves the released
-  Browser's exact-version 3.0 request path.
-- Scene keyboard controls are configurable through OSF Settings, including alignment keys;
-  the `align` scene-control capability can be revoked independently.
-- Alignment storage uses scene/node/role deltas in `SFSE/OSF/alignment-overrides.json`, with
-  atomic replacement, zero-row pruning, bounded parsing, and Mod Issues for failed reads/writes.
-- Live alignment nudges, reset/save, participant selection and step controls apply one delta over
-  authored placements across segments and node revisits. Papyrus and engine services 3.2 expose
-  the same operations; the HUD marks unsaved changes.
-- Scene slots retain an explicit anchor reference and its original rendered base transform for
-  compatibility checks and offset recomposition during handoff.
-- Scene input grants carry a revision: queued commands from a replaced or revoked grant are
-  discarded, and disabling scene controls explicitly releases the previous grant.
-- Same-cast scene handoff keeps the handle, speed, anchor and mechanism ownership, supports role
-  swaps and tag matching, and emits `SCENE_HANDOFF` before the new node enters. Papyrus adds
-  `ReplaceScene`, `ReplaceSceneRoles`, `ReplaceSceneByTagsQuery` and `GetSceneId`; engine services
-  3.3 append replacement calls. Anchor/role validation failures leave the old scene playing;
-  target playback failure ends the old identity as interrupted. Placement changes snap while poses blend.
-- Handoff equipment ownership preserves the first actor/item snapshot, records only incremental
-  hides/equips and restores additions in reverse order. Scene-owned weapons remain strip-exempt.
-
-- **Partial-body animation masks:** roles can drive the upper body, arms, hands,
-  or lower body while the remaining bones stay engine-driven. Masks support
-  feathered spine seams, additive poses, `poseWeight`, and `preserveBones`.
-- **Scene-scoped render props:** attach a fixed form or equipped armor to an actor
-  node and destroy it at an authored handoff. Scene teardown owns remaining props.
-  A file-level `props` registry lets actions reuse definitions with local overrides.
-- **Held stages and frame-positioned tracks:** `hold` freezes a stage on its final
-  frame or a normalized position. `atFrame` places cues, actions, sounds, and camera
-  entries by zero-based clip frame. See the [scene schema](docs/SCENE_SCHEMA.md).
-- **Held-item policy:** `clearHeldItems: false` lets equipment gestures preserve
-  weapons, slates, and tools; the existing automatic cleanup remains the default.
-- **Native scene callbacks and version reporting:** scene API 1.3 delivers
-  synchronous begin/end, node, cue, and action callbacks before Papyrus dispatch.
-  Native and Papyrus consumers can report their minimum required Animation version.
-- **Import diagnostics in Browser:** inspect every discovered scene file, including
-  empty or rejected files; search structured problems and repair hints, reload
-  content, compare results, jump to accepted content, and copy the complete report.
-- **Repeatable release validation:** `tools/test-release.ps1` builds production
-  packages and runs 12 native suites, 162 browser tests, five installer combinations,
-  and 69 checks in a disposable game session. Reports retain per-case results,
-  source/binary hashes, logs, and captures. `-Offline` explicitly omits the game;
-  [visual, audio, controller, and additional recovery coverage](docs/SMOKE_TESTING.md#coverage-boundaries)
-  remains separate from automated success.
-- Native scene ABI 1.5 adds `FindSceneByQuery` / `StartSceneByQuery`: tag matchmaking with
-  per-actor role-name constraints and an explicit anchor mode, without HUD output.
-- Engine services 3.4 add `ReplaceSceneByQuery`: matchmade handoff for the same cast with the same
-  query, where role constraints follow the current participant order and a query anchor replaces
-  the retained one.
-- Papyrus adds `StartSceneByQuery`, `FindSceneByQuery` and `ReplaceSceneByQuery`, mirroring the
-  native query calls with a `string[]` of per-actor role constraints and an anchor-required flag.
-- Cue lane entries accept an optional `role`. The cue event then carries that role and its bound
-  participant in `role` / `actorRef`, so content can say whose moment a cue marks. Undeclared roles
-  are a load error.
+- **Live alignment:** select a participant, nudge position/heading, reset or save offsets.
+  Deltas apply over authored placement across revisits; the HUD marks unsaved changes.
+- **Same-cast transitions and role swaps:** query or exact-node requests retain the handle,
+  speed/pause, anchor and owned mechanisms. Authored edges and caller requests share admission
+  and preparation. Optional cover is a per-boundary requirement, with a bounded deadline and
+  destination-pose reveal gate. Refusal before mutation can preserve an untouched manual source.
+- **Shared actor-state ownership and preparation:** equipment/preservation/hide claims, selective
+  release, save suspension, resource reservations, readiness, cancellation and rollback are public
+  services. Starts return reserved handles; successful lifecycle events follow committed admission.
+  Ownership confirms inventory state, not exact item-instance provenance or mesh readiness.
+- **Partial-body masks:** upper body, arms, hands or lower body can animate while other bones remain
+  engine-driven. Feathered seams work with additive poses, `poseWeight` and `preserveBones`.
+  Additive playback itself was already available in 1.4.
+- **Scene-owned render props**, reusable file-level prop templates, held final/normalized poses,
+  frame-positioned tracks via `atFrame`, role-addressed cues, and optional held-item preservation.
+- **Global-backed loops:** `{ "global": "Plugin.esm|0xID", "default": N }`, captured per node
+  admission with fallback and overflow-safe loop scaling.
+- **Native synchronous scene callbacks**, termination causes, version requirements, per-actor
+  role constraints and query-based launch/replacement. A compiled Papyrus query/alignment/handoff
+  example accompanies the API.
+- **Owned audio channels** with cancellation and world-reset revocation. Explicit `emitter: "role"`
+  sounds use an OSF-owned Wwise object that follows the actor; the default remains listener-relative.
+  Unavailable role emitters skip the cue instead of falling back to centered audio. Actor unload
+  retires its emitter/voices; ordinary scene completion can retain moving sound tails.
+- **Browser import diagnostics:** inspect every discovered file, including empty/rejected files,
+  search problems and repair hints, reload, compare results, and copy a report.
+- **Development-only profiler** for scopes, lock waits, allocations, per-frame cost and trace dumps.
+  Its separate override build is excluded from normal deployment and release packages.
+- **Repeatable release validation:** 16 native suites, Browser verification, private Papyrus/import
+  fixtures, archive verification, five repeated installer combinations and an optional 69-case
+  disposable game suite. Exact results and acceptance limits live in each retained report.
+- **Engine-free depth-one layer composer** with byte-parity tests and deeper-stack refusal.
+  Runtime hookup and simultaneous OSF layers remain deferred to a later 2.x release.
 
 ### Changed
 
-- Removed unreachable Browser modes/filter aliases, unused wheel/stage presentation data,
-  and unused or redundant native Browser helpers.
-
-- Browser uses canonical catalog/launch fields and structured import problems throughout its
-  native bridge, UI, generators, and fixtures. Removed unused close-command and internal aliases.
-  Install matching Browser DLL and view assets; authored content and public engine API compatibility remain.
-
-- Simplified OSF Settings: Browser exposes only its two hotkeys, scene bindings are grouped
-  into Playback and Alignment, and the unused stage-transition popup toggle is removed.
-  Browser preferences are saved in `SFSE/OSF/browser-preferences.json`. Browsing state is always
-  remembered within the session; launch speed is a per-launch override starting at 1x.
-  Library source/detail filters have one home beside Browse. Preference updates preserve
-  unrelated pending launch overrides.
-
-- Content validation is stricter in 1.5.0. Authored `loops` and `loops.default` must
-  be JSON integers in `[0, 2147483647]`; fractional, negative and floating-point
-  spellings such as `2.0` now reject the scene instead of using 1.4's numeric
-  conversion. File-default types/ranges, catalog paths, track timing/repeat values,
-  vocabulary aliases, template references and registry limits are also checked.
-  See [content migration notes](docs/UPGRADING.md#content-validation-changes).
-- Browser is an independently linked addon under `extensions/browser`. It owns
-  browsing, the wheel, picking, preferences, hotkeys, duration scanning/cache
-  persistence, derived inspection clips, and front-of-view placement policy.
-  Core retains playback, scene execution, authored content, and reusable services.
-- Current public versions are **engine services ABI 3.5** and **scene ABI 1.5**.
-  Existing scene prefixes and the released Browser's services 3.0 prefix remain
-  supported; unreleased services 1.0/2.0 consumers must rebuild. Install matching
-  engine/Browser builds. Generic
-  clip-scene providers preserve generated IDs and existing wheel assignments.
-- Native OSF UI shown/hidden callbacks own browser lifetime. Queued input and
-  commands are invalidated when the view closes or the world is replaced; document
-  initialization requests fresh data and retained preferences.
-- Browser uses a local Vite/Octane build for OSF UI 2.x. The retired authoring CLI
-  is no longer required, and production views install under
-  `SFSE/Plugins/OSF/UI/views/osf.animation`.
-- Browser defaults to **Stay open** after launching a scene. Existing saved choices
-  remain unchanged; **Live controls** and **Close browser** are still available.
-- Frame maintenance drains a finite FIFO command batch on the normal game update,
-  then ticks camera, fade, subtitles, and graph maintenance. Related playback
-  marks/end commands stay ordered; animation sampling remains in its own hooks.
-- Papyrus, native API, and matchmaking share registered-scene launch validation
-  while preserving their documented stage and speed behavior.
-- Audio uses Starfield's listener-centered Wwise route. `role` selects the voice
-  channel, gender substitution, and subtitle speaker; per-cue spatial placement
-  and volume are not supported. Legacy `volume` fields have no effect.
+- Browser is independently linked under `extensions/browser` and owns browsing, wheel/pins,
+  picking, preferences, derived inspection entries, duration scanning/cache and launch placement.
+  Core retains authored registrations, playback, runtime and reusable services.
+- Catalog refresh uses a coalescing Browser worker with stale-publication rejection. Catalog JSON
+  streams from owned values, Browser decodes directly into typed snapshots, and derived providers
+  use compact pinned base data. This removes the measured catalog callback hitch; it does not
+  promise stall-free reloads or an FPS increase.
+- Browser uses the local Vite/Octane build and native UI visibility callbacks. Bounded chunked
+  transfers support large catalogs. Hidden/replaced presentations invalidate queued work.
+- Engine Settings is reduced to scene gear, six playback bindings and log level. Twelve alignment
+  bindings have their own `osf.animation.align` page. Top-row `=` / `-` are fixed speed aliases,
+  with explicit bindings taking precedence. Recheck custom alignment bindings after upgrading.
+- Browser preferences are edited inside Browser and saved separately in `SFSE/OSF/browser-preferences.json`.
+  It reopens on its last tab, unavailable entries sit behind the reveal button, and launch speed
+  starts at 1x unless overridden for that launch. Stay open is the default after launch; existing
+  saved close behavior remains. Old `openTo` and `unavailableScenes` preferences are ignored.
+- Frame maintenance drains a finite FIFO batch on the normal game update. Sampling/stamping stay
+  in animation hooks; related marks and end commands remain ordered.
 
 ### Fixed
 
-- Saving during a scene temporarily restores scene-owned equipment and input
-  state for serialization, then reapplies it to the live scene. Loading that save
-  clears active playback and recovers leaked scene-camera state.
-- Camera handback waits for queued scene holds to release; recovered players no
-  longer return to a stale bleedout camera, and background WASD cannot drive orbit.
-- Persistence sidecars follow the game's current save-path settings.
-
-- **Large browser libraries load completely:** bounded message transfers deliver
-  catalogs larger than the host's per-message limit, including the shipped library.
-- **Deferred wheel requests cannot reopen stale UI** after close/cancellation.
-- **The model-update hook forwards Starfield's output-transform argument,** avoiding
-  invalid writes during ordinary actor model updates, even without an active scene.
-- **Masked/additive playback keeps its pose across rig rebuilds:** replacement
-  model nodes and in-place skeleton mutations rebind before stamping. Spine seams
-  retain the last verified engine base until the replacement rig is evaluated,
-  and repeated composition does not recapture OSF's own stamped pose.
-- **One-shot scenes hold their final pose while stopping** instead of resetting to
-  the first frame. Playback replacement also preserves the outgoing pose.
-- **Authored `clipLibrary` entries are visible without author-detail mode.** Only
-  automatically derived inspection entries stay behind that option.
-- Background duration/audio work retains safe process-lifetime state. Registry
-  diagnostics use relative paths, redact quoted absolute paths, and handle
-  case-insensitive Data-relative clip paths.
-- Alternative equipped-armor prop keyword misses no longer produce warnings when
-  another authored alternative resolves successfully. Prop attachment rotation
-  follows the authored convention.
-- Imported scene actions and camera modes remain typed through dispatch instead
-  of repeatedly parsing strings during playback.
+- Anchors stay fixed across transitions, and explicitly anchored participants restore by actor
+  identity even after role swaps. Session speed and pause survive node changes.
+- Saving during playback suspends scene-owned equipment/input state for serialization, then
+  reapplies live demands. World replacement revokes active state; sidecars follow save-path settings.
+- Camera handback waits for queued holds, restores captured third-person zoom, and recovers stale
+  scene camera state. A historical intermittent first-person restoration failure remains unexplained;
+  later clean-input repetitions passed only on their recorded binary.
+- Override rotations no longer snap at the half-turn boundary. Masked/additive playback keeps its
+  base across rig rebuilds; transitions retain the outgoing pose and one-shot stops hold the final pose.
+- The model-update hook forwards the output-transform argument. Props use the authored rotation
+  convention; expected alternative equipped-armor lookup misses stay quiet.
+- Deferred wheel requests cannot reopen canceled UI. Authored clip-library entries are visible
+  without author-detail mode. Worker lifetimes, path handling and diagnostic redaction are hardened.
 
 ### Removed
 
-- Studio Link's live preview inbox, authoring setting, and Suit Protocol bridge.
-- Unreleased actor overlay routes, their native API/debugger, and browser scene
-  inspection previews. Ordinary scenes, masked/additive playback, props, and held
-  stages remain supported.
-- Embedded Tracy profiling support; the documented external WPR/WPA workflow remains.
+- Studio Link's live preview inbox and Suit Protocol bridge.
+- Unreleased actor-overlay routes/debugger and Browser scene-inspection previews. Ordinary scenes,
+  masks/additive playback, props and held poses remain available.
+- Embedded Tracy support and the retired UI authoring CLI.
 
 ## [1.4.0] - 2026-07-30
 

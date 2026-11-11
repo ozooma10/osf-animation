@@ -3,7 +3,8 @@
 OSF Animation is a native animation and scene-runtime framework for Starfield.
 
 This checkout targets **2.0.0 (unreleased)**: global node IDs, schema 2 content, scene ABI 2.0,
-services ABI 4.0, and the engine-free depth-1 layer composition seam. Consumers must migrate together.
+services ABI 4.0, and the engine-free depth-1 layer composition seam. Published 1.4 clients have a [bounded compatibility layer](docs/COMPATIBILITY_1.4.md);
+unpublished development consumers must migrate together.
 See [migration](docs/V2_MIGRATION.md) and [offline acceptance](docs/RELEASE_2.0.0_ACCEPTANCE.md).
 
 Key Features:

@@ -1,10 +1,13 @@
 # Upgrading to OSF Animation 2.0.0
 
-2.0.0 is a breaking, unreleased development update. Update the engine, optional Browser, Intimacy,
+2.0.0 is an unreleased development update with a [published 1.4 compatibility layer](COMPATIBILITY_1.4.md).
+That layer still needs live qualification and retains 2.0 asynchronous admission. Update the engine, optional Browser, Intimacy,
 Seduce and their source content/scripts together. No package publication or game qualification is
 implied by the offline builds. See [acceptance](RELEASE_2.0.0_ACCEPTANCE.md).
 
-- Rebuild native consumers against scene ABI 2.0 and services ABI 4.0. Previous majors, prefix
+For current development consumers and schema-2 authoring:
+
+- Rebuild native consumers against scene ABI 2.0 and services ABI 4.0. Unpublished previous majors, prefix
   layouts and startNode/scene-node pair APIs are rejected. The persistence C ABI stays unchanged.
 - Convert `*.osf.json` to schema 2: top-level `nodes[]` or bare `id` plus `clip`/`stages`. Give every
   node a global ID and retarget edges to those IDs. Inline node `use` sources. Remove containing
@@ -21,13 +24,14 @@ implied by the offline builds. See [acceptance](RELEASE_2.0.0_ACCEPTANCE.md).
   preserved, diagnosed and blocked from saving; there is no lossy automatic remapping. Persisted
   choices for removed content remain unavailable until their IDs are updated.
 
-For a future installation, replace old engine/Browser payloads rather than merging incompatible
-files. Preserve custom content, saves and user preferences first. Browser remains optional and needs
-OSF UI 2.0.0+ and OSF Settings 1.0.0+; Settings owns hotkeys and its launcher. Rebind hotkeys if coming
-from the former combined settings provider. No installation is performed by this migration task.
+When installing the candidate, replace old engine/Browser payloads rather than merging incompatible
+files. Preserve custom content, saves and user preferences first. OSF Settings 1.0.0+ provides engine
+settings. Browser remains optional and additionally needs OSF UI 2.0.0+; Settings owns its hotkeys
+and launcher. Install matching engine/Browser 2.0.0 archives and rebind the two Browser hotkeys when
+coming from the former combined settings provider.
 
-The layer composer implements depth 1 and refuses deeper stacks. Graph.cpp, StampPose and runtime
-pose stamping are unchanged; simultaneous layer playback remains a later 2.x feature.
+The engine-free layer composer tests depth 1 and refuses deeper stacks. It is not wired into
+runtime stamping; simultaneous OSF layer playback remains a later 2.x feature.
 
 ## What happens to saved preferences
 
@@ -40,7 +44,12 @@ The Browser's OSF Settings page now contains only its two hotkeys. Change Browse
 inside the Browser; detail/source filters sit beside Browse. Browsing state is always remembered
 within a game session. The saved speed default and unused stage-transition popup setting have
 been removed. Launches start at 1x unless you change Start Overrides for that launch; keyboard
-speed controls still work during playback. Playback and Alignment bindings have separate groups.
+speed controls still work during playback. The engine page contains scene gear, six playback
+bindings and log level. Twelve alignment bindings now live on the separate `osf.animation.align`
+page; recheck any custom alignment bindings previously stored under the engine ID. Top-row `=` / `-`
+are fixed speed aliases, with explicit bindings taking precedence. Browser always reopens on its
+last tab; unavailable entries stay behind the list's reveal button. Retired `openTo` and
+`unavailableScenes` preferences are ignored.
 Browser preferences load from `SFSE/OSF/browser-preferences.json` under the game's documents
 folder, or use defaults when that file is absent. Changes are saved there.
 

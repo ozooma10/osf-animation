@@ -1,16 +1,16 @@
 # Shared actor-state ownership (H2)
 
-Engine services **3.9** adds owner-held equipment claims. Scene defaults, authored role
+Engine services **4.0** provides owner-held equipment claims. Scene defaults, authored role
 equipment, equipment actions, automatic gear, and held-item clearing all use this service.
 Gameplay mods can use it outside a scene. No anatomy, device unlocking, or encounter policy
 is built into Animation.
 
-This is H2's equipment implementation and common scope contract. Services 3.10 builds
+This is H2's equipment implementation and common scope contract. Services 4.0 builds
 [H3 preparation](PREPARATION.md) on it, with transactional destination requirements and resource
-reservations. Services 3.12 adds the revision feed below. Pose layers, bone holds and
+reservations, and includes the revision feed below. Pose layers, bone holds and
 attachment backends remain future work. Success here confirms inventory state, not mesh readiness or playback admission.
 
-## Read-only equipment observations (services 3.11)
+## Read-only equipment observations
 
 `ReadActorEquipment(actor, object, &state)` uses this service's existing inventory backend.
 Call it only in the verified frame drain (including preparation callbacks). It writes the
@@ -22,7 +22,7 @@ This does not acquire claims, reconcile, mutate inventory, prove mesh readiness 
 an exact-instance/versioned snapshot. Providers can combine it with their own item geometry
 checks without copying engine offsets or walking inventory independently.
 
-## Per-actor revisions and notifications (services 3.12)
+## Per-actor revisions and notifications
 
 `ReadActorStateRevision(actorFormID, &revision)` returns the current world generation plus
 separate ownership and equipment counters. `ReadActorStateChanges(cursor, &changes)` copies
@@ -85,7 +85,7 @@ across engine calls.
 ## Equipment requests
 
 Include `OSFEngineAPI.h` and its companion public headers, including `OSFActorState.h`.
-Request services 3.9 before accessing the appended functions.
+Request services 4.0 and check the negotiated table size before accessing these functions.
 
 | Operation | Demand |
 |---|---|
@@ -109,7 +109,7 @@ A typical persistent device registration, executed in game context:
 
 ```cpp
 using namespace OSF::API;
-const auto* api = RequestEngineAPI(); // current header requests 3.10
+const auto* api = RequestEngineAPI(); // current header requests 4.0
 if (!api) return;
 const auto scope = api->CreateActorStateScope(
     "example.device", ActorStateLifetime::Persistent, 0);

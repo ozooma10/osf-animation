@@ -1,5 +1,8 @@
 # OSF node schema (`*.osf.json`)
 
+Published schema-1 content is accepted through the [1.4 import adapter](COMPATIBILITY_1.4.md).
+This reference documents canonical schema 2; retired keys remain invalid in schema 2.
+
 Animation 2.0 loads schema **2** files recursively below `Data/OSF`, at startup and on
 `OSF.ReloadPacks()`. JSON comments are accepted. Invalid entries are diagnosed and skipped.
 Sound pools remain separate `*.sounds.json` schema 1 documents.
@@ -195,7 +198,7 @@ index. A timeline stays inside one node; it never generates additional node IDs.
   terminal stage's budget and selects a `loops` edge; a node timer selects a `timer` edge.
   Earlier stages retain their own budgets. A single-stage idle needs `loops: 0` to hold.
   Final counted completion holds the last sampled frame during teardown and blend-out.
-- **Global-backed loop counts (1.5.0).** A `loops` value can be an object with exactly two required
+- **Global-backed loop counts.** A `loops` value can be an object with exactly two required
   fields: `global`, a `Plugin.esm|0xLocalID` reference to a game **GlobalVariable (GLOB)**, and
   `default`, an integer in `[0, 2147483647]`. For example:
 
@@ -551,7 +554,7 @@ object. They attach to a node and run while its timeline plays. Every entry has 
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
 | `cue` | `{ "at"\|"atFrame", "id", "role", "repeat", "delivery" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. Optional `role` names a declared role: the event's `role` is set and `actorRef` (native `actor`) is that role's bound participant. An undeclared role is a load error. |
-| `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "attachmentNode", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. For prop attach, `attachmentNode` names the actor **attachment node**, not a node; legacy alias `node` remains accepted. |
+| `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "attachmentNode", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. For prop attach, `attachmentNode` names the actor **attachment node**, not a registry node; the retired `node` alias is rejected. |
 | `sound` | `{ "at"\|"atFrame", "spec", "role", "emitter", "repeat" }` — an **array/object** position makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at"\|"atFrame", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
@@ -841,8 +844,8 @@ black until the end.
 ### World placement (`placement`)
 
 `placement` governs each participant's **world/root placement** and accepts exactly
-`"anchorAndPin"` (the default) or `"followActor"`. Legacy `inPlace: false` maps to
-`"anchorAndPin"` maps to `"followActor"`. World placement is independent of
+`"anchorAndPin"` (the default) or `"followActor"`. The retired `inPlace` alias is rejected.
+World placement is independent of
 role `poseMode`, which only decides how sampled local bone transforms combine with the live engine
 pose. Setting `poseMode: "additive"` does not enable root motion or change `placement`.
 
@@ -915,7 +918,7 @@ file inherits unless it declares its own). Works for linear AND graph scenes; 47
 - At start, an anchor-bound scene **requires** a satisfying ref: `SceneOptions.Anchor` (Papyrus),
   the browser's furniture pick, or anchor-first matchmaking (`StartSceneAtAnchor`). Starting one
   with no/incompatible anchor fails with handle 0.
-- Incompatible with `placement: "followActor"` (or legacy `inPlace: true`; load error — see above).
+- Incompatible with `placement: "followActor"` (load error — see above).
 
 ### Matchmaking (`tags`, `priority`, `weight`)
 
@@ -952,7 +955,7 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 | `osf.equipment.hide` / `osf.equipment.restore` | Hide / restore the role's worn apparel (skin kept). **All participants' apparel is hidden by default** — see *Hide apparel*; author these only to override. | ✓ | |
 | `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A missing copy is added and removed on cleanup only while its provenance remains known. Pre-owned items remain in inventory; other owners' claims survive. `unequip` releases authored claims only. See [actor-state ownership](ACTOR_STATE.md). | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
-| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor attachment node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/attachment node without cloning it again. | ✓ | `prop`; attach also requires `source` and `attachmentNode` (legacy `node`) — inline or inherited from the file-level `props` registry (`use` names a template) — with optional `position`, `rotation`, `scale` |
+| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor attachment node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/attachment node without cloning it again. | ✓ | `prop`; attach also requires `source` and `attachmentNode` — inline or inherited from the file-level `props` registry (`use` names a template) — with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
 | `osf.voice.play` | Play a sound spec on the role's voice channel. If the clip carries subtitle text, the role actor is its speaker (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`); `emitter` (`"listener"` default or `"role"`) |
 
@@ -995,8 +998,8 @@ remain after the animation should create and own a separate persistent object.
 - `{ "equippedArmor": { "keyword": "<EditorID>" } }` selects the first equipped armor carrying
   that keyword. `keyword` may be an array of alternative editor IDs.
 
-`attachmentNode` is the preferred field remains accepted. Supplying both on one action
-or prop template is a load error.
+`attachmentNode` is required, directly or through a prop template. The retired `node` alias
+is rejected on both actions and prop templates.
 
 `position` and `rotation` are three-number arrays in attachment-node-local units and degrees; both default to
 zero. `scale` defaults to `1` and must be in `(0,10]`. All three are optional — omitting them is

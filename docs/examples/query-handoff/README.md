@@ -1,6 +1,6 @@
 # Query, alignment and handoff example
 
-Requires OSF Animation 1.5.0. This example launches two available human actors by
+Requires OSF Animation 2.0.0. This example launches two available human actors by
 tag and role constraints, applies a temporary alignment nudge, swaps their roles
 through a query-based handoff, and explicitly stops the retained handle.
 
@@ -20,7 +20,7 @@ save; this is a placement example, not a finished animation pack.
 Expected behavior: the start scene plays at half speed for two seconds, the target
 scene uses the same handle and half speed for another two seconds, then stops.
 Role placement changes snap; pose replacement blends. Alignment belongs to the
-specific scene/node/role, so the start scene's temporary nudge does not carry into
+specific global node/role, so the start node's temporary nudge does not carry into
 the target definition. Save it only after an explicit user choice by calling
 `OSF.SaveSceneAlignment(handle)` before the handoff.
 

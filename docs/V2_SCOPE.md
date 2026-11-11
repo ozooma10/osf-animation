@@ -1,8 +1,15 @@
 # OSF Animation 2.0: scope of the breaking change
 
-Status: design, not started. Written 2026-10-22. Current release is 1.5.0, scene ABI 1.7,
-services ABI 3.17. Nothing here is committed; this document exists to bound a v2 before any of
-it starts, and to record what deliberately stays out.
+**2026-11-11 addendum:** published 1.4 compatibility is restored at import/API boundaries;
+see [the implemented contract](COMPATIBILITY_1.4.md). Earlier removal proposals below
+remain historical for that released surface; unpublished 1.5 contracts stay retired.
+
+Status: A-C implemented in the unpublished 2.0 candidate; D (multi-layer runtime) deferred.
+Originally written 2026-10-22 against the unpublished 1.5 development baseline (scene ABI 1.7,
+services ABI 3.17). The last published release is 1.4.0. This document preserves the design
+rationale and pre-migration comparisons; present-tense descriptions of 1.x below are historical.
+For the implemented contract use [V2_MIGRATION.md](V2_MIGRATION.md); for dated checks and remaining
+release gates use [RELEASE_2.0.0_ACCEPTANCE.md](RELEASE_2.0.0_ACCEPTANCE.md).
 
 A major version is permission, not a plan. The bar used throughout: **a change earns the break
 only if it removes a structural duplication or a permanent two-semantics wart.** Cosmetic
@@ -12,9 +19,9 @@ against that bar, two changes qualify (§1, §2) and three are passengers (§3, 
 ## Why now rather than later
 
 In-workspace consumers are OSF Intimacy, OSF Seduce, the Browser extension and the SDK
-examples - all ours. No third-party content pack or native plugin is known to ship against the
-scene ABI yet; the adult content that exists for Starfield targets SAF/NAF instead (see
-[OSF Intimacy's community record](../../OSF%20Intimacy/docs/COMMUNITY_REQUESTS.md)). The cost of
+examples - all ours. At the October design checkpoint, no third-party content pack or native
+plugin was known to ship against the scene ABI; the existing adult content targeted SAF/NAF.
+This was the planning assumption, not a current ecosystem inventory. The cost of
 breaking is therefore near its lifetime minimum and rises monotonically from the first day a
 third party ships an `*.osf.json` or links the engine API.
 
@@ -112,10 +119,10 @@ Specify one rule in 2.0: an actor has an **ordered layer stack**; layer 0 compos
 engine pose and layer *N* composes against the composite of the layers below it. `poseMode`,
 `mask` and `poseWeight` are per-layer and mean exactly one thing each at every depth.
 
-**Implement depth 1.** The 2.0 runtime ships a stack whose depth is one, which is behaviourally
-today's single slot. The general rule is in the contract and asserted by the engine-free pose
-suites against the depth-1 case, so the actual multi-layer implementation lands later as an
-additive 2.x with no further break.
+**Depth-1 implementation boundary.** The candidate has an engine-free composer and byte-parity
+tests for one layer; deeper stacks are refused without writes. Runtime stamping still uses the
+existing single-graph path. The composer is not hooked into the runtime, and simultaneous OSF
+layers are not a 2.0 feature. The general contract guides that later additive 2.x work.
 
 This split is the point of putting it in the breaking window: the *contract* needs the break, the
 *implementation* does not. It also keeps the two qualifying changes in different code. §1 is
@@ -209,7 +216,9 @@ A v2 that absorbs these is a rewrite that does not ship.
 
 ## 8. Order and evidence
 
-Not started, and not to be started while `osf/paired-animation-placement` is in flight.
+A-C landed on October 22 and the paired-placement branch was merged into `dev` on October 23.
+The original sequencing and acceptance criteria are retained below. Offline implementation
+checks do not establish live acceptance; D remains outside the 2.0 release.
 
 | Step | Lands | Done when |
 |---|---|---|

@@ -104,22 +104,25 @@ protocol; the live suite also transfers and renders the shipped animation librar
 Browser cards use `hideApparel`, `playerInputLock`, `placement`, and explicit `sourceKind` fields.
 Launch options use `hideApparel`, `playerInputLock`, and `sceneControls`. Import problems are
 structured objects with severity, code, message, and repair context. The private web transport
-does not accept older aliases or infer source kinds from IDs. Authored content aliases and the
-public engine APIs retain their compatibility behavior.
+does not accept older aliases or infer source kinds from IDs. Schema 2 authored content also
+rejects the retired policy/placement aliases; public APIs require the new major versions.
+See [migration](V2_MIGRATION.md).
 
 Browser's `BrowserClipLibrary` provider generates the automatic inspection entries formerly harvested
-by core. It retains the `osf.scene-clip/*` hash, source ordering, duplicate precedence, and collision
-suffixes, so ordinary existing wheel pins and direct-ID starts continue working while the addon is
-installed. Explicit authored `clipLibrary` registrations remain engine content. Core-only installations
+by core. It retains the `osf.scene-clip/*` identity scheme, source ordering, duplicate precedence, and
+collision suffixes. Pins whose generated IDs remain unchanged continue to work; migration of
+source content to global node IDs can change derived IDs, so review saved pins after upgrading. Explicit authored `clipLibrary` registrations remain engine content. Core-only
+installations
 do not generate inspection entries, inspect emote tags, or choose inspection launch defaults.
 
-`RegisterClipSceneProvider` receives the unchanged schema-4 immutable base catalog. Services 3.17 also
-offers `RegisterClipSourceProvider`, used by Browser, with the smaller schema-1 `ClipSourceSnapshot`
-from `OSFCatalog.h`. It includes every base scene's ID, source filename, pack, provider, tags, library
-and curated flags, plus every inline clip's source scene and node/stage/clip indexes, raw file,
-animation ID, availability, display path, species and authored duration. It omits presentation
-nodes/stages, decoded-duration lookups and import diagnostics. Scenes without clips still reserve
-their IDs. Both inputs exclude all provider output; neither applies Browser filtering policy.
+Services 4.0 provides both registrations. `RegisterClipSceneProvider` receives the schema-4
+immutable base catalog. `RegisterClipSourceProvider`, used by Browser, receives the smaller
+schema-2 `ClipSourceSnapshot` from `OSFCatalog.h`: every base node's global ID, source filename,
+pack, provider, tags, library and curated-clip flags, plus each inline clip's source global ID,
+stage/clip indexes, raw file, animation ID, availability, display path, species and authored
+duration. It omits presentation stages, decoded-duration lookups and import diagnostics.
+Nodes without clips still reserve their IDs. Both inputs exclude all provider output;
+neither applies Browser filtering policy.
 
 Both registration kinds share one owner namespace and `UnregisterClipSceneProvider`. They emit one JSON
 array of `ClipScene` records synchronously and must not reenter the registry or engine API. Registration
@@ -137,8 +140,8 @@ each identity directly, retaining the legacy winner and output order without sor
 The engine owns the table for process lifetime. JSON pointers are borrowed **only during the inline
 callback**; the caller copies/parses them into its own allocation. No STL allocation crosses the DLL
 boundary. Actor pointers and form IDs must be resolved/used in the current world on the game thread.
-Active-scene JSON is an array of `{handle,id,stage,participants}` (participant form IDs), plus
-`time`, `duration`, and `speed` when playback exists. Match results are arrays of exact scene IDs;
+Active-scene JSON is an array of `{handle,node,stage,participants}` (participant form IDs), plus
+`time`, `duration`, and `speed` when playback exists. Match results are arrays of exact global node IDs;
 actor identity is `{species,gender}`. Unsupported ABI requests and requests before engine readiness
 return null. Connect at `kPostPostDataLoad`, after all plugins finish `kPostDataLoad`.
 
@@ -227,9 +230,10 @@ retired keys.
 Replace the old engine/browser installations when upgrading: neither component ships the legacy
 `osf.animation.json` schema. Ordinary XMake deployment removes that obsolete schema from both mods.
 Removing/reinstalling Browser leaves its saved values intact.
-Wheel pins remain in the existing SFSE-log-parent `OSF/wheel-pins.json`, with the same scene/stage IDs
-and absent-file versus empty-array semantics. Web bridge endpoints, the `osf.animation` retained-state
-namespace, and view ID remain unchanged.
+Wheel pins remain in the existing SFSE-log-parent `OSF/wheel-pins.json`, with the same storage
+and absent-file versus empty-array semantics. Review pins for changed global content IDs and
+segment indices. The `osf.animation` retained-state namespace and view ID remain unchanged;
+active-launch updates use `osf.animation.activeLaunches`.
 
 ## Verification and live acceptance
 

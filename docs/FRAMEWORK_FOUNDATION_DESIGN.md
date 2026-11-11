@@ -1,8 +1,9 @@
 # Framework foundation: core runtime changes
 
-Status: design, not started. Branch `dev`. Written 2026-10-15; source-level review applied the
-same day (anchor flag split, actor-keyed baseline, API handshake, speed routing, single alignment
-layer, handoff lane/ledger/input/anchor contracts, positional snap accepted).
+Historical design, written 2026-10-15. Sections 0-4 were implemented that day; see
+[the implementation record](FRAMEWORK_FOUNDATION_VALIDATION.md). The pre-2.0 API names,
+compatibility targets and descriptions of missing features below preserve the original proposal.
+Use [API.md](API.md) and [V2_MIGRATION.md](V2_MIGRATION.md) for the current contract.
 
 Higher-level frameworks (encounter directors, gameplay mods that chain scenes, player
 alignment tools) need a handful of things the scene runtime does not provide today. All of it is

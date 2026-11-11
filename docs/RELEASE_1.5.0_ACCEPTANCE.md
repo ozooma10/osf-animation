@@ -1,6 +1,10 @@
 # OSF Animation 1.5.0 acceptance
 
-1.5.0 remains unpublished. Record the candidate source fingerprint, engine/Browser
+Historical checklist: 1.5.0 was superseded by 2.0 before publication. Use
+[the 2.0 acceptance record](RELEASE_2.0.0_ACCEPTANCE.md) for current release work.
+The original checklist follows; its host/API assumptions are not current qualification.
+
+Record the candidate source fingerprint, engine/Browser
 ZIP hashes, host versions and observations together. A passing automated report
 does not mark the hands-on rows below as passed. Keep dated execution results in
 the candidate's evidence directory instead of treating this checklist as a receipt.
