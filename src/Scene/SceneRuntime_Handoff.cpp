@@ -47,7 +47,7 @@ namespace OSF::Scene
 			auto& registry = Registry::ContentRegistry::GetSingleton();
 			// Authored edges stay within the source's immutable publication across reloads.
 			// Exact requests resolve the currently published destination through the same admission.
-			const auto next = registry.Find(id, expected ? s->definition : Registry::NodeRef{});
+			const auto next = registry.Find(id, (expected || options.legacyPublication) ? s->definition : Registry::NodeRef{});
 			const auto refuse = [&](std::string reason) { p->failureReason = std::move(reason); };
 			if (!next) {
 				refuse("unknown destination node");

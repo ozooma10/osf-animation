@@ -1,4 +1,5 @@
 #include "Check.h"
+#include "Registry/LegacyContent14.h"
 
 #include "Registry/ContentRegistry.h"
 #include "Registry/ContentRegistryClips.h"
@@ -183,6 +184,68 @@ namespace
 		const auto detail = std::string{ a_message } + " (missing error containing \"" + a_needle + "\")";
 		Check(false, detail);
 	}
+	void CheckLegacy14()
+	{
+		using namespace OSF::Registry;
+		struct Restore
+		{
+			std::filesystem::path old = std::filesystem::current_path();
+			~Restore() { std::filesystem::current_path(old); }
+		} restore;
+		std::filesystem::current_path(restore.old.parent_path() / "compat14");
+		auto& reg = ContentRegistry::GetSingleton();
+		reg.LoadAll();
+		Check(reg.LoadErrors().empty(), "published schema-1 forms load through production registry");
+		auto solo = reg.Find("old/solo"), linear = reg.Find("old/linear"), graph = reg.Find("old/graph");
+		Check(solo && !solo->hideApparel && !solo->playerInputLock && solo->legacyNode == "#s0" && solo->worldPlacement == OSF::Animation::WorldPlacementMode::kFollowActor, "legacy fields and bare clip retain identity/policy");
+		if (Check(linear && linear->legacyStages->size() == 2, "legacy linear stage map retained")) {
+			auto tail = reg.Find((*linear->legacyStages)[1], linear);
+			Check(linear->cues.size() == 1 && linear->loopCount == 2 && tail && tail->timerSec == 3 && tail->loopMode == LoopMode::kHold && tail->unlisted, "stage lanes and loop/timer progression preserved; interior nodes excluded from matching");
+			reg.LoadAll();
+			Check(reg.Find((*linear->legacyStages)[1], linear).get() == tail.get(), "legacy stage map pins old publication across reload");
+		}
+		if (Check(graph && graph->legacyNode == "start" && graph->legacyStages->empty(), "graph entry retains scene launch ID")) {
+			auto finish = reg.Find(graph->edges.front().to, graph);
+			Check(finish && finish->legacyNode == "finish" && finish->unlisted, "local graph targets translated without exposing internal matches");
+		}
+		const auto published = reg.Find("test.tpl.mmf");
+		Check(published && published->roles.size() == 3 && published->roles[0].name == "m" && published->roles[1].name == "m2", "unchanged published 1.4 fixtures preserve template expansion and automatic names");
+		const auto reused = reg.Find("old/reuse"), shorthand = reg.Find("old/shorthand");
+		Check(reused && solo && reused->stages.front().clips.front().file == solo->stages.front().clips.front().file && reused->roles[0].name == "actor" && reused->loopMode == LoopMode::kHold, "legacy use splices target playback while retaining owner cast and loop policy");
+		if (Check(shorthand && shorthand->legacyStages->size() == 2, "legacy clip-array stage shorthand loads")) {
+			const auto held = reg.Find((*shorthand->legacyStages)[1], shorthand);
+			Check(held && held->loopMode == LoopMode::kHold, "explicit zero timer preserves the old indefinite hold");
+			Check(shorthand->edges[0].id.empty() && shorthand->edges[0].label.empty(), "synthetic advance does not become an authored menu choice");
+		}
+		const auto once = reg.Find("old/once");
+		Check(once && once->loopMode == LoopMode::kTimeline && once->stages.back().loops == 1 && once->timerSec == 0, "omitted legacy graph loops finishes once even if terminal stage holds");
+		const auto cross = reg.Find("old/cross-use");
+		Check(cross && cross->stages.front().clips.front().file == solo->stages.front().clips.front().file, "legacy use resolves across files independent of discovery order");
+		bool rejected = false;
+		try {
+			Legacy14::Convert(nlohmann::json::parse(R"({"schema":1,"id":"bad","clip":"a.af","stripActors":false,"hideApparel":true})"));
+		} catch (const std::exception&) {
+			rejected = true;
+		}
+		Check(rejected, "ambiguous legacy/canonical overrides refuse conversion");
+		for (const auto* broken : { R"({"schema":1,"id":"bad","nodes":[{"id":"a","stages":[["a.af"]],"edges":[{"to":"missing"}]}]})", R"({"schema":1,"id":"bad","nodes":[{"id":"a","stages":[["a.af"]]},{"id":"A","stages":[["a.af"]]}]})" }) {
+			rejected = false;
+			try {
+				Legacy14::Convert(nlohmann::json::parse(broken));
+			} catch (const std::exception&) {
+				rejected = true;
+			}
+			Check(rejected, "malformed local routes and duplicate case-folded IDs cannot silently retarget");
+		}
+		std::filesystem::current_path(restore.old.parent_path() / "compat14-invalid");
+		reg.LoadAll();
+		Check(!reg.Find("bad/missing") && !reg.Find("bad/chain") && !reg.Find("bad/cast") && reg.LoadErrors().size() == 3, "missing, chained and mismatched legacy use targets are rejected before publication");
+		reg.ForEachDef([&](const NodeDef& def) {
+			for (const auto& stage : def.stages)
+				for (const auto& clip : stage.clips) Check(clip.file.find("__compat_pending__") == std::string::npos, "unresolved legacy placeholder never publishes");
+		});
+	}
+
 	void CheckCanonicalNodes()
 	{
 		using namespace OSF::Registry;
@@ -195,7 +258,7 @@ namespace
 		reg.LoadAll();
 		const auto head = reg.Find("PACK/HEAD");
 		const auto tail = reg.Find("other/tail", head);
-		Check(head && tail && reg.Size() == 2, "global case-insensitive IDs and cross-file cycles resolve without containers");
+		Check(head && tail && reg.Size() == 3, "global case-insensitive IDs and cross-file cycles resolve without containers");
 		if (head && tail) {
 			Check(head->name == "Inherited label" && head->priority == 9 && head->weight == 6 &&
 				head->unlisted && !head->playerInputLock && head->pack == "Source pack" && head->folder == "Defaults",
@@ -216,12 +279,11 @@ namespace
 			Check(!reg.Find("#s0") && !reg.Find("head") && !reg.BuildNodePlan(head, 2),
 				"no synthetic or local node aliases exist and cast count must match");
 		}
-		for (const auto* id : {"pack/bad-target", "pack/dependent", "pack/old-use", "pack/old-entry", "pack/old-map",
-			"pack/nested", "pack/stage-lane", "pack/frozen-count", "old/schema", "old/container"}) {
+		for (const auto* id : { "pack/bad-target", "pack/dependent", "pack/old-use", "pack/old-entry", "pack/old-map", "pack/nested", "pack/stage-lane", "pack/frozen-count", "old/container" }) {
 			Check(!reg.Find(id), std::string("invalid or retired node declaration is rejected: ") + id);
 		}
 		const auto errors = reg.LoadErrors();
-		Check(errors.size() == 10, "each invalid node or file reports one diagnostic");
+		Check(errors.size() == 9, "each invalid node or file reports one diagnostic");
 		CheckError(errors, "missing or rejected node 'missing/destination'", "a missing global target is diagnosed");
 		CheckError(errors, "missing or rejected node 'pack/bad-target'", "dependent routes cannot silently retarget a rejected destination");
 		reg.LoadAll();
@@ -1313,5 +1375,6 @@ int main()
 	CheckContentProviders();
 	CheckLoopGlobals();
 	CheckCanonicalNodes();
+	CheckLegacy14();
 	return Finish("Scene registry");
 }

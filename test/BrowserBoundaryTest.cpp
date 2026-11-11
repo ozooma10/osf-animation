@@ -1,4 +1,5 @@
 #include "Check.h"
+void RunLegacySceneAdapterTests();
 #include "Util/KeywordLabel.h"
 void RunBrowserClipLibraryTests();
 void RunBrowserCatalogJsonTests();
@@ -201,6 +202,7 @@ namespace
 
 int main(int argc, char** argv)
 {
+	RunLegacySceneAdapterTests();
 	using OSF::Test::Check;
 	using namespace OSF::API;
 	if (argc == 2 && std::string_view(argv[1]) == "--catalog-bench") {

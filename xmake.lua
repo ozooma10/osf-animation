@@ -141,7 +141,7 @@ target("osf-browser-boundary-test")
     add_tests("default")
     add_deps("commonlibsf")
     add_packages("nlohmann_json")
-    add_files("test/BrowserBoundaryTest.cpp", "src/Util/NativeMainThreadQueue.cpp",
+    add_files("test/BrowserBoundaryTest.cpp", "test/LegacySceneAdapterTest.cpp", "src/Util/NativeMainThreadQueue.cpp",
               "extensions/browser/src/API/EngineClient.cpp", "extensions/browser/src/API/UIBridgeCatalog.cpp",
               "extensions/browser/src/API/BrowserClipLibrary.cpp", "test/BrowserClipLibraryTest.cpp",
               "extensions/browser/src/Serialization/BrowserPreferences.cpp",

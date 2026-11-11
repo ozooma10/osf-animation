@@ -9,6 +9,11 @@ Struct SceneOptions
     float BlendIn = 0.4       ; OSFAdvanced dynamic file/stage starts
 
     ; Tri-states: use OSF.INHERIT()/OFF()/ON(); 0 forces off. Default -1 inherits the scene's value.
+    ; Published 1.4 members; canonical non-INHERIT values take precedence.
+    int StripMode = -1
+    int LockPlayerMode = -1
+    int PlayerControlMode = -1
+    int InPlaceMode = -1
     int HideApparelMode = -1        ; scene's strip policy
     int PlayerInputLockMode = -1   ; player movement/combat lock
     int SceneControlsMode = -1 ; director input (advance/navigate/end/freecam); OFF = player can't advance or end

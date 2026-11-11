@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "pack": "Test Clip Only",
+  "clipLibrary": [
+    {
+      "file": "Clips/Test/only.af",
+      "name": "Only Pose",
+      "tags": ["pose"]
+    }
+  ]
+}

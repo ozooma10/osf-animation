@@ -90,6 +90,7 @@ namespace OSF::Scene
 			std::optional<float> headingRad;
 			std::int32_t stage = 0;
 			bool covered = false;
+			bool                 legacyPublication = false;  // translated 1.4 stage jumps retain their publication
 		};
 		bool Replace(std::int32_t a_scene, std::string_view a_id, const std::vector<std::string>& a_roles,
 			const ReplaceOptions& a_options);
@@ -160,6 +161,8 @@ namespace OSF::Scene
 		// Game thread, SaveLoadEvent: serialize baseline equipment without consuming the scene ledger.
 		void OnSaveBegin();
 		void OnSaveEnd();
+
+		std::string LegacyEventNode(std::int32_t handle, std::string_view node);
 
 		// Load teardown, via GraphManager::StopAll's clear handler.
 		void Clear();

@@ -34,7 +34,15 @@ namespace OSF::Scene
 		std::optional<std::int32_t> ResolveStage(const Registry::NodeDef& def,
 			const DefLaunchOptions& options, const char* logTag)
 		{
-			if (options.stage >= 0 && static_cast<std::size_t>(options.stage) < def.stages.size()) return options.stage;
+			if (!def.legacyScene.empty()) {
+				if (options.stage <= 0 || (!def.legacyStages || def.legacyStages->empty()))
+					return 0;
+				if (options.stage >= 0 && static_cast<std::size_t>(options.stage) < def.legacyStages->size())
+					return options.stage;
+				return options.invalidStage == InvalidStagePolicy::kUseEntry ? std::optional<std::int32_t>(0) : std::nullopt;
+			}
+			if (options.stage >= 0 && static_cast<std::size_t>(options.stage) < def.stages.size())
+				return options.stage;
 			REX::WARN("{}: stage {} out of range for node '{}' ({} stages)", logTag, options.stage, def.id, def.stages.size());
 			if (options.invalidStage == InvalidStagePolicy::kUseEntry && !def.stages.empty()) return 0;
 			if (options.emitHud) UI::HudMessage::Error(std::format("node '{}' has no stage {}", def.id, options.stage));

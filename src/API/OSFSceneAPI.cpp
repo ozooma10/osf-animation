@@ -1,4 +1,5 @@
 #include "API/OSFSceneAPI.h"
+#include "API/LegacySceneAdapter14.h"
 
 #include "API/NativeSceneEventRegistry.h"
 #include "API/SceneAPIControl.h"
@@ -418,6 +419,10 @@ namespace OSF::API
 // Returns nullptr on ABI mismatch or before the API is marked ready.
 extern "C" __declspec(dllexport) OSF::API::IOSFSceneAPI* OSF_RequestSceneAPI(std::uint32_t a_abiVersion)
 {
+	if (OSF::API::LegacySceneRequestSupported(a_abiVersion) && OSF::API::SceneAPIImpl::GetSingleton().IfReady()) {
+		static OSF::API::LegacySceneAdapter14 legacy{ OSF::API::SceneAPIImpl::GetSingleton() };
+		return reinterpret_cast<OSF::API::IOSFSceneAPI*>(&legacy);
+	}
 	if (!OSF::API::SceneRequestSupported(a_abiVersion, OSF::API::kOSFSceneAPIVersion)) {
 		return nullptr;
 	}

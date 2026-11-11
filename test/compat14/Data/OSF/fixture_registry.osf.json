@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "name": "fixture roles registry",
+  // OBJECT form: a file-local registry of reusable role definitions, NOT a default cast.
+  "roles": {
+    "m-equipped": {
+      "name": "m",
+      "equip": { "male": "Robert S Body Replacer.esm|0x804", "female": "Dick.esm|0x81D" }
+    },
+    "f": {},
+    "anonymous": { "name": "" },
+    "f-preserved": { "name": "f", "preserveBones": ["C_GenitalsRoot"] }
+  },
+  "scenes": [
+    {
+      "id": "test.reg.refs",
+      "roles": ["m-equipped", "f-preserved"],
+      "stages": [{ "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
+    },
+    {
+      "id": "test.reg.mixed",
+      "roles": ["m-equipped", "f", { "name": "extra", "offset": { "y": 1.0 } }],
+      "stages": [{ "clips": ["Fixture/m.glb", "Fixture/f.glb", "Fixture/x.glb"] }]
+    },
+    {
+      // No roles key: the registry must NOT act as a default cast — plain inference (2 anonymous slots).
+      "id": "test.reg.infer",
+      "stages": [{ "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
+    },
+    {
+      "id": "test.reg.anonymous",
+      "roles": ["anonymous"],
+      "clip": "Fixture/x.glb"
+    }
+  ]
+}

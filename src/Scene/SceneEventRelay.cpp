@@ -1,5 +1,6 @@
 #include "Scene/SceneEventRelay.h"
 #include "Profiling/Profile.h"
+#include "Scene/SceneRuntime.h"
 
 #include "API/SceneAPIControl.h"
 
@@ -167,6 +168,9 @@ namespace OSF::Scene
 	void SceneEventRelay::Dispatch(const SceneEvent& a_event)
 	{
 		OSF_PROFILE_SCOPE("Scene.Relay.Dispatch");
+		// Snapshot the legacy name before native callbacks can end or replace the scene.
+		auto legacyEvent = a_event;
+		legacyEvent.node = SceneRuntime::GetSingleton().LegacyEventNode(a_event.scene, a_event.node);
 		// Native consumers run synchronously at the authored runtime mark.
 		{
 			OSF_PROFILE_SCOPE("Scene.Relay.Native");
@@ -212,7 +216,7 @@ namespace OSF::Scene
 		}
 		OSF_PROFILE_SCOPE("Scene.Relay.Papyrus");
 		RE::BSScript::Variable payload;
-		if (!PackPayload(vm, a_event, payload)) {
+		if (!PackPayload(vm, legacyEvent, payload)) {
 			return;
 		}
 

@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "stripActors": false,
+  "lockPlayer": false,
+  "scenes": [
+    {
+      "id": "old/solo",
+      "clip": "wave.af",
+      "inPlace": true
+    },
+    {
+      "id": "old/linear",
+      "stages": [
+        {
+          "clips": [
+            "a.af"
+          ],
+          "loops": 2,
+          "cue": [
+            {
+              "at": "enter",
+              "id": "first"
+            }
+          ]
+        },
+        {
+          "clips": [
+            "b.af"
+          ],
+          "timer": 3
+        }
+      ]
+    },
+    {
+      "id": "old/graph",
+      "entry": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "stages": [
+            {
+              "clips": [
+                "a.af"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "when": "advance",
+              "default": true,
+              "to": "finish",
+              "id": "next",
+              "label": "Next"
+            }
+          ]
+        },
+        {
+          "id": "finish",
+          "loops": 0,
+          "stages": [
+            {
+              "clips": [
+                "b.af"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "old/shorthand",
+      "stages": [
+        [
+          "a.af"
+        ],
+        {
+          "clips": [
+            "b.af"
+          ],
+          "timer": 0
+        }
+      ]
+    },
+    {
+      "id": "old/reuse",
+      "roles": [
+        {
+          "name": "actor"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "main",
+          "use": "old/solo",
+          "loops": 0
+        }
+      ]
+    },
+    {
+      "id": "old/once",
+      "nodes": [
+        {
+          "id": "a",
+          "stages": [
+            {
+              "clips": [
+                "a.af"
+              ],
+              "loops": 0,
+              "timer": 3
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

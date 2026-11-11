@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "scenes": [
+    {
+      "id": "good",
+      "clip": "a.af"
+    },
+    {
+      "id": "bad/missing",
+      "roles": [
+        {}
+      ],
+      "nodes": [
+        {
+          "id": "a",
+          "use": "missing"
+        }
+      ]
+    },
+    {
+      "id": "bad/chain",
+      "roles": [
+        {}
+      ],
+      "nodes": [
+        {
+          "id": "a",
+          "use": "bad/missing"
+        }
+      ]
+    },
+    {
+      "id": "bad/cast",
+      "roles": [
+        {},
+        {}
+      ],
+      "nodes": [
+        {
+          "id": "a",
+          "use": "good"
+        }
+      ]
+    }
+  ]
+}

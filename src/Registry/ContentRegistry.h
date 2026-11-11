@@ -287,6 +287,10 @@ namespace OSF::Registry
 
 	struct NodeDef
 	{
+		// Import-only metadata for the published 1.4 boundary; never authored by schema 2.
+		std::string                                     legacyScene, legacyNode, legacyUse;
+		bool                                            legacySingleNode = false;
+		std::shared_ptr<const std::vector<std::string>> legacyStages;
 		std::string              provider;  // optional native content-provider owner
 		std::string              id;
 		std::string              name;

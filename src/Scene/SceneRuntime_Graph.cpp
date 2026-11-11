@@ -443,7 +443,14 @@ namespace OSF::Scene
 	{
 		OSF_PROFILE_SCOPE("Scene.Start");
 		auto& registry = Registry::ContentRegistry::GetSingleton();
-		const auto definition = registry.ResolveLoopGlobals(a_definition);
+		auto  selected = a_definition;
+		if (selected && selected->legacyStages && !selected->legacyStages->empty() && a_startStage > 0) {
+			if (a_startStage < 0 || static_cast<std::size_t>(a_startStage) >= selected->legacyStages->size())
+				return 0;
+			selected = registry.Find((*selected->legacyStages)[a_startStage], selected);
+			a_startStage = 0;
+		}
+		const auto definition = registry.ResolveLoopGlobals(selected);
 		if (!definition || a_participants.empty() || a_participants.size() != definition->roles.size() ||
 			a_startStage < 0 || static_cast<std::size_t>(a_startStage) >= definition->stages.size()) return 0;
 		const auto& a_id = definition->id;

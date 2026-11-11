@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "id": "test.bare",
+  "roles": [{ "name": "solo" }],
+  "clip": "Fixture/x.glb"
+}

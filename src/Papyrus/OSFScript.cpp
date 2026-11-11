@@ -118,6 +118,22 @@ namespace OSF::Papyrus
 			if (const auto* v = member("LoopScale"); v && v->is<float>()) {
 				out.loopScale = RE::BSScript::get<float>(*v);
 			}
+			if (out.hideApparelMode != 0 && out.hideApparelMode != 1) {
+				if (const auto* v = member("StripMode"); v && v->is<std::int32_t>())
+					out.hideApparelMode = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (out.playerInputLockMode != 0 && out.playerInputLockMode != 1) {
+				if (const auto* v = member("LockPlayerMode"); v && v->is<std::int32_t>())
+					out.playerInputLockMode = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (out.sceneControlsMode != 0 && out.sceneControlsMode != 1) {
+				if (const auto* v = member("PlayerControlMode"); v && v->is<std::int32_t>())
+					out.sceneControlsMode = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (out.followActorMode != 0 && out.followActorMode != 1) {
+				if (const auto* v = member("InPlaceMode"); v && v->is<std::int32_t>())
+					out.followActorMode = RE::BSScript::get<std::int32_t>(*v);
+			}
 			return out;
 		}
 
@@ -164,7 +180,9 @@ namespace OSF::Papyrus
 				REX::DEBUG("[Papyrus] SetSceneStageForActor: no actor given");
 				return false;
 			}
-			return Animation::GraphManager::GetSingleton().SetSceneStage(a_actor, a_stage);
+			auto&      rt = Scene::SceneRuntime::GetSingleton();
+			const auto handle = rt.GetSceneForActor(a_actor);
+			return handle ? rt.SetStage(handle, a_stage) : Animation::GraphManager::GetSingleton().SetSceneStage(a_actor, a_stage);
 		}
 
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
@@ -182,7 +200,9 @@ namespace OSF::Papyrus
 		int32_t GetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			OSF_PROFILE_SCOPE("Papyrus.GetSceneStageForActor");
-			return Animation::GraphManager::GetSingleton().GetSceneStage(a_actor);
+			auto&      rt = Scene::SceneRuntime::GetSingleton();
+			const auto handle = rt.GetSceneForActor(a_actor);
+			return handle ? rt.GetStage(handle) : Animation::GraphManager::GetSingleton().GetSceneStage(a_actor);
 		}
 
 		bool IsPlaying(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)

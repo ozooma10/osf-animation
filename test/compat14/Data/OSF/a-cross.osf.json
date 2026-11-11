@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "old/cross-use",
+  "roles": [
+    {}
+  ],
+  "nodes": [
+    {
+      "id": "a",
+      "use": "old/solo"
+    }
+  ]
+}

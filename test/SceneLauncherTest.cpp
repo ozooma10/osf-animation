@@ -307,5 +307,22 @@ int main()
 		"the global node address and local timeline segment are forwarded independently");
 	calls.order.clear();
 	Check(!LaunchDef("missing", cast, direct, tag) && calls.order.empty(), "unknown global node never falls back");
+	Reset(false);
+	auto& legacy = registry->nodes.at("demo");
+	legacy.legacyScene = "demo";
+	legacy.legacyStages = std::make_shared<const std::vector<std::string>>(std::initializer_list<std::string>{ "demo", "compat/second", "compat/third" });
+	DefLaunchOptions old;
+	old.stage = 2;
+	Check(LaunchDef("demo", cast, old, tag) == 42 && calls.stage == 2, "legacy stage indices address the container map, not the one-segment entry");
+	old.stage = 3;
+	Check(!LaunchDef("demo", cast, old, tag), "Papyrus legacy out-of-range positive stage fails");
+	old.invalidStage = InvalidStagePolicy::kUseEntry;
+	Check(LaunchDef("demo", cast, old, tag) == 42 && calls.stage == 0, "native legacy out-of-range stage falls back to authored entry");
+	old.stage = -1;
+	old.invalidStage = InvalidStagePolicy::kReject;
+	Check(LaunchDef("demo", cast, old, tag) == 42 && calls.stage == 0, "legacy nonpositive stage retains published entry semantics");
+	legacy.legacyStages.reset();
+	old.stage = 99;
+	Check(LaunchDef("demo", cast, old, tag) == 42 && calls.stage == 0, "legacy graphs without linearStages ignore the starting index");
 	return OSF::Test::Finish("scene launcher");
 }

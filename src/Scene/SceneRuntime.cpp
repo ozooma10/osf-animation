@@ -398,10 +398,27 @@ namespace OSF::Scene
 		return s ? s->participants : std::vector<RE::Actor*>{};
 	}
 
+	std::string SceneRuntime::LegacyEventNode(std::int32_t handle, std::string_view node)
+	{
+		std::lock_guard l{ _lock };
+		const auto*     slot = Resolve(handle, true);
+		if (!slot || !slot->definition || slot->definition->legacyScene.empty())
+			return std::string(node);
+		const auto def = Registry::ContentRegistry::GetSingleton().Find(node, slot->definition);
+		return def && def->legacyScene == slot->definition->legacyScene ? def->legacyNode : std::string(node);
+	}
+
 	std::int32_t SceneRuntime::GetStage(std::int32_t a_scene)
 	{
 		SlotView view;
 		if (!SnapshotSlot(a_scene, view)) {
+			return -1;
+		}
+		if (view.definition && !view.definition->legacyScene.empty() && view.definition->legacyStages) {
+			const auto& stages = *view.definition->legacyStages;
+			for (std::size_t i = 0; i < stages.size(); ++i)
+				if (Util::IEquals(stages[i], view.node))
+					return static_cast<std::int32_t>(i);
 			return -1;
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
@@ -413,6 +430,14 @@ namespace OSF::Scene
 		SlotView view;
 		if (!SnapshotSlot(a_scene, view)) {
 			return false;
+		}
+		if (view.definition && !view.definition->legacyScene.empty() && view.definition->legacyStages) {
+			const auto& stages = *view.definition->legacyStages;
+			if (a_stage < 0 || static_cast<std::size_t>(a_stage) >= stages.size())
+				return false;
+			ReplaceOptions options;
+			options.legacyPublication = true;
+			return AdmitTransition(a_scene, stages[a_stage], {}, options, TransitionOrigin::Caller);
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
 		return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage, view.playbackId);

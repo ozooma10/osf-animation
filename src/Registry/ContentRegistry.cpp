@@ -1,6 +1,7 @@
 #include "Registry/ContentRegistry.h"
 #include "Profiling/Profile.h"
 #include "Registry/ContentRegistryClips.h"
+#include "Registry/LegacyContent14.h"
 
 #include "Input/InputTypes.h"
 #include "Util/FormRef.h"
@@ -2007,6 +2008,34 @@ namespace OSF::Registry
 			NodeLoadBudget& a_budget, ProblemSink& a_problems)
 		{
 			const FileRejector reject{ a_file, a_problems };
+			if (a_json.contains("schema") && a_json.at("schema").is_number_integer() && a_json.at("schema") == 1) {
+				try {
+					const auto                               converted = Legacy14::Convert(a_json);
+					std::unordered_map<std::string, NodeDef> nodes;
+					LoadOsfFile(converted.document, a_file, nodes, a_clipLibrary, a_budget, a_problems);
+					for (auto& [key, node] : nodes) {
+						if (const auto it = converted.identities.find(key); it != converted.identities.end()) {
+							node.legacyScene = it->second.scene;
+							node.legacyNode = it->second.local;
+							node.legacyStages = it->second.stages;
+							node.legacyUse = it->second.use;
+							node.legacySingleNode = it->second.single;
+							if (it->second.synthetic)
+								for (auto& edge : node.edges) {
+									if (edge.when == EdgeWhen::kAdvance) {
+										edge.id.clear();
+										edge.label.clear();
+									}
+								}
+						}
+						if (!a_out.emplace(key, std::move(node)).second)
+							reject("duplicate legacy node '" + key + "'");
+					}
+				} catch (const std::exception& e) {
+					reject(std::string("legacy 1.4 conversion: ") + e.what());
+				}
+				return;
+			}
 			OsfFileDefaults defaults;
 			if (!ParseOsfFileDefaults(a_json, a_file.filename().string(), reject, defaults)) {
 				return;
@@ -2020,6 +2049,53 @@ namespace OSF::Registry
 			LoadOsfNodes(contents, defaults, a_file, a_out, a_budget, a_problems);
 		}
 
+		void ResolveLegacyUses(std::unordered_map<std::string, NodeDef>& nodes, NodeLoadBudget& budget, ProblemSink& problems)
+		{
+			std::map<std::string, std::string> rejected;
+			std::vector<std::string>           ordered;
+			for (const auto& [id, node] : nodes)
+				if (!node.legacyUse.empty())
+					ordered.push_back(id);
+			std::sort(ordered.begin(), ordered.end());
+			for (const auto& id : ordered) {
+				auto& node = nodes.at(id);
+				if (node.legacyUse.empty())
+					continue;
+				const auto     found = nodes.find(ToLower(node.legacyUse));
+				const NodeDef* target = found == nodes.end() ? nullptr : &found->second;
+				if (!target || target->legacyScene.empty() || !target->legacySingleNode || !target->legacyUse.empty() || target->stages.empty() || target->roles.size() != node.roles.size()) {
+					rejected[id] = "use target must be a single inline legacy scene with the same cast size";
+					continue;
+				}
+				std::size_t count = 0;
+				for (const auto& stage : target->stages) count += stage.clips.size();
+				if (target->stages.size() > kMaxStagesTotal - budget.stages || count > kMaxClipsTotal - budget.clips) {
+					rejected[id] = "legacy use exceeds aggregate stage/clip limit";
+					continue;
+				}
+				// Only the referenced timeline and playback role attributes were spliced by 1.4.
+				node.stages = target->stages;
+				if (node.loopMode == LoopMode::kTimeline)
+					node.stages.back().loops = 1;
+				node.species = target->species;
+				for (std::size_t i = 0; i < node.roles.size(); ++i) {
+					node.roles[i].offset = target->roles[i].offset;
+					node.roles[i].preserveBones = target->roles[i].preserveBones;
+					node.roles[i].mask = target->roles[i].mask;
+					node.roles[i].poseMode = target->roles[i].poseMode;
+					node.roles[i].poseWeight = target->roles[i].poseWeight;
+				}
+				budget.stages += target->stages.size();
+				budget.clips += count;
+			}
+			for (const auto& [id, reason] : rejected) {
+				const auto& node = nodes.at(id);
+				problems.Push("[error] legacy scene '" + node.legacyScene + "' node '" + node.legacyNode + "': " + reason, node.sourceFile, "legacy-use-invalid", "Fix the referenced 1.4 scene.", node.id);
+				REX::ERROR("[Registry] legacy node '{}' rejected: {}", node.id, reason);
+				nodes.erase(id);
+			}
+		}
+
 		// Validate the complete publication, including cross-file routes. A missing destination
 		// rejects its source and every source that depends on it; cycles of valid nodes survive.
 		void ValidateEdgeTargets(std::unordered_map<std::string, NodeDef>& a_nodes, ProblemSink& a_problems)
@@ -2028,6 +2104,12 @@ namespace OSF::Registry
 			std::map<std::string, std::string> invalid;
 			std::vector<std::string> pending;
 			for (const auto& [id, node] : a_nodes) {
+				if (!node.legacyUse.empty()) {
+					const auto target = ToLower(node.legacyUse);
+					incoming[target].push_back(id);
+					if (!a_nodes.contains(target) && invalid.try_emplace(id, node.legacyUse).second)
+						pending.push_back(id);
+				}
 				for (const auto& edge : node.edges) {
 					if (edge.to == "$end") continue;
 					const auto target = ToLower(edge.to);
@@ -2185,7 +2267,7 @@ namespace OSF::Registry
 			[&](const Util::RegistryJsonSource& a_source, const nlohmann::json& a_json) {
 				OSF_PROFILE_SCOPE("Registry.LoadAll.File");
 				auto& stats = ensureFileStats(a_source);
-				if (const auto scenes = a_json.find("nodes"); scenes != a_json.end() && scenes->is_array()) {
+				if (const auto scenes = a_json.find(a_json.value("schema", 0) == 1 ? "scenes" : "nodes"); scenes != a_json.end() && scenes->is_array()) {
 					stats.declaredNodes = static_cast<std::uint32_t>(scenes->size());
 				} else if (a_json.contains("id")) {
 					stats.declaredNodes = 1;
@@ -2232,6 +2314,8 @@ namespace OSF::Registry
 				stats.parseMs = std::chrono::duration<float, std::milli>(
 					std::chrono::steady_clock::now() - a_source->begun).count();
 			});
+
+		ResolveLegacyUses(loaded, loadBudget, problems);
 
 		{
 			// One installed probe (BSResource opens) per distinct clip spec.
