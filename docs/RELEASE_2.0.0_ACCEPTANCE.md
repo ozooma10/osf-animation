@@ -6,6 +6,75 @@ as recorded below. The scope/layer documents are tracked design records;
 multi-layer runtime implementation (D) remains deferred. The last published release is 1.4.0;
 the 1.5 development baseline was superseded before publication.
 
+## Latest hosts and open-panel save repair, 2026-11-12
+
+This follow-up qualifies **production OSF Settings 1.2.0 RC8** and the updated
+**OSF UI 2.1.0 save-fix2 candidates**, in both WebView2 and CEF editions. It
+supersedes the older isolated-host limitation and encounter-panel save workaround
+below, for these exact candidates. It does not qualify every consumer or replace
+hands-on release acceptance. UI and Settings are still unpublished candidates.
+
+| Retained run | Result |
+| --- | --- |
+| `build/smoke/v2-hosts-followup-20261112-02` | Offline release gate passed: 16 native suites, 169 Browser tests, 103 bench contracts, SDK/PEX/fixtures, both archives and installer matrix |
+| `build/release-followup-20261112/foundation-runs/20261112-173635-565-AnimationSmoke` | All 69 live cases passed with UI WebView2 and production Settings |
+| `build/release-followup-20261112/foundation-runs/20261112-173757-624-AnimationSmoke` | All 69 live cases passed with UI CEF and production Settings |
+| `build/release-followup-20261112/consumer-live/runs/20261112-173045-561-Animation-Consumers-ShippingHosts` | All 54 AISS/Seduce/Autonomous checks passed using production Animation/Intimacy and UI WebView2; active encounter saved with its panel open, then reloaded with original controls and apparel |
+
+The foundation runs replay the maintained scenario with its separate instrumented
+Animation payload. A private VFS redirect isolates Settings values before the
+**unchanged production Settings DLL** initializes; no private Settings binary is
+substituted. Loaded module hashes and full host inventories are retained. Each
+accepted run restored normal browser storage and Settings files by hash. The first
+foundation attempt passed 69 cases but had a wrapper cleanup-variable error; its
+separate cleanup recovery and the fresh passing repeat are both retained.
+
+The save bug belonged to OSF UI. Its input-routing menu contributed to the engine's
+save veto, and simply removing that veto exposed temporary control locks in loaded
+saves. UI now allows saves through that menu, suspends its own input layer while
+saving (including `Game.RequestSave`), and reconciles that layer after loading.
+It leaves other owners' layers intact. UI's 76 native test cases pass; permanent
+live regressions save with the panel still open and compare fresh control masks
+after loading the exact save. The consumer run also verifies the active `.osf`
+sidecar: five blocks loaded, no corruption or callback failures. Production
+Animation and Intimacy DLLs remain byte-identical to the earlier accepted builds.
+AISS's separate startup text-entry prompt still needs normal dismissal.
+
+The final packaged UI regressions passed **84 assertions per edition**, including
+both quicksave and `Game.RequestSave` round trips, browser recovery and actual
+rendered captures. Evidence in the sibling UI repository:
+`build/backend-validation/game/20261112-173946-304-webview2-stock-background` and
+`20261112-174124-084-cef-stock-background`. Both have zero failed assertions or
+evidence warnings. These are background checks, not physical-input acceptance.
+
+Exact host candidates are under `build/release-followup-20261112/ui-save-fix2/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `OSF-UI-v2.1.0-save-fix2-webview2.zip` | `7ABBDB6BFA33E9616B3EAD399569B0D70B6258DA5423CC8F3A99BD489AFD5458` |
+| `OSF-UI-v2.1.0-save-fix2-cef.zip` | `00EDD4169A4D896E4AE2B2456DEB12AA04AE56B609B6003D0F3EAD48E48BE76D` |
+| `OSFSettings-1.2.0-rc8.zip` | `DC5306CB79575892A54DE94F730A4869184B301E707C448297A2A3BD6A664C22` |
+
+Settings is source `ce14c0aa9c985c1c11d33972ad5e023329e32f8d`; UI is
+`a3975f0becbca4884474161649435ab4dbbd6a8d` plus the local save repair. The active
+remote branch heads matched both revisions when checked. UI manifests honestly
+record dirty source. Rebuild the final UI release from a clean committed revision
+before publication; the older unpatched 2.1 archives are superseded for saving.
+
+The tested WebView2 and Settings payloads are installed in the normal MO2 mod
+folders, verified against every archive payload file. Original hosts are retained
+under `build/release-followup-20261112/normal-host-backup`; `deployed-hosts.json`
+records the exact replacement and unchanged Default profile/saved Settings values.
+No test instrumentation was installed in those normal mods.
+
+Browser development dependencies now use Vite 8.1.6, Vitest 4.1.12 and happy-dom
+21.0.4, with tinypool 2.1.2 overriding the older transitive pin. Fresh installation,
+typecheck, build and all 169 tests passed; `npm-audit-after.json` records **zero
+advisories**, down from 15. The fixtures helper now compiles from its explicit
+source directory so retained long-path evidence cannot break Papyrus import scans.
+The offline and live source receipts precede this documentation update; they are
+not rewritten to pretend this later annotation was part of those runs.
+
 ## Full release gate, 2026-11-12
 
 `build/smoke/v2-release-live-20261112-02/result.json` reports
@@ -111,13 +180,15 @@ private Settings values for the empty fixture cell. Original consumer PEX hashes
 compile-only declarations were never staged over those scripts. The combined registry loaded
 136 nodes from ten files with zero problems.
 
-Save testing established two UI preconditions: dismiss AISS's startup text-entry prompt, and
+At this earlier checkpoint, save testing established two UI preconditions: dismiss AISS's startup text-entry prompt, and
 hide the Intimacy encounter panel before requesting a save. Idle quicksave stalled while the
 AISS prompt was open; active quicksave still stalled with the encounter panel open after that
 prompt was dismissed. Hiding the panel without ending the encounter allowed the active save
 and reload to complete. This is **not** a pass for saving while either UI remains open. Failed
 attempts and the interrupted evidence-writer run remain beside the passing run. No native
 Animation or Intimacy production fix was needed for the exercised paths.
+The latest-host follow-up above fixes and retests the OSF UI encounter-panel case;
+this paragraph preserves the original run's limitations.
 
 Test preparation now recognizes the installed male-skeleton folder alias and uses the preserved
 Seduce entry IDs instead of retired `/intro` names throughout affected Intimacy fixtures and
@@ -136,7 +207,8 @@ Before release, still perform hands-on acceptance on the intended shipping host 
 - Inspect animation alignment, blends, multi-actor sync and body/gear fit; listen to voices,
   spatial audio and subtitles. Exercise first-person/zoom restoration and focus loss.
 - Use Browser/Settings/encounter controls with keyboard and a physical controller, close/reopen
-  panels, and verify saving after Hide/Escape. Exact released Settings acceptance remains open.
+  panels, and save/reload during normal play. Production Settings 1.2.0 pairing and open-panel
+  automated save/load now pass in the latest-host follow-up above.
 - Install/upgrade the final archives through MO2, checking settings, pins, alignment migration
   and hotkey rebinding. Other consumers in the November 11 audit are outside this focused pass.
 
@@ -212,11 +284,12 @@ All four public/development Papyrus scripts were then recompiled with the canoni
 No PSC or native source change was required. `OSFTest.pex` remains excluded from release archives.
 
 A separate `npm audit` is retained in the first run's `npm-audit.json`: 15 affected packages
-(3 moderate, 5 high, 7 critical, including transitive ratings). Browser verification passing does
-not resolve these advisories. Dependency exposure/update review remains a release follow-up;
+(3 moderate, 5 high, 7 critical, including transitive ratings). Browser verification passing
+did not resolve these advisories. Dependency exposure/update review remained a release follow-up;
 no dependency upgrade or claim of shipped-runtime exploitability is made by this preparation.
-A November 12 recheck still reports the same 15 affected packages; its raw report is
-`build/consumer-check-20261112/npm-audit-current.json`. The live passes do not resolve it.
+An earlier November 12 recheck reported the same 15 affected packages; its raw report is
+`build/consumer-check-20261112/npm-audit-current.json`. The dependency updates in the
+latest-host follow-up above supersede this finding: the fresh audit reports zero.
 
 ## Migration checkpoint checks
 
@@ -286,7 +359,7 @@ recorded binaries, not the later merged candidate, role-emitter change or Settin
 | Camera and input restoration | First-person and nonzero third-person zoom baselines through stop, completion, interruption, handoff and load. Exercise pause/manual combinations, focus loss and auto-vanity separately; retain any reproduction of the unexplained historical failure. |
 | Transition/pose quality | Visually inspect seamless and covered changes, the half-turn rotation fix, spine/mask seams, additive base capture, rig/3D rebuilds, multi-actor sync, furniture anchoring and representative creature rigs. |
 | Role-emitter audio | Listen to near/far and moving actors, compare listener/role emission, test actor unload and world replacement, cancellation/late decode, ordinary completion tails, mixing and subtitles. Earlier automated audio runs predate the role-emitter change. |
-| Browser, Settings and hosts | Use the actual release host versions: reopen menus/panels and Browser, reload catalogs while visible/hidden, exercise launcher/wheel/keyboard and physical controller, and verify cursor/input return. Check separate alignment-page persistence/rebinding and fixed speed aliases. The panel-reopening UI fix was only qualified as a private payload. |
+| Browser, Settings and hosts | Latest production Settings and both updated UI editions pass the automated foundation cases above. Still exercise launcher/wheel/keyboard and a physical controller, verify cursor/input return and saving through ordinary controls, and check alignment-page persistence/rebinding and fixed speed aliases in normal play. |
 | Ownership and recovery | Save during active locked/equipped scenes, load and restart, verify equipment/input/camera cleanup, conflicting equipment/weapon demands, props, provider withdrawal, hot reload, failed/cancelled load and save-delete paths. |
 | Install and upgrade | Install both candidate archives through the real mod manager in a copied 1.4 profile; migrate custom content/alignment, rebind hotkeys, check pins/preferences through restart. Exercise core-only and missing/incompatible optional-host combinations. |
 

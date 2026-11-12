@@ -55,10 +55,18 @@ if (-not $SkipPapyrus) {
     $imports='C:/Modding/Starfield/PapyrusSource'
     $source=Join-Path $repo 'test/smoke/Scripts/Source'
     $scripts=Join-Path $root 'Scripts'; [IO.Directory]::CreateDirectory($scripts) | Out-Null
-    & $compiler $source "-i=$source;$repo/dist/Scripts/Source;$imports" "-o=$scripts" "-f=$imports/Starfield_Papyrus_Flags.flg" -all
-    if ($LASTEXITCODE -or -not (Test-Path (Join-Path $scripts 'OSFAnimationSmoke.pex'))) { throw 'Smoke Papyrus fixture compilation failed.' }
+    # The compiler implicitly scans its working directory as an import root.
+    # Keep retained test artifacts (including long third-party paths) out of that scan.
+    Push-Location $source
+    try {
+        & $compiler $source "-i=$source;$repo/dist/Scripts/Source;$imports" "-o=$scripts" "-f=$imports/Starfield_Papyrus_Flags.flg" -all
+        if ($LASTEXITCODE -or -not (Test-Path (Join-Path $scripts 'OSFAnimationSmoke.pex'))) { throw 'Smoke Papyrus fixture compilation failed.' }
+    } finally { Pop-Location }
     $example=Join-Path $repo 'docs/examples/query-handoff'
-    & $compiler $example "-i=$example;$repo/dist/Scripts/Source;$imports" "-o=$scripts" "-f=$imports/Starfield_Papyrus_Flags.flg" -all
-    if ($LASTEXITCODE -or -not (Test-Path (Join-Path $scripts 'OSFQueryHandoffExample.pex'))) { throw 'Author example Papyrus compilation failed.' }
+    Push-Location $example
+    try {
+        & $compiler $example "-i=$example;$repo/dist/Scripts/Source;$imports" "-o=$scripts" "-f=$imports/Starfield_Papyrus_Flags.flg" -all
+        if ($LASTEXITCODE -or -not (Test-Path (Join-Path $scripts 'OSFQueryHandoffExample.pex'))) { throw 'Author example Papyrus compilation failed.' }
+    } finally { Pop-Location }
 }
 Write-Host 'Generated private GLTF, GLB, gzip, audio and Papyrus smoke fixtures.'
