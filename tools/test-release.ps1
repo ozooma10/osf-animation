@@ -14,7 +14,8 @@ param(
     [switch]$Interactive,
     [switch]$Plan,
     [switch]$ForceVerification,
-    [ValidateSet('Released','Deployed')][string]$Hosts = 'Released',
+    [ValidateSet('Released','Deployed','Isolated')][string]$Hosts = 'Released',
+    [string]$AnimationSettingsCandidate = '',
     [string]$Harness = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'OSF Test Harness'),
     [string]$OutputDirectory = '',
     [ValidateRange(1,64)][int]$Jobs = 4
@@ -27,5 +28,6 @@ if ($Interactive) { $arguments += '-Interactive' }
 if ($ForceVerification) { $arguments += '-ForceVerification' }
 if ($Plan) { $arguments += '-Plan' }
 if ($OutputDirectory) { $arguments += @('-OutputDirectory',$OutputDirectory) }
+if ($AnimationSettingsCandidate) { $arguments += @('-AnimationSettingsCandidate',$AnimationSettingsCandidate) }
 & pwsh @arguments
 exit $LASTEXITCODE

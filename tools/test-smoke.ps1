@@ -13,7 +13,8 @@ param(
     [switch]$RunGame,
     [switch]$PrepareOnly,
     [switch]$Interactive,
-    [ValidateSet('Released','Deployed')][string]$Hosts = 'Released',
+    [ValidateSet('Released','Deployed','Isolated')][string]$Hosts = 'Released',
+    [string]$AnimationSettingsCandidate = '',
     [switch]$ForceVerification,
     [switch]$Plan,
     [string]$Harness = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'OSF Test Harness'),
@@ -23,6 +24,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 if ($RunGame -and $PrepareOnly) { throw '-RunGame and -PrepareOnly are mutually exclusive.' }
+if ($Hosts -eq 'Isolated' -and -not $AnimationSettingsCandidate) { throw '[blocked] Isolated hosts require -AnimationSettingsCandidate.' }
+if ($Hosts -ne 'Isolated' -and $AnimationSettingsCandidate) { throw '[blocked] AnimationSettingsCandidate requires Isolated hosts.' }
 if ($RunGame -and -not $Interactive -and -not $Plan) {
     throw '[blocked] The game suite requires explicit -Interactive for keyboard, mouse and focus control.'
 }
@@ -39,7 +42,7 @@ $unverified = @($coverage | ForEach-Object { "$($_.feature): $($_.gap)" })
 if (-not $RunGame) { $unverified = @('In-game assertions skipped. Use -RunGame with the local OSF Test Harness.') + $unverified }
 if ($Plan) {
     [ordered]@{ stages=$names; prepareOnly=[bool]$PrepareOnly; jobs=$Jobs; runGame=[bool]$RunGame; interactive=[bool]$Interactive; hosts=$Hosts; runtimeCases=$runtimeCases; coverage=$coverage;
-        unverified=$unverified; runtimeRunner=$suite } | ConvertTo-Json -Depth 12
+        animationSettingsCandidate=$AnimationSettingsCandidate; unverified=$unverified; runtimeRunner=$suite } | ConvertTo-Json -Depth 12
     exit 0
 }
 $directory = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else {
@@ -227,8 +230,10 @@ try {
             $report.runtime = Join-Path $directory 'runtime-result.json'
             $started = [DateTimeOffset]::UtcNow
             try {
-                Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$suite,'-Interactive','-AnimationProject',$repo,
-                    '-StagedModRoot',$runtimeMod,'-SourceHash',$identity.sha256,'-ResultPath',$report.runtime,'-Hosts',$Hosts) -Runtime
+                $runtimeArguments = @('-NoProfile','-File',$suite,'-Interactive','-AnimationProject',$repo,
+                    '-StagedModRoot',$runtimeMod,'-SourceHash',$identity.sha256,'-ResultPath',$report.runtime,'-Hosts',$Hosts)
+                if ($AnimationSettingsCandidate) { $runtimeArguments += @('-AnimationSettingsCandidate',$AnimationSettingsCandidate) }
+                Invoke-SmokeCommand 'pwsh' $runtimeArguments -Runtime
             } finally {
                 if (Test-Path -LiteralPath $report.runtime) {
                     $observed=Get-Content -LiteralPath $report.runtime -Raw | ConvertFrom-Json

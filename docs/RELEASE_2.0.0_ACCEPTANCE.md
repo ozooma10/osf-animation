@@ -6,6 +6,140 @@ as recorded below. The scope/layer documents are tracked design records;
 multi-layer runtime implementation (D) remains deferred. The last published release is 1.4.0;
 the 1.5 development baseline was superseded before publication.
 
+## Full release gate, 2026-11-12
+
+`build/smoke/v2-release-live-20261112-02/result.json` reports
+`automated-passed-acceptance-gaps-open`, `completeAutomatedSuite=true` and
+`automatedPassed=true`. All 69 live assertions, 16 native suites, 169 Browser tests,
+58 Papyrus native signatures, both archive checks and the repeated installer matrix passed.
+The game evidence is retained in the sibling Test Harness at
+`artifacts/20261112-150835-967-AnimationSmoke`.
+
+The run used `-Hosts Isolated`: released UI v2.0.0 plus the private Settings host from
+`OSF Intimacy/build/smoke/desktop-ready-20261020/candidate`. Released Settings v1.0.0
+does not honor the private values-directory override. This host choice protects normal
+saved values, but does **not** qualify the exact released Settings DLL. The foundation
+scenario uses separate instrumented Animation DLLs; consumer checks use production DLLs.
+The report binds source revision `dda9722` plus its recorded dirty-source fingerprint.
+This documentation entry was added after that run; it does not rewrite its receipt.
+
+| Verified production artifact | SHA-256 |
+| --- | --- |
+| Animation DLL | `3928A8686085A1DD50E36EAB05CD860B88142F81CD1F9B5D04D3325EB3C4F836` |
+| Animation 2.0.0 ZIP | `9A3908E6D3D88CD4F6C88596ECD29C5632679004CD15EA3393E934B6C224DD83` |
+| Browser 2.0.0 ZIP | `7D602A2581785FDA4A24D31E206450B5E820BA4A93EF312AF5A0355DB1CB4236` |
+
+The release entrypoint now forwards an explicit isolated Settings candidate to the smoke
+runner. Foundation staging disables other OSF native consumer modules in its copied
+profile so its module-identity check measures the intended combination. The corresponding
+103 smoke-bench contract checks and 47 harness coordinator checks passed. The first
+attempt, `v2-release-live-20261112-01`, was interrupted before game launch to correct
+Settings isolation; its partial evidence is retained and is not a pass.
+
+## AISS, Seduce and Autonomous compatibility, 2026-11-12
+
+This focused follow-up supersedes the Seduce/Intimacy blockers and AISS version-specific
+findings in the November 11 audit below. It does not resolve other consumers' findings.
+The installed Animation DLL still matches the production payload from
+`build/smoke/v2-compat14-offline-20261111-01`; no production engine changes were needed.
+
+| Consumer | Offline result and changes |
+| --- | --- |
+| AISS 4.01 | All 265 PEX files decoded; inspected OSF-family calls and SceneOptions members match installed contracts. All seven legacy scene files load through the production adapter: 121 nodes, no errors or warnings. All 250 distinct referenced clips were found in installed loose files or BA2 name tables. AISS was not modified. |
+| OSF Seduce | Migrated to schema-2 global nodes and `EncounterRequest.NodeId`, then recompiled all 11 scripts against current Intimacy. All 12 nodes load without errors; the three original entry IDs, authored clips, timing, cues and routes are preserved. Entry-only tags keep random starts out of interior nodes. Eight semantic bindings now address global nodes and pass the current Intimacy schema. |
+| OSF Intimacy | Rebuilt current source for scene ABI 2.0/services ABI 4.0 with fresh public PEX and production instrumentation disabled. Deployed the complete 21-file production payload together with matching Seduce scripts/content. The old installed DLL requested unsupported unpublished 1.5/3.5 interfaces. |
+| OSF Autonomous NPC Interactions 1.2 | Inspected calls and SceneOptions/SceneEvent members match installed contracts. Its legacy scene loads as one node with four sound cues and no errors; its clip is installed. Added a generated current Settings schema, preserving all 27 keys/defaults while converting groups and enum labels. Original scripts/assets and the retired-path schema are unchanged; old saved settings are not migrated. |
+
+Validation passed: Animation's 16 native suites and 58 Papyrus signature checks,
+Intimacy's eight native suites and four content/host suites, Seduce's 11-script compile,
+and content/schema checks. The Seduce conversion checker also retained all 106 native
+beats and 154 existing voice assets. Final installed hashes match the tested Intimacy
+production payload, all 11 Seduce PEX files, 187 Seduce content/source files and the
+generated Autonomous settings schema. This is a focused compatibility verification,
+not a new full release gate or live qualification.
+
+Evidence: `build/consumer-check-20261112` contains decoded consumers, production-parser
+reports, asset inventory and pre-deployment backups of Intimacy and Seduce. The final
+Intimacy candidate/receipt is in the sibling repository at
+`build/consumer-compat-20261112-final`. The reusable Autonomous conversion lives in
+the sibling `OSF Compatibility Packs/autonomous-settings` directory. The scene registry
+test executable now accepts `--inspect <root containing Data/OSF>` to report imported
+consumer definitions; it explicitly does not validate asset availability. Asset inventory
+across installed mods does not prove profile activation or successful clip decoding.
+
+The offline migration above launched no game or changed a profile. At that checkpoint
+MO2 selected `Default`, where AISS, Seduce and Autonomous were all disabled. The later
+live follow-up qualifies only the cases and combinations explicitly recorded below.
+The original in-game acceptance inventory was:
+
+- AISS: exercise pair/solo triggers, delayed and failed admission, fallback, timed advance,
+  stop and redressing. A reserved positive handle does not yet mean playback has begun.
+- Seduce/Intimacy: test dialogue and explicit/random entry, Bridge/DownDog navigation,
+  voices and callbacks, interruption, equipment/control restoration and save/load. Verify
+  configured actor anatomy/access and the existing Haters body-fit requirement; no actor
+  setup was silently changed. The old Stage debug helper selects internal segments, not
+  global nodes; use Intimacy navigation for node changes.
+- Autonomous: confirm the Settings page and setting changes, scene begin/cue/end/node-exit
+  handling, initial speed and cleanup. Exercise delayed admission against its IsPlaying
+  desynchronization audit, plus interruption and save/load.
+- Run these checks with required animation providers enabled, including a pre-upgrade save
+  to cover existing Papyrus state. Offline name/arity/member checks do not establish full
+  VM compatibility or saved-state migration.
+
+### Copied-profile live follow-up
+
+The final run, `build/consumer-check-20261112/live/runs/20261112-153845-455-Animation-Consumers`,
+finished `passed`, with no evidence warnings. All **54 consumer assertions** passed, plus
+idle/active save completion and cross-load controls/apparel comparisons. Its copied Default
+profile enabled the three consumers, their required animation assets, and the same isolated
+Settings host described above. The loaded production Animation hash matches the release
+artifact. Production Intimacy was
+`10C76CBD998385D9175662434A8504B409CD9BBF6031BA0795F15315F1A0C97C`.
+The current Intimacy candidate receipt is `OSF Intimacy/build/consumer-live-20261112-02`.
+
+| Path exercised in the actual installed/rebuilt scripts | Observed result |
+| --- | --- |
+| Unchanged AISS `AISSStartSceneById` helper | Solo and pair playback, legacy linear advance to the next global node, stop, invalid-ID refusal, controls and apparel restoration; 13 checks |
+| Rebuilt Seduce / production Intimacy | Bridge and DownDog start, original entry IDs, encounter ownership, Bridge navigation to `/build`, stop and restoration; 15 checks |
+| Unchanged Autonomous quest manager | Bound quest, current Settings writes, solo/pair start, speed 1 after BEGIN, active-scene audit and emergency cleanup; 12 checks |
+| Active Seduce plus world replacement | 8 active-start checks, completed quicksave with sidecar, that exact sidecar parsed with five blocks/five loads and no callback failures, 6 post-load checks, controls/apparel equal to the pre-scene baseline |
+
+These invoke the real consumer entrypoints; they do not drive AISS's AI conversation or
+Seduce's dialogue UI, or wait for Autonomous's natural scheduling/eligibility scan. Autonomous
+requires furniture by default, so its pair test explicitly disabled that requirement only in
+private Settings values for the empty fixture cell. Original consumer PEX hashes were checked;
+compile-only declarations were never staged over those scripts. The combined registry loaded
+136 nodes from ten files with zero problems.
+
+Save testing established two UI preconditions: dismiss AISS's startup text-entry prompt, and
+hide the Intimacy encounter panel before requesting a save. Idle quicksave stalled while the
+AISS prompt was open; active quicksave still stalled with the encounter panel open after that
+prompt was dismissed. Hiding the panel without ending the encounter allowed the active save
+and reload to complete. This is **not** a pass for saving while either UI remains open. Failed
+attempts and the interrupted evidence-writer run remain beside the passing run. No native
+Animation or Intimacy production fix was needed for the exercised paths.
+
+Test preparation now recognizes the installed male-skeleton folder alias and uses the preserved
+Seduce entry IDs instead of retired `/intro` names throughout affected Intimacy fixtures and
+expected callback sequences. All ten private smoke scripts, nine production fixtures, two
+public Intimacy scripts and eleven Seduce scripts compiled; changed PowerShell files parse.
+The rebuilt production Intimacy DLL is byte-identical to the deployed candidate.
+After cleanup, all 16 recorded Default-profile/Settings files matched their original hashes,
+no consumer test profile remained, and the owned game had exited.
+
+Before release, still perform hands-on acceptance on the intended shipping host combination:
+
+- Trigger AISS through actual conversation, Seduce through dialogue/random selection, and
+  Autonomous through its normal scheduler with furniture, location/privacy filters and NPCs.
+- Check delayed/failed admission, natural completion, combat/unload interruption, repeated use,
+  and an existing pre-upgrade save across a full game restart.
+- Inspect animation alignment, blends, multi-actor sync and body/gear fit; listen to voices,
+  spatial audio and subtitles. Exercise first-person/zoom restoration and focus loss.
+- Use Browser/Settings/encounter controls with keyboard and a physical controller, close/reopen
+  panels, and verify saving after Hide/Escape. Exact released Settings acceptance remains open.
+- Install/upgrade the final archives through MO2, checking settings, pins, alignment migration
+  and hotkey rebinding. Other consumers in the November 11 audit are outside this focused pass.
+
 ## Installed consumer audit, 2026-11-11
 
 Read-only inspection covered 141 DLLs, 524 PEX files (including private test duplicates),
@@ -81,6 +215,8 @@ A separate `npm audit` is retained in the first run's `npm-audit.json`: 15 affec
 (3 moderate, 5 high, 7 critical, including transitive ratings). Browser verification passing does
 not resolve these advisories. Dependency exposure/update review remains a release follow-up;
 no dependency upgrade or claim of shipped-runtime exploitability is made by this preparation.
+A November 12 recheck still reports the same 15 affected packages; its raw report is
+`build/consumer-check-20261112/npm-audit-current.json`. The live passes do not resolve it.
 
 ## Migration checkpoint checks
 
@@ -146,7 +282,7 @@ recorded binaries, not the later merged candidate, role-emitter change or Settin
 
 | Gate | Required evidence on the intended release combination |
 | --- | --- |
-| Foundation and consumers | Fresh 69-case Animation game suite; migrated Intimacy/Seduce launch, events, continuation, role swaps, manual/automatic progression and refusal/interruption paths. Recheck affected consumer cases after the Intimacy continuation fix. |
+| Foundation and consumers | November 12's 69-case Animation suite and 54 focused consumer checks passed on the combinations recorded above. Broader migrated Intimacy/Seduce continuation, role swaps, manual/automatic progression and refusal/interruption paths still need current-combination acceptance. |
 | Camera and input restoration | First-person and nonzero third-person zoom baselines through stop, completion, interruption, handoff and load. Exercise pause/manual combinations, focus loss and auto-vanity separately; retain any reproduction of the unexplained historical failure. |
 | Transition/pose quality | Visually inspect seamless and covered changes, the half-turn rotation fix, spine/mask seams, additive base capture, rig/3D rebuilds, multi-actor sync, furniture anchoring and representative creature rigs. |
 | Role-emitter audio | Listen to near/far and moving actors, compare listener/role emission, test actor unload and world replacement, cancellation/late decode, ordinary completion tails, mixing and subtitles. Earlier automated audio runs predate the role-emitter change. |

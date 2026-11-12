@@ -319,6 +319,13 @@ try {
         -not (Test-Path -LiteralPath $unapprovedOutput)) 'A game run without interactive permission reached build or staging.'
     $plan = & pwsh -NoProfile -File $releaseEntry -Offline -Plan -Hosts Deployed | ConvertFrom-Json
     Check ($LASTEXITCODE -eq 0 -and -not $plan.runGame -and $plan.hosts -eq 'Deployed') 'Offline scope/host selection was not forwarded.'
+    $privateCandidate = Join-Path $scratch 'settings candidate'
+    $plan = & pwsh -NoProfile -File $releaseEntry -Plan -Hosts Isolated -AnimationSettingsCandidate $privateCandidate | ConvertFrom-Json
+    Check ($LASTEXITCODE -eq 0 -and $plan.hosts -eq 'Isolated' -and $plan.animationSettingsCandidate -eq $privateCandidate) 'Isolated host candidate was not forwarded.'
+    $null = & pwsh -NoProfile -File $releaseEntry -Plan -Hosts Isolated 2>&1
+    Check ($LASTEXITCODE -ne 0) 'Isolated hosts accepted a missing candidate.'
+    $null = & pwsh -NoProfile -File $releaseEntry -Plan -Hosts Released -AnimationSettingsCandidate $privateCandidate 2>&1
+    Check ($LASTEXITCODE -ne 0) 'Released hosts accepted a private candidate.'
     $plan = & pwsh -NoProfile -File $releaseEntry -PrepareOnly -Jobs 1 -Plan | ConvertFrom-Json
     Check ($LASTEXITCODE -eq 0 -and $plan.prepareOnly -and -not $plan.runGame -and -not $plan.interactive -and $plan.jobs -eq 1) 'Preparation inferred live or interactive permission.'
     $conflictOutput = Join-Path $scratch 'conflicting-modes'

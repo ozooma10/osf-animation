@@ -3,7 +3,9 @@
 The 2.0 candidate includes a bounded adapter for the **published v1.4.0** contract.
 It translates at import/API boundaries and uses the current preparation, playback,
 ownership and cleanup runtime. It does not run a second copy of the old engine.
-Offline verification does not yet qualify existing compiled mods in the game VM.
+Focused November 12 game checks passed with unchanged AISS 4.01 and Autonomous 1.2
+scripts and their legacy content; see [the recorded scope and limits](RELEASE_2.0.0_ACCEPTANCE.md#copied-profile-live-follow-up).
+This does not qualify every compiled consumer or migration of existing saved VM state.
 
 ## Supported boundaries
 

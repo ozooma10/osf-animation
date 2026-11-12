@@ -9,6 +9,8 @@ pwsh -NoProfile -File tools/test-release.ps1 -Interactive
 pwsh -NoProfile -File tools/test-release.ps1 -Offline -Jobs 1
 # Use currently deployed host DLLs instead of the pinned releases:
 pwsh -NoProfile -File tools/test-release.ps1 -Interactive -Hosts Deployed
+# Isolate Settings values with a hash-verified private Settings test host:
+pwsh -NoProfile -File tools/test-release.ps1 -Interactive -Hosts Isolated -AnimationSettingsCandidate <candidate-root>
 ```
 
 The release command includes the game by default and requires explicit `-Interactive`
@@ -59,6 +61,10 @@ tests and in-game acceptance. It is an on-demand bench, not a scheduled job.
   `OSF UI` mods into the private test mods and records their DLL hashes. This tests
   your latest deployed host changes without changing the vendored released SDKs.
   It does not build the sibling projects or silently substitute their source trees.
+  Released Settings 1.0.0 ignores the private values-directory configuration. Use
+  `-Hosts Isolated -AnimationSettingsCandidate <candidate-root>` when ordinary settings
+  must remain untouched. This uses the pinned released UI with a verified Settings
+  test host; results qualify that combination, not the published Settings DLL.
 
 No ordinary development mod is overwritten by the bench. The production build
 installs under this run's evidence directory. The runtime DLL is built in

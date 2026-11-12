@@ -15,6 +15,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 using OSF::Test::Check;
 using OSF::Test::Finish;
@@ -294,8 +295,39 @@ namespace
 
 }
 
-int main()
+int main(int argc, char** argv)
 {
+	// Inspect copied consumer JSON with the production parser, without loading the game.
+	// ResourceExists remains synthetic: this mode validates definitions, not installed assets.
+	if (argc == 3 && std::string_view(argv[1]) == "--inspect") {
+		spdlog::set_level(spdlog::level::off);
+		std::filesystem::current_path(argv[2]);
+		auto& registry = OSF::Registry::ContentRegistry::GetSingleton();
+		registry.LoadAll();
+		const auto snapshot = registry.ReadSnapshot();
+		nlohmann::json report = { { "assetAvailabilityVerified", false }, { "nodes", snapshot->nodes.size() },
+			{ "problems", registry.LoadErrors() }, { "files", nlohmann::json::array() },
+			{ "entries", nlohmann::json::object() } };
+		for (const auto& [id, node] : snapshot->nodes) {
+			nlohmann::json clips = nlohmann::json::array();
+			for (const auto& stage : node.stages)
+				for (const auto& clip : stage.clips) clips.push_back(clip.file);
+			report["entries"][id] = { { "tags", node.tags }, { "roles", node.roles.size() },
+				{ "unlisted", node.unlisted }, { "clips", clips } };
+		}
+		std::uint32_t errors = 0;
+		for (const auto& file : snapshot->files) {
+			errors += file.errors;
+			report["files"].push_back({ { "path", file.path }, { "nodes", file.nodes },
+				{ "errors", file.errors }, { "warnings", file.warnings }, { "sounds", file.sounds } });
+		}
+		std::cout << report.dump(2) << '\n';
+		return errors ? 1 : 0;
+	}
+	if (argc != 1) {
+		std::cerr << "Usage: osf-scene-registry-test [--inspect <root containing Data/OSF>]\n";
+		return 2;
+	}
 	CheckClipAvailability();
 	CheckCatalogBuilder();
 	CheckPlaybackAdmission();
